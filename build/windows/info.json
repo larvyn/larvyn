@@ -3,13 +3,13 @@
 		"file_version": "0.1.0"
 	},
 	"info": {
-		"0409": {
+		"0000": {
 			"ProductVersion": "0.1.0",
 			"CompanyName": "Netzisoft",
-			"FileDescription": "A larvyn application",
+			"FileDescription": "Larvyn, the Laravel workbench",
 			"LegalCopyright": "© 2026, Netzisoft",
-			"ProductName": "My Product",
-			"Comments": "This is a comment"
+			"ProductName": "Larvyn",
+			"Comments": "Projects, services, terminals, data and AI agents for Laravel"
 		}
 	}
 }
