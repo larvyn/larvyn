@@ -27,3 +27,5 @@ func shellCommand(command string) []string {
 func killTree(pid int) {
 	_ = exec.Command("pkill", "-TERM", "-P", itoa(pid)).Run()
 }
+
+func unwrapShim(path string) string { return path }

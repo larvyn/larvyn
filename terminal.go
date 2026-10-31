@@ -45,6 +45,7 @@ type SessionInfo struct {
 	Command      string            `json:"command"`
 	Running      bool              `json:"running"`
 	ExitCode     int               `json:"exitCode"`
+	Stopped      bool              `json:"stopped"`
 	StartedAt    int64             `json:"startedAt"`
 	EndedAt      int64             `json:"endedAt"`
 	LastActivity int64             `json:"lastActivity"`
@@ -59,8 +60,9 @@ type TermData struct {
 }
 
 type TermExit struct {
-	ID   string `json:"id"`
-	Code int    `json:"code"`
+	ID      string `json:"id"`
+	Code    int    `json:"code"`
+	Stopped bool   `json:"stopped"`
 }
 
 type Snapshot struct {
@@ -75,6 +77,8 @@ type session struct {
 	cmd  *pty.Cmd
 	buf  []byte
 	seq  uint64
+	// interruptAt is when Ctrl+C was last typed; an exit right after it is a stop, not a crash.
+	interruptAt time.Time
 }
 
 type TerminalService struct {
@@ -125,7 +129,7 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 	// go-pty looks a bare program name up relative to the working directory,
 	// so resolve it against PATH first.
 	if p, err := exec.LookPath(argv[0]); err == nil {
-		argv = append([]string{p}, argv[1:]...)
+		argv = append([]string{unwrapShim(p)}, argv[1:]...)
 	}
 	if spec.Cwd == "" {
 		if p, ok := store.Project(spec.ProjectID); ok {
@@ -241,9 +245,12 @@ func (t *TerminalService) pump(s *session) {
 	s.info.Running = false
 	s.info.ExitCode = code
 	s.info.EndedAt = time.Now().UnixMilli()
-	id := s.info.ID
+	if !s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second {
+		s.info.Stopped = true
+	}
+	id, stopped := s.info.ID, s.info.Stopped
 	s.mu.Unlock()
-	emit("term:exit", TermExit{ID: id, Code: code})
+	emit("term:exit", TermExit{ID: id, Code: code, Stopped: stopped})
 	t.broadcast()
 }
 
@@ -286,6 +293,9 @@ func (t *TerminalService) Write(id, data string) error {
 	// xterm answers terminal queries on its own, even after the program ended.
 	s.mu.Lock()
 	running := s.info.Running
+	if running && strings.ContainsRune(data, 3) {
+		s.interruptAt = time.Now()
+	}
 	s.mu.Unlock()
 	if !running {
 		return nil
@@ -362,6 +372,10 @@ func (t *TerminalService) Kill(id string) error {
 	}
 	s.mu.Lock()
 	running := s.info.Running
+	if running {
+		// A program we kill exits non-zero; Stopped tells it apart from a crash.
+		s.info.Stopped = true
+	}
 	s.mu.Unlock()
 	if running && s.cmd.Process != nil {
 		killTree(s.cmd.Process.Pid)

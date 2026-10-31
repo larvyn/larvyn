@@ -182,12 +182,12 @@ function SessionRow({ s, now, active, onOpen }: { s: SessionInfo; now: number; a
           {s.title}
         </div>
         <div className="faint ellipsis mono" style={{ fontSize: 10.5 }}>
-          {s.running ? duration(now - s.startedAt) : `exited ${s.exitCode}`}
+          {s.running ? duration(now - s.startedAt) : s.stopped ? 'stopped' : `exited ${s.exitCode}`}
           {s.meta?.branch ? ` · ${s.meta.branch}` : ''}
         </div>
       </div>
       {s.bell && <span className="status-dot idle" />}
-      <span className={cx('status-dot', s.running && 'on', !s.running && s.exitCode !== 0 && 'err')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
+      <span className={cx('status-dot', s.running && 'on', !s.running && !s.stopped && s.exitCode !== 0 && 'err')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
     </button>
   )
 }

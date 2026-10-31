@@ -252,6 +252,7 @@ export interface SessionInfo {
     "command": string;
     "running": boolean;
     "exitCode": number;
+    "stopped": boolean;
     "startedAt": number;
     "endedAt": number;
     "lastActivity": number;
@@ -313,6 +314,11 @@ export interface StackItem {
     "reason": string;
     "url": string;
     "session": SessionInfo | null;
+
+    /**
+     * Dev is set for the processes `php artisan dev` would start (from dev:list).
+     */
+    "dev": boolean;
 }
 
 export interface TermData {
@@ -324,6 +330,7 @@ export interface TermData {
 export interface TermExit {
     "id": string;
     "code": number;
+    "stopped": boolean;
 }
 
 /**

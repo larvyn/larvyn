@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -18,6 +19,79 @@ type StackItem struct {
 	Reason      string       `json:"reason"`
 	URL         string       `json:"url"`
 	Session     *SessionInfo `json:"session"`
+	// Dev is set for the processes `php artisan dev` would start (from dev:list).
+	Dev bool `json:"dev"`
+}
+
+// devStackItems turns the app's dev:list into stack items. The well-known
+// ones keep Larvyn's keys and labels (and serve keeps the project's own port,
+// so several projects can run side by side); the rest use their dev:list name.
+func devStackItems(procs []DevProcess, serve, vite StackItem) []StackItem {
+	items := []StackItem{}
+	for _, d := range procs {
+		args, plain := splitCommand(d.Command)
+		argv := shellCommand(d.Command)
+		if plain {
+			argv = args
+			if argv[0] == "php" {
+				argv[0] = store.PHP()
+			}
+		}
+		it := StackItem{Key: d.Name, Label: titleCase(d.Name), Description: d.Command, Argv: argv, Available: true, Dev: true}
+		artisanCmd := ""
+		if plain && len(args) > 2 && args[0] == "php" && args[1] == "artisan" {
+			artisanCmd = args[2]
+		}
+		switch {
+		case artisanCmd == "serve":
+			it = serve
+			it.Argv = append(append([]string{}, serve.Argv...), withoutHostPort(args[3:])...)
+			it.Dev = true
+		case d.Name == "vite" || (plain && isNodeCommand(args) && len(args) == 3 && args[2] == "dev"):
+			it.Key, it.Label, it.Description, it.URL = "vite", vite.Label, d.Command+", hot module reload", ""
+		case artisanCmd == "horizon":
+			it.Key, it.Label = "queue", "Horizon"
+		case artisanCmd == "queue:listen" || artisanCmd == "queue:work":
+			it.Key, it.Label = "queue", "Queue worker"
+		case artisanCmd == "pail":
+			it.Key, it.Label = "pail", "Pail"
+		case artisanCmd == "schedule:work":
+			it.Key, it.Label = "schedule", "Scheduler"
+		case artisanCmd == "reverb:start":
+			it.Key, it.Label = "reverb", "Reverb"
+		}
+		items = append(items, it)
+	}
+	return items
+}
+
+func withoutHostPort(args []string) []string {
+	var out []string
+	for _, a := range args {
+		if !strings.HasPrefix(a, "--host") && !strings.HasPrefix(a, "--port") {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func isNodeCommand(argv []string) bool {
+	if len(argv) == 0 {
+		return false
+	}
+	name := strings.ToLower(strings.TrimSuffix(filepath.Base(argv[0]), filepath.Ext(argv[0])))
+	switch name {
+	case "npm", "pnpm", "yarn", "bun", "npx", "bunx":
+		return true
+	}
+	return false
+}
+
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 type StackService struct{}
@@ -47,32 +121,50 @@ func stackItems(p Project) []StackItem {
 	}
 	pm := packageManager(p.Path)
 	_, hasDev := info.NpmScripts["dev"]
-	items := []StackItem{
-		{Key: "serve", Label: "HTTP server", Description: fmt.Sprintf("php artisan serve on :%d", port),
-			Argv:      []string{store.PHP(), "artisan", "serve", "--host=127.0.0.1", fmt.Sprintf("--port=%d", port)},
-			Available: info.IsLaravel, URL: fmt.Sprintf("http://127.0.0.1:%d", port)},
-		{Key: "vite", Label: "Vite", Description: pm + " run dev, hot module reload",
-			Argv: []string{pm, "run", "dev"}, Available: hasDev},
+	serve := StackItem{Key: "serve", Label: "HTTP server", Description: fmt.Sprintf("php artisan serve on :%d", port),
+		Argv:      []string{store.PHP(), "artisan", "serve", "--host=127.0.0.1", fmt.Sprintf("--port=%d", port)},
+		Available: info.IsLaravel, URL: fmt.Sprintf("http://127.0.0.1:%d", port)}
+	vite := StackItem{Key: "vite", Label: "Vite", Description: pm + " run dev, hot module reload",
+		Argv: []string{pm, "run", "dev"}, Available: hasDev}
+
+	var items []StackItem
+	if info.IsLaravel && info.HasVendor {
+		if procs, ok := devProcesses(p); ok {
+			items = devStackItems(procs, serve, vite)
+		}
+	}
+	if items == nil {
+		items = []StackItem{serve, vite}
+	}
+	present := map[string]bool{}
+	for _, it := range items {
+		present[it.Key] = true
+	}
+	add := func(it StackItem) {
+		if !present[it.Key] {
+			items = append(items, it)
+			present[it.Key] = true
+		}
 	}
 	if has("laravel/horizon") {
-		items = append(items, StackItem{Key: "queue", Label: "Horizon", Description: "Redis queues with a dashboard",
+		add(StackItem{Key: "queue", Label: "Horizon", Description: "Redis queues with a dashboard",
 			Argv: []string{store.PHP(), "artisan", "horizon"}, Available: true, URL: fmt.Sprintf("http://127.0.0.1:%d/horizon", port)})
 	} else {
-		items = append(items, StackItem{Key: "queue", Label: "Queue worker", Description: "queue:listen, reloads on code change",
+		add(StackItem{Key: "queue", Label: "Queue worker", Description: "queue:listen, reloads on code change",
 			Argv: []string{store.PHP(), "artisan", "queue:listen", "--tries=1"}, Available: info.IsLaravel})
 	}
-	items = append(items, StackItem{Key: "schedule", Label: "Scheduler", Description: "schedule:work, runs due tasks every minute",
+	add(StackItem{Key: "schedule", Label: "Scheduler", Description: "schedule:work, runs due tasks every minute",
 		Argv: []string{store.PHP(), "artisan", "schedule:work"}, Available: info.IsLaravel})
 	if has("laravel/pail") {
-		items = append(items, StackItem{Key: "pail", Label: "Pail", Description: "live log tail",
+		add(StackItem{Key: "pail", Label: "Pail", Description: "live log tail",
 			Argv: []string{store.PHP(), "artisan", "pail", "--timeout=0"}, Available: true})
 	}
 	if has("laravel/reverb") {
-		items = append(items, StackItem{Key: "reverb", Label: "Reverb", Description: "WebSocket server",
+		add(StackItem{Key: "reverb", Label: "Reverb", Description: "WebSocket server",
 			Argv: []string{store.PHP(), "artisan", "reverb:start", "--debug"}, Available: true})
 	}
 	if has("laravel/octane") {
-		items = append(items, StackItem{Key: "octane", Label: "Octane", Description: "high-performance server with --watch",
+		add(StackItem{Key: "octane", Label: "Octane", Description: "high-performance server with --watch",
 			Argv: []string{store.PHP(), "artisan", "octane:start", "--watch", fmt.Sprintf("--port=%d", port+100)}, Available: true,
 			URL: fmt.Sprintf("http://127.0.0.1:%d", port+100)})
 	}
@@ -84,9 +176,13 @@ func stackItems(p Project) []StackItem {
 			}
 		}
 	}
-	if hasDev && !info.HasNodeModules {
-		items[1].Available = false
-		items[1].Reason = "run " + pm + " install first"
+	if !info.HasNodeModules {
+		for i := range items {
+			if isNodeCommand(items[i].Argv) {
+				items[i].Available = false
+				items[i].Reason = "run " + pm + " install first"
+			}
+		}
 	}
 	for i := range items {
 		items[i].Session = terminals.find(p.ID, "service", items[i].Key)
@@ -150,10 +246,22 @@ func (s *StackService) Restart(projectID, key string) (SessionInfo, error) {
 	return s.Start(projectID, key)
 }
 
-// StartAll starts the usual dev set: server, vite, queue.
+// StartAll starts the given services, or by default what `php artisan dev`
+// would run (server, vite and queue on apps without dev:list).
 func (s *StackService) StartAll(projectID string, keys []string) error {
 	if len(keys) == 0 {
-		keys = []string{"serve", "vite", "queue"}
+		p, ok := store.Project(projectID)
+		if !ok {
+			return errors.New("project not found")
+		}
+		for _, it := range stackItems(p) {
+			if it.Dev {
+				keys = append(keys, it.Key)
+			}
+		}
+		if len(keys) == 0 {
+			keys = []string{"serve", "vite", "queue"}
+		}
 	}
 	var errs []error
 	for _, k := range keys {

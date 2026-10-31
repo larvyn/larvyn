@@ -137,7 +137,8 @@ export function Overview() {
     : []
   const problems = checks.filter((c) => c.ok === false).length
   const running = stack.filter((s) => s.session?.running)
-  const siteUrl = info.herdUrl || running.find((s) => s.key === 'serve')?.url || info.appUrl
+  // While php artisan serve runs, open it: requests then show up in its output. Otherwise Herd's site.
+  const siteUrl = running.find((s) => s.key === 'serve')?.url || info.herdUrl || info.appUrl
 
   const go = (v: View) => () => setView(v)
   const counts = info.counts ?? {}
@@ -238,7 +239,7 @@ export function Overview() {
                 const on = !!s.session?.running
                 return (
                   <div key={s.key} className="check-row">
-                    <span className={cx('status-dot', on && 'on', s.session && !on && s.session.exitCode !== 0 && 'err')} />
+                    <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />
                     <div className="t">
                       <b>{s.label}</b>
                       <span className="mono">{s.reason ? s.reason : s.description}</span>

@@ -31,7 +31,8 @@ export function Start(projectID: string, key: string): $CancellablePromise<$mode
 }
 
 /**
- * StartAll starts the usual dev set: server, vite, queue.
+ * StartAll starts the given services, or by default what `php artisan dev`
+ * would run (server, vite and queue on apps without dev:list).
  */
 export function StartAll(projectID: string, keys: string[] | null): $CancellablePromise<void> {
     return $Call.ByID(2202985930, projectID, keys);

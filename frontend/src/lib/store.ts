@@ -133,7 +133,7 @@ export async function boot() {
     }))
   })
   Events.On('sessions:changed', (ev: any) => onSessions((ev.data ?? []) as SessionInfo[]))
-  Events.On('term:exit', (ev: any) => onExit(ev.data.id, ev.data.code))
+  Events.On('term:exit', (ev: any) => onExit(ev.data.id, ev.data.code, !!ev.data.stopped))
 }
 
 function onSessions(list: SessionInfo[]) {
@@ -148,7 +148,7 @@ function onSessions(list: SessionInfo[]) {
   })
 }
 
-function onExit(id: string, code: number) {
+function onExit(id: string, code: number, stopped = false) {
   const sess = get().sessions.find((s) => s.id === id)
   if (!sess) return
   if (sess.meta?.target && sess.key === 'create') {
@@ -167,7 +167,7 @@ function onExit(id: string, code: number) {
     else toast('error', `Failed (exit ${code})`, sess.title)
     if (sess.projectId === get().activeId) refreshInfo(sess.projectId)
   }
-  if (sess.kind === 'service' && code !== 0 && code !== 1 && code !== -1) {
+  if (sess.kind === 'service' && !stopped && code !== 0 && code !== 1 && code !== -1) {
     toast('error', `${sess.title} stopped`, `exit code ${code}`)
   }
 }

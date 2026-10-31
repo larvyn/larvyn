@@ -244,7 +244,7 @@ export function Sidebar() {
                 <Square />
               </button>
             ) : (
-              <button className="icon-btn sm" title="Start server, Vite and queue" onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}>
+              <button className="icon-btn sm" title="Start the dev stack (what php artisan dev runs)" onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}>
                 <Play />
               </button>
             )}
@@ -253,7 +253,7 @@ export function Sidebar() {
             const on = !!s.session?.running
             return (
               <div key={s.key} className={cx('svc', on && 'on')} title={s.reason || s.description}>
-                <span className={cx('status-dot', on && 'on', s.session && !on && s.session.exitCode !== 0 && 'err')} />
+                <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />
                 <span className="label" onClick={() => s.session && showConsole(true, s.session.id)}>
                   {s.label}
                 </span>
@@ -360,7 +360,7 @@ export function Drawer() {
         {runs.length === 0 && <span className="faint" style={{ fontSize: 12 }}>Commands you run from Artisan, the palette or the doctor show up here.</span>}
         {runs.map((r) => (
           <button key={r.id} className={cx('dtab', active?.id === r.id && 'active')} onClick={() => showConsole(true, r.id)}>
-            <span className={cx('status-dot', r.running ? (r.kind === 'service' ? 'on' : 'busy') : r.exitCode === 0 ? '' : 'err')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
+            <span className={cx('status-dot', r.running ? (r.kind === 'service' ? 'on' : 'busy') : r.exitCode === 0 || r.stopped ? '' : 'err')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
             <span className="ellipsis">{r.title}</span>
             {r.kind === 'run' && (
               <span
