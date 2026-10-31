@@ -116,7 +116,7 @@ export function Rail() {
           <button
             key={p.id}
             className={cx('rail-item', p.id === activeId && 'active')}
-            style={{ background: `linear-gradient(135deg, ${p.color}, color-mix(in srgb, ${p.color} 55%, #000))` }}
+            style={{ background: p.color }}
             title={`${p.name}\n${p.path}`}
             onClick={() => selectProject(p.id)}
           >
