@@ -18,13 +18,11 @@ export function Tests() {
   const running = sessions.find((s) => s.projectId === id && s.kind === 'run' && s.key === 'tests' && s.running)
 
   const load = () => id && LaravelService.TestResults(id).then(setReport).catch(fail('Could not read test results'))
+  // One effect, so opening the view reads the report once; it also re-reads
+  // when the project changes or a run starts or finishes.
   useEffect(() => {
     load()
-  }, [id])
-  // Re-read the report when a run finishes.
-  useEffect(() => {
-    if (!running) load()
-  }, [!!running])
+  }, [id, !!running])
 
   const run = (f = '') =>
     LaravelService.RunTests(id!, f, parallel)
@@ -115,14 +113,16 @@ export function Tests() {
         {!report?.exists ? (
           <Empty
             icon={<FlaskConical />}
-            title="Run your test suite"
+            title={report?.incomplete && !running ? 'The last run did not finish' : 'Run your test suite'}
             action={
               <button className="btn primary" disabled={!!running} onClick={() => run()}>
                 <Play /> Run all tests
               </button>
             }
           >
-            Larvyn runs php artisan test and shows every test with its result, the failure and the line it failed on. Re-run one test, or hand a failure to an agent.
+            {report?.incomplete && !running
+              ? 'No test report was written, so the run probably stopped early or failed to boot. Check its output in the console, then run the tests again.'
+              : 'Larvyn runs php artisan test and shows every test with its result, the failure and the line it failed on. Re-run one test, or hand a failure to an agent.'}
           </Empty>
         ) : (
           groups.map(([cls, list]) => {

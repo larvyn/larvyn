@@ -24,14 +24,17 @@ type TestCase struct {
 
 // TestReport is the result of the last test run.
 type TestReport struct {
-	Exists   bool       `json:"exists"`
-	Modified int64      `json:"modified"`
-	Tests    int        `json:"tests"`
-	Passed   int        `json:"passed"`
-	Failed   int        `json:"failed"`
-	Skipped  int        `json:"skipped"`
-	Time     float64    `json:"time"`
-	Cases    []TestCase `json:"cases"`
+	Exists bool `json:"exists"`
+	// Incomplete is set when the last run left an empty or cut-off report,
+	// usually because it stopped before PHPUnit/Pest wrote it.
+	Incomplete bool       `json:"incomplete"`
+	Modified   int64      `json:"modified"`
+	Tests      int        `json:"tests"`
+	Passed     int        `json:"passed"`
+	Failed     int        `json:"failed"`
+	Skipped    int        `json:"skipped"`
+	Time       float64    `json:"time"`
+	Cases      []TestCase `json:"cases"`
 }
 
 type junitSuite struct {
@@ -99,7 +102,10 @@ func (l *LaravelService) TestResults(projectID string) (TestReport, error) {
 		junitSuite
 	}
 	if err := xml.Unmarshal(b, &root); err != nil {
-		return r, err
+		// Empty or truncated: the run was interrupted or crashed on boot.
+		// Not an error to toast; the view explains it and offers a re-run.
+		r.Incomplete = true
+		return r, nil
 	}
 	r.Exists = true
 	r.Modified = fi.ModTime().UnixMilli()
