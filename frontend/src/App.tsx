@@ -5,6 +5,8 @@ import { Drawer, NAV_ITEMS, Rail, Sidebar, StatusBar, TitleBar } from './compone
 import { Palette } from './components/Palette'
 import { ConfirmHost, PromptHost, Toasts } from './components/ui'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { UpdateNotice } from './components/UpdateNotice'
+import { startUpdateChecks } from './lib/update'
 import { Overview } from './views/Overview'
 import { Agents } from './views/Agents'
 import { Terminals } from './views/Terminals'
@@ -45,6 +47,7 @@ export default function App() {
   const view = useStore((s) => s.view)
   const activeId = useStore((s) => s.activeId)
   useLogWatcher()
+  useEffect(() => (ready ? startUpdateChecks() : undefined), [ready])
 
   useEffect(() => {
     boot().catch((e) => SystemService.Log('error', 'boot failed: ' + (e?.stack ?? e?.message ?? e)))
@@ -118,6 +121,7 @@ export default function App() {
       <ConfirmHost />
       <PromptHost />
       <Toasts />
+      <UpdateNotice />
     </div>
   )
 }

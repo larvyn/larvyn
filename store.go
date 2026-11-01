@@ -30,6 +30,8 @@ type Settings struct {
 	TerminalFontSize int    `json:"terminalFontSize"`
 	Accent           string `json:"accent"`
 	ConfirmDangerous bool   `json:"confirmDangerous"`
+	// NoUpdateCheck turns off the check for new releases at start.
+	NoUpdateCheck bool `json:"noUpdateCheck"`
 }
 
 type state struct {
