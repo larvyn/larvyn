@@ -18,10 +18,12 @@ func startShellEnvImport() {
 	}()
 }
 
-// waitShellEnv blocks until the shell PATH is in place, at most a few seconds.
+// waitShellEnv blocks until the shell PATH is in place. It waits a little
+// longer than the import itself may take, so a slow shell never makes a
+// lookup like which("laravel") run against the bare desktop PATH.
 func waitShellEnv() {
 	select {
 	case <-shellEnvReady:
-	case <-time.After(6 * time.Second):
+	case <-time.After(12 * time.Second):
 	}
 }
