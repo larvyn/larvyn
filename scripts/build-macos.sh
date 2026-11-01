@@ -24,7 +24,14 @@ export CGO_LDFLAGS="${CGO_LDFLAGS:--mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGE
 export CC="${CC:-/usr/bin/clang}"
 export SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
 
-if [[ ! -f frontend/dist/index.html || "${REBUILD_FRONTEND:-}" == 1 ]]; then
+# Rebuild the frontend when dist is missing or older than any of its sources.
+stale_frontend() {
+  [[ ! -f frontend/dist/index.html || "${REBUILD_FRONTEND:-}" == 1 ]] && return 0
+  [[ -n "$(find frontend/src frontend/bindings frontend/public frontend/index.html frontend/package.json \
+    frontend/vite.config.* -newer frontend/dist/index.html -print -quit 2>/dev/null)" ]]
+}
+
+if stale_frontend; then
   (cd frontend && { [[ -d node_modules ]] || npm ci; } && npm run build)
 fi
 
