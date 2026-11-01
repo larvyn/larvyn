@@ -84,6 +84,40 @@ export interface EnvFile {
 }
 
 /**
+ * FileContent is a file opened in the editor. Binary and TooLarge files come
+ * without Content.
+ */
+export interface FileContent {
+    "path": string;
+    "abs": string;
+    "content": string;
+
+    /**
+     * Version identifies what is on disk (modification time and size). It is
+     * sent back on save to detect outside changes. A string, because unix
+     * nanoseconds do not fit a JavaScript number exactly.
+     */
+    "version": string;
+    "size": number;
+    "binary": boolean;
+    "tooLarge": boolean;
+}
+
+/**
+ * FileEntry is one item of a folder listing.
+ */
+export interface FileEntry {
+    "name": string;
+
+    /**
+     * relative to the project, with forward slashes
+     */
+    "path": string;
+    "dir": boolean;
+    "size": number;
+}
+
+/**
  * GitFile is one changed path.
  */
 export interface GitFile {
@@ -134,6 +168,11 @@ export interface LaunchOptions {
      * LARVYN_PALETTE opens the command palette with this text typed ("1" for empty).
      */
     "palette": string;
+
+    /**
+     * LARVYN_FILE opens this project-relative file in the Files editor.
+     */
+    "file": string;
 }
 
 /**

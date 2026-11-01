@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { SystemService } from '../bindings/larvyn'
 import { boot, newTerminal, openPalette, selectProject, setView, showConsole, useStore } from './lib/store'
 import { Drawer, NAV_ITEMS, Rail, Sidebar, StatusBar, TitleBar } from './components/Shell'
@@ -23,6 +23,15 @@ import { Env } from './views/Env'
 import { Deps } from './views/Deps'
 import { Settings } from './views/Settings'
 import { NewProject, Welcome } from './views/Welcome'
+import { Loading } from './components/ui'
+
+// The editor pulls in CodeMirror: load it only when Files is opened.
+const LazyFiles = lazy(() => import('./views/Files').then((m) => ({ default: m.Files })))
+const Files = () => (
+  <Suspense fallback={<Loading />}>
+    <LazyFiles />
+  </Suspense>
+)
 
 const VIEWS = {
   overview: Overview,
@@ -38,6 +47,7 @@ const VIEWS = {
   logs: Logs,
   git: Git,
   env: Env,
+  files: Files,
   deps: Deps,
   settings: Settings,
 }

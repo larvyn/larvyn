@@ -30,6 +30,7 @@ func main() {
 			application.NewService(&GitService{}),
 			application.NewService(&AgentService{}),
 			application.NewService(&SystemService{}),
+			application.NewService(&FileService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
