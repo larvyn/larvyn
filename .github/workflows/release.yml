@@ -86,7 +86,7 @@ jobs:
     needs: [linux-windows, macos]
     runs-on: ubuntu-24.04
     env:
-      RELEASES_REPO: ivanmercedes/larvyn-releases
+      RELEASES_REPO: larvyn/releases
     steps:
       - uses: actions/checkout@v7
         with:

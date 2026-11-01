@@ -1,6 +1,6 @@
 # Larvyn installer for Windows.
 #
-#   irm https://raw.githubusercontent.com/ivanmercedes/larvyn-releases/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/larvyn/releases/main/install.ps1 | iex
 #
 # Options (environment variables, set them before running):
 #   $env:LARVYN_VERSION = "v0.1.0"      install that release instead of the newest one
@@ -16,7 +16,7 @@ $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest is far slower with 
 function Say($msg) { Write-Host "larvyn " -ForegroundColor Magenta -NoNewline; Write-Host $msg }
 function Fail($msg) { Write-Host "larvyn " -ForegroundColor Red -NoNewline; Write-Host $msg; throw "larvyn install failed" }
 
-$repo = if ($env:LARVYN_REPO) { $env:LARVYN_REPO } else { 'ivanmercedes/larvyn-releases' }
+$repo = if ($env:LARVYN_REPO) { $env:LARVYN_REPO } else { 'larvyn/releases' }
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Larvyn'
 $exe = Join-Path $installDir 'larvyn.exe'
 $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Larvyn.lnk'

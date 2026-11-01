@@ -1,7 +1,7 @@
 #!/bin/sh
 # Larvyn installer for Linux and macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/ivanmercedes/larvyn-releases/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh
 #
 # Options (environment variables):
 #   LARVYN_VERSION=v0.1.0   install that release instead of the newest one
@@ -9,13 +9,13 @@
 #   LARVYN_BIN_DIR=dir      where the `larvyn` command goes (default ~/.local/bin)
 #
 # Uninstall:
-#   curl -fsSL https://raw.githubusercontent.com/ivanmercedes/larvyn-releases/main/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh -s -- --uninstall
 #
 # Running it again updates Larvyn. Nothing needs sudo.
 
 set -eu
 
-REPO="${LARVYN_REPO:-ivanmercedes/larvyn-releases}"
+REPO="${LARVYN_REPO:-larvyn/releases}"
 BIN_DIR="${LARVYN_BIN_DIR:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 MAC_APP="$HOME/Applications/Larvyn.app"
