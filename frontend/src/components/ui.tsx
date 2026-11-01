@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { create } from 'zustand'
-import { AlertTriangle, CheckCircle2, Info, Search, X, XCircle } from 'lucide-react'
+import { AlertTriangle, Bug, CheckCircle2, Info, Search, X, XCircle } from 'lucide-react'
+import { SystemService } from '../../bindings/larvyn'
 import { attach } from '../lib/terms'
 import { useStore } from '../lib/store'
 import { cx } from '../lib/util'
@@ -216,6 +217,11 @@ export function Toasts() {
           <div className="grow">
             <b>{t.title}</b>
             {t.message && <div className="msg">{t.message}</div>}
+            {t.kind === 'error' && (
+              <button className="toast-report" onClick={() => SystemService.ReportBug(t.title + (t.message ? '\n' + t.message : '')).catch(() => {})}>
+                <Bug /> Report this
+              </button>
+            )}
           </div>
           <button
             className="icon-btn sm"

@@ -51,6 +51,7 @@ import {
 import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
+import { FeedbackButton, TitleFeedback } from './Feedback'
 
 export function TitleBar() {
   const platform = useStore((s) => s.platform)
@@ -86,6 +87,7 @@ export function TitleBar() {
         <kbd>{mod}</kbd>
         <kbd>K</kbd>
       </button>
+      <TitleFeedback />
       {platform !== 'darwin' && (
         <div className="winctl">
           <button onClick={() => Window.Minimise()} title="Minimise">
@@ -322,6 +324,7 @@ export function StatusBar() {
           {info.dbConnection}
         </span>
       )}
+      <FeedbackButton />
       <button className={cx('sb-item')} onClick={() => showConsole()} style={drawer.open ? { color: 'var(--text)' } : undefined}>
         <PanelBottom />
         Console{runs.length > 0 && ` (${runs.length})`}

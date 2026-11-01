@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Command } from 'cmdk'
+import { openDiscussions, reportBug, requestFeature } from './Feedback'
+import { checkForUpdate } from '../lib/update'
 import {
   ArrowRight,
   Bot,
+  Bug,
+  Lightbulb,
+  MessageCircle,
   CornerDownLeft,
   FlaskConical,
   FolderOpen,
@@ -85,7 +90,10 @@ export function Palette() {
   const explicitArtisan = /^(>|(php\s+)?artisan\s)/.test(trimmed)
   const looksLikeCode = /::|->|\(|\$\w|;/.test(trimmed)
   const looksLikeCommand = /^[a-z][a-z-]*(:[a-z:-]+)?(\s+(-{1,2}[\w-]+(=\S+)?|\S+)){0,3}$/.test(trimmed) && !/\s(a|an|the|with|and|to|for|de|un|una|con|y|para|el|la)\s/i.test(' ' + trimmed + ' ')
-  const intent = {
+  // Words that mean Larvyn's own help items: never guess artisan/agent for them,
+  // so Enter opens the bug report instead of running `php artisan bug`.
+  const isHelp = /^(feedback|(report\s+(a\s+)?)?bugs?|(request\s+(a\s+)?)?features?|ideas?|issues?|help|updates?|check\s+for\s+updates?)$/i.test(trimmed)
+  const intent = isHelp ? { shell: false, artisan: false, tinker: false, agent: false } : {
     shell: !!shellLine,
     artisan: !shellLine && (explicitArtisan || (looksLikeCommand && !looksLikeCode)),
     tinker: !shellLine && !explicitArtisan && looksLikeCode,
@@ -110,7 +118,7 @@ export function Palette() {
         <Command.List>
           {!(id && trimmed) && <Command.Empty>Nothing found. Try “&gt; migrate” to run artisan.</Command.Empty>}
 
-          {id && trimmed && (
+          {id && trimmed && !isHelp && (
             <Command.Group heading="Run" forceMount>
               {intent.agent && (
                 <Command.Item forceMount value={'ask-agent ' + q} onSelect={act(() => handoff('agents', { agentPrompt: trimmed }))}>
@@ -214,6 +222,22 @@ export function Palette() {
               ))}
             </Command.Group>
           )}
+
+          <Command.Group heading="Help & feedback">
+            <Command.Item value="report a bug issue problem crash feedback" onSelect={act(reportBug)}>
+              <Bug /> Report a bug
+              <span className="hint">opens GitHub with your version filled in</span>
+            </Command.Item>
+            <Command.Item value="request a feature idea suggestion feedback" onSelect={act(requestFeature)}>
+              <Lightbulb /> Request a feature
+            </Command.Item>
+            <Command.Item value="ask question discussion idea feedback community" onSelect={act(openDiscussions)}>
+              <MessageCircle /> Ask a question or share an idea
+            </Command.Item>
+            <Command.Item value="check for updates update new version help" onSelect={act(() => checkForUpdate(true))}>
+              <RefreshCw /> Check for updates
+            </Command.Item>
+          </Command.Group>
 
           {project && info?.isLaravel && (
             <Command.Group heading="Artisan">

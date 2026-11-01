@@ -91,10 +91,22 @@ const set = useStore.setState
 const get = useStore.getState
 
 let toastSeq = 0
+const toastTimers = new Map<number, ReturnType<typeof setTimeout>>()
+/** Shows a toast. One already on screen with the same kind, title and message
+ * is not repeated: its timer restarts instead, so nothing ever shows twice. */
 export function toast(kind: Toast['kind'], title: string, message?: string) {
-  const id = ++toastSeq
-  set((s) => ({ toasts: [...s.toasts.slice(-4), { id, kind, title, message }] }))
-  setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), kind === 'error' ? 7000 : 3800)
+  const ttl = kind === 'error' ? 7000 : 3800
+  const same = get().toasts.find((t) => t.kind === kind && t.title === title && (t.message ?? '') === (message ?? ''))
+  const id = same?.id ?? ++toastSeq
+  if (!same) set((s) => ({ toasts: [...s.toasts.slice(-4), { id, kind, title, message }] }))
+  clearTimeout(toastTimers.get(id))
+  toastTimers.set(
+    id,
+    setTimeout(() => {
+      toastTimers.delete(id)
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+    }, ttl),
+  )
 }
 export const fail = (title: string) => (e: unknown) => toast('error', title, errMsg(e))
 
@@ -105,7 +117,16 @@ export function useActive() {
   return { id, project, info }
 }
 
-export async function boot() {
+let booting: Promise<void> | null = null
+/** Loads the app state and subscribes to backend events, once: React may run
+ * the mount effect twice, which would register every listener twice (and run
+ * LARVYN_RUN / LARVYN_AGENT twice). */
+export function boot() {
+  booting ??= doBoot()
+  return booting
+}
+
+async function doBoot() {
   SystemService.Log('info', 'boot start')
   const [projectList, settings, platform, active, sessionList, launch] = await Promise.all([
     ProjectService.List(),
@@ -259,9 +280,20 @@ export async function newTerminal(projectId: string, opts: Partial<SessionSpec> 
 }
 
 /** Runs a one-off command in the console drawer. */
+const starting = new Set<string>()
 export async function runInConsole(projectId: string, argv: string[], title?: string, cwd?: string, command?: string) {
+  const name = title ?? argv.join(' ')
+  // A second click on the same button must not start the command twice (and
+  // later report the same failure twice): show the run already in progress.
+  const key = projectId + '\0' + name
+  const running = get().sessions.find((s) => s.projectId === projectId && s.kind === 'run' && s.title === name && s.running)
+  if (running || starting.has(key)) {
+    if (running) showConsole(true, running.id)
+    return running
+  }
+  starting.add(key)
   try {
-    const sess = await TerminalService.Start({ projectId, kind: 'run', argv, command: command ?? '', title: title ?? argv.join(' '), cwd: cwd ?? '' } as SessionSpec)
+    const sess = await TerminalService.Start({ projectId, kind: 'run', argv, command: command ?? '', title: name, cwd: cwd ?? '' } as SessionSpec)
     set((s) => ({
       sessions: s.sessions.some((x) => x.id === sess.id) ? s.sessions : [...s.sessions, sess],
       drawer: { ...s.drawer, open: true, active: sess.id },
@@ -269,6 +301,8 @@ export async function runInConsole(projectId: string, argv: string[], title?: st
     return sess
   } catch (e) {
     toast('error', 'Could not run command', errMsg(e))
+  } finally {
+    starting.delete(key)
   }
 }
 
