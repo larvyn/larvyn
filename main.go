@@ -8,6 +8,7 @@ import (
 
 	"larvyn/internal/git"
 	"larvyn/internal/proc"
+	"larvyn/internal/terminal"
 	"larvyn/internal/updater"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -31,6 +32,7 @@ func main() {
 			}
 		}
 	}
+	terminal.ResolveProgram = resolveProgram
 	updater.Cleanup()
 	proc.StartShellEnvImport()
 	app := application.New(application.Options{

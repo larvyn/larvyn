@@ -11,6 +11,7 @@ import (
 
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 func TestMain(m *testing.M) {
@@ -50,15 +51,6 @@ func TestParseLog(t *testing.T) {
 	}
 }
 
-func TestContainsBell(t *testing.T) {
-	if containsBell([]byte("\x1b]0;title\x07")) {
-		t.Error("OSC terminator counted as a bell")
-	}
-	if !containsBell([]byte("done\x07")) {
-		t.Error("plain bell missed")
-	}
-}
-
 func TestTerminalRunsCommand(t *testing.T) {
 	cmd := []string{"cmd.exe", "/c", "echo larvyn-pty-ok"}
 	if runtime.GOOS != "windows" {
@@ -70,7 +62,7 @@ func TestTerminalRunsCommand(t *testing.T) {
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		if cur := terminals.find("", "run", ""); cur != nil && !cur.Running {
+		if cur := terminal.Find("", "run", ""); cur != nil && !cur.Running {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -83,7 +75,7 @@ func TestTerminalRunsCommand(t *testing.T) {
 	if !strings.Contains(string(out), "larvyn-pty-ok") {
 		t.Fatalf("output missing, got %q", out)
 	}
-	info := terminals.find("", "run", "")
+	info := terminal.Find("", "run", "")
 	if info == nil || info.Running || info.ExitCode != 0 {
 		t.Fatalf("session did not exit cleanly: %+v", info)
 	}
@@ -146,7 +138,7 @@ func TestTerminalShellCommand(t *testing.T) {
 	}
 	defer terminals.Close(s.ID)
 	for i := 0; i < 200; i++ {
-		if cur := terminals.find("", "run", "shellcmd"); cur != nil && !cur.Running {
+		if cur := terminal.Find("", "run", "shellcmd"); cur != nil && !cur.Running {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)

@@ -75,7 +75,7 @@ func callBridge(projectID, action string, payload any, timeout time.Duration) (j
 		if msg == "" {
 			msg = fmt.Sprintf("php exited with code %d", res.Code)
 		}
-		return nil, errors.New(stripANSI(msg))
+		return nil, errors.New(proc.StripANSI(msg))
 	}
 	return json.RawMessage(res.Stdout[i+len(mark):]), nil
 }
@@ -123,7 +123,7 @@ func (l *LaravelService) Commands(projectID string, refresh bool) (json.RawMessa
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "artisan list failed")))
+		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "artisan list failed")))
 	}
 	l.mu.Lock()
 	l.commands[projectID] = out
@@ -143,7 +143,7 @@ func (l *LaravelService) Routes(projectID string) (json.RawMessage, error) {
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "route:list failed")))
+		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "route:list failed")))
 	}
 	return out, nil
 }
@@ -160,7 +160,7 @@ func (l *LaravelService) About(projectID string) (json.RawMessage, error) {
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "about failed")))
+		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "about failed")))
 	}
 	return out, nil
 }
@@ -177,7 +177,7 @@ func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, 
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "model:show failed")))
+		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "model:show failed")))
 	}
 	return out, nil
 }
@@ -189,8 +189,8 @@ func (l *LaravelService) Artisan(projectID string, args []string) (RunResult, er
 		return RunResult{}, err
 	}
 	res, err := proc.Artisan(dir, 5*time.Minute, args...)
-	res.Stdout = stripANSI(res.Stdout)
-	res.Stderr = stripANSI(res.Stderr)
+	res.Stdout = proc.StripANSI(res.Stdout)
+	res.Stderr = proc.StripANSI(res.Stderr)
 	return res, err
 }
 
@@ -206,9 +206,6 @@ func extractJSON(s string) json.RawMessage {
 	return json.RawMessage(s)
 }
 
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]`)
-
-func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
 // ---- .env -----------------------------------------------------------------
 

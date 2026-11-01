@@ -4,14 +4,13 @@ import {
   AgentService,
   ProjectService,
   SystemService,
-  TerminalService,
   StackService,
   type Project,
   type ProjectInfo,
   type SessionInfo,
   type Settings,
-  type SessionSpec,
 } from '../../bindings/larvyn'
+import { TerminalService, type SessionSpec } from '../../bindings/larvyn/internal/terminal'
 import { errMsg, load, save } from './util'
 
 export type View =

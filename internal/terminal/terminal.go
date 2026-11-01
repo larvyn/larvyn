@@ -1,9 +1,7 @@
-package main
+package terminal
 
 import (
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"os"
 	"os/exec"
@@ -90,18 +88,36 @@ type TerminalService struct {
 	order    []string
 }
 
-var terminals = &TerminalService{sessions: map[string]*session{}}
+// Sessions is the app's terminal service; main registers it with Wails and
+// the other services start their terminals through it.
+var Sessions = &TerminalService{sessions: map[string]*session{}}
+
+// ResolveProgram rewrites a program's argv before it starts. main sets it so a
+// bare "composer" runs Larvyn's own phar when Composer is not on PATH.
+var ResolveProgram = func(argv []string) []string { return argv }
+
+// Find returns the newest session of a project with this kind and key, or nil.
+// It is a function rather than a method so Wails does not bind it.
+func Find(projectID, kind, key string) *SessionInfo { return Sessions.find(projectID, kind, key) }
+
+// PID returns the process id of a session's program.
+func PID(id string) (int, error) {
+	s, err := Sessions.get(id)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cmd == nil || s.cmd.Process == nil {
+		return 0, errors.New("session has no process")
+	}
+	return s.cmd.Process.Pid, nil
+}
 
 func init() {
 	application.RegisterEvent[TermData]("term:data")
 	application.RegisterEvent[TermExit]("term:exit")
 	application.RegisterEvent[[]SessionInfo]("sessions:changed")
-}
-
-func newID() string {
-	b := make([]byte, 6)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 func emit(name string, data any) {
@@ -117,7 +133,7 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 	display := spec.Command
 	switch {
 	case len(argv) > 0:
-		argv = resolveProgram(argv)
+		argv = ResolveProgram(argv)
 		if display == "" {
 			display = joinArgs(spec.Argv)
 		}
@@ -178,7 +194,7 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 
 	now := time.Now().UnixMilli()
 	s := &session{pty: p, cmd: cmd, info: SessionInfo{
-		ID: newID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
+		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
 		Title: spec.Title, Cwd: spec.Cwd, Command: display, Running: true,
 		StartedAt: now, LastActivity: now, Meta: spec.Meta,
 	}}
@@ -342,7 +358,7 @@ func (t *TerminalService) Output(id string) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return stripANSI(string(s.buf)), nil
+	return proc.StripANSI(string(s.buf)), nil
 }
 
 // ClearBell marks a terminal's attention flag as seen.

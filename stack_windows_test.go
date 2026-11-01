@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 // processes maps every running process id to "parent creationTime", so a
@@ -73,7 +75,7 @@ func TestStackStopKillsEveryProcess(t *testing.T) {
 	defer store.Update(func(d *store.State) { d.Projects = d.Projects[:len(d.Projects)-1] })
 
 	for _, it := range stackItems(p) {
-		t.Logf("item %-8s dev=%v avail=%v %q", it.Key, it.Dev, it.Available, joinArgs(it.Argv))
+		t.Logf("item %-8s dev=%v avail=%v %q", it.Key, it.Dev, it.Available, strings.Join(it.Argv, " "))
 	}
 	stack := &StackService{}
 	keys := []string{"serve", "vite", "queue", "schedule"}
@@ -92,15 +94,15 @@ func TestStackStopKillsEveryProcess(t *testing.T) {
 			if len(snap) > 600 {
 				snap = snap[len(snap)-600:]
 			}
-			t.Logf("%s running=%v exit=%d\n%s", it.Key, it.Session.Running, it.Session.ExitCode, stripANSI(snap))
+			t.Logf("%s running=%v exit=%d\n%s", it.Key, it.Session.Running, it.Session.ExitCode, proc.StripANSI(snap))
 		}
 	}
 
 	trees := map[string]map[int]string{}
 	for _, it := range stackItems(p) {
 		if it.Session != nil && it.Session.Running {
-			s, _ := terminals.get(it.Session.ID)
-			trees[it.Key] = processTree(t, s.cmd.Process.Pid)
+			pid, _ := terminal.PID(it.Session.ID)
+			trees[it.Key] = processTree(t, pid)
 			t.Logf("%s: %d processes", it.Key, len(trees[it.Key]))
 		}
 	}
@@ -131,17 +133,17 @@ func TestCtrlCStopsServe(t *testing.T) {
 	terminals.Write(s.ID, "\x03")
 	var info *SessionInfo
 	for i := 0; i < 100; i++ {
-		if info = terminals.find(p.ID, "service", "serve"); info != nil && !info.Running {
+		if info = terminal.Find(p.ID, "service", "serve"); info != nil && !info.Running {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	out, _ := terminals.Output(s.ID)
 	if info == nil || info.Running {
-		t.Fatalf("serve still runs after Ctrl+C:\n%s", stripANSI(out))
+		t.Fatalf("serve still runs after Ctrl+C:\n%s", proc.StripANSI(out))
 	}
 	if strings.Contains(out, "Terminate batch job") {
-		t.Errorf("cmd asked to terminate the batch job:\n%s", stripANSI(out))
+		t.Errorf("cmd asked to terminate the batch job:\n%s", proc.StripANSI(out))
 	}
 	if !info.Stopped {
 		t.Errorf("exit after Ctrl+C should count as stopped: %+v", info)
