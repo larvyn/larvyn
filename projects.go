@@ -40,6 +40,8 @@ type ProjectInfo struct {
 	HasEnv          bool              `json:"hasEnv"`
 	HasEnvExample   bool              `json:"hasEnvExample"`
 	HasAppKey       bool              `json:"hasAppKey"`
+	SQLiteFile      string            `json:"sqliteFile"`
+	SQLiteMissing   bool              `json:"sqliteMissing"`
 	TestRunner      string            `json:"testRunner"`
 	ComposerScripts map[string]string `json:"composerScripts"`
 	NpmScripts      map[string]string `json:"npmScripts"`
@@ -388,6 +390,11 @@ func inspect(p Project) ProjectInfo {
 		info.CacheStore = firstNonEmpty(env["CACHE_STORE"], env["CACHE_DRIVER"])
 		info.SessionDriver = env["SESSION_DRIVER"]
 		info.MailMailer = firstNonEmpty(env["MAIL_MAILER"], env["MAIL_DRIVER"])
+		if f := sqlitePath(root, env); f != "" {
+			info.SQLiteFile = f
+			_, err := os.Stat(f)
+			info.SQLiteMissing = err != nil
+		}
 	}
 	if herdSite(root) {
 		info.HerdURL = "http://" + strings.ToLower(filepath.Base(root)) + ".test"

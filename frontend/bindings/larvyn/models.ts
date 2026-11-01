@@ -243,6 +243,8 @@ export interface ProjectInfo {
     "hasEnv": boolean;
     "hasEnvExample": boolean;
     "hasAppKey": boolean;
+    "sqliteFile": string;
+    "sqliteMissing": boolean;
     "testRunner": string;
     "composerScripts": { [_ in string]?: string } | null;
     "npmScripts": { [_ in string]?: string } | null;
