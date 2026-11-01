@@ -45,6 +45,7 @@ export type {
     TestCase,
     TestReport,
     Tool,
+    UpdateInfo,
     Worktree,
     WorktreeRequest
 } from "./models.js";

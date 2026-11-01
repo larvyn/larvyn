@@ -10,10 +10,18 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// appIcon is the window icon (taskbar, Alt+Tab) on Linux and Windows.
+//
+//go:embed build/appicon.png
+var appIcon []byte
+
 func main() {
+	cleanupUpdate()
+	startShellEnvImport()
 	app := application.New(application.Options{
 		Name:        "Larvyn",
 		Description: "The Laravel workbench: projects, services, terminals, agents and data in one window",
+		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(&ProjectService{}),
 			application.NewService(terminals),

@@ -12,6 +12,12 @@ export interface AgentKind {
     "path": string;
     "install": string;
     "promptAsArg": boolean;
+
+    /**
+     * PromptFlag goes before the prompt argument, for CLIs that take the
+     * first message through an option (agy -i "…").
+     */
+    "promptFlag": string;
     "color": string;
 }
 
@@ -304,6 +310,11 @@ export interface Settings {
     "terminalFontSize": number;
     "accent": string;
     "confirmDangerous": boolean;
+
+    /**
+     * NoUpdateCheck turns off the check for new releases at start.
+     */
+    "noUpdateCheck": boolean;
 }
 
 export interface Snapshot {
@@ -365,6 +376,12 @@ export interface TestCase {
  */
 export interface TestReport {
     "exists": boolean;
+
+    /**
+     * Incomplete is set when the last run left an empty or cut-off report,
+     * usually because it stopped before PHPUnit/Pest wrote it.
+     */
+    "incomplete": boolean;
     "modified": number;
     "tests": number;
     "passed": number;
@@ -383,6 +400,24 @@ export interface Tool {
     "path": string;
     "version": string;
     "hint": string;
+}
+
+/**
+ * UpdateInfo tells the window whether a newer release exists.
+ */
+export interface UpdateInfo {
+    "available": boolean;
+    "current": string;
+    "latest": string;
+    "notesUrl": string;
+    "published": string;
+
+    /**
+     * CanInstall is false when Larvyn cannot replace itself (development
+     * build, unsupported platform); the window then only links the notes.
+     */
+    "canInstall": boolean;
+    "reason": string;
 }
 
 /**

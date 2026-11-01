@@ -10,6 +10,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * CheckForUpdate looks up the newest release (betas included) and compares it
+ * with this build.
+ */
+export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfo> {
+    return $Call.ByID(1437184838);
+}
+
+/**
  * CreateProject scaffolds a new Laravel app in a terminal and registers it.
  */
 export function CreateProject(req: $models.CreateRequest): $CancellablePromise<{ [_ in string]?: any } | null> {
@@ -43,6 +51,14 @@ export function Info(): $CancellablePromise<$models.AppInfo> {
  */
 export function InstallComposer(): $CancellablePromise<$models.SessionInfo> {
     return $Call.ByID(3556025549);
+}
+
+/**
+ * InstallUpdate downloads tag, verifies it against the release checksums,
+ * replaces this installation and restarts Larvyn.
+ */
+export function InstallUpdate(tag: string): $CancellablePromise<void> {
+    return $Call.ByID(1022785778, tag);
 }
 
 /**
