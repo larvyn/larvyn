@@ -15,6 +15,15 @@ export interface AgentKind {
     "color": string;
 }
 
+/**
+ * AppInfo describes this build for the About card and bug reports.
+ */
+export interface AppInfo {
+    "version": string;
+    "os": string;
+    "logPath": string;
+}
+
 export interface Commit {
     "hash": string;
     "author": string;

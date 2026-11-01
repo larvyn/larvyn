@@ -34,6 +34,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
       - name: Wails CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+      - name: Stamp version
+        run: perl -pi -e 's/^var version = ".*"/var version = "$ENV{GITHUB_REF_NAME}"/' version.go && grep '^var version' version.go
       - name: Linux build
         run: |
           wails3 build
@@ -68,6 +70,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
       - name: Stamp version
         run: |
+          perl -pi -e 's/^var version = ".*"/var version = "$ENV{GITHUB_REF_NAME}"/' version.go && grep '^var version' version.go
           v="${GITHUB_REF_NAME#v}"
           plutil -replace CFBundleShortVersionString -string "$v" build/darwin/Info.plist
           plutil -replace CFBundleVersion -string "$v" build/darwin/Info.plist
@@ -123,6 +126,8 @@ jobs:
             echo "## Changes"
             echo
             git log --no-merges --pretty='- %s' "$range"
+            echo
+            echo "Found a bug? [Open an issue](https://github.com/$RELEASES_REPO/issues/new/choose) or use **Settings → Report a bug** in the app."
           } > ../notes.md
       - name: Sync install scripts
         working-directory: releases

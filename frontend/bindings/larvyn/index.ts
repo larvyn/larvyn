@@ -20,6 +20,7 @@ export {
 
 export type {
     AgentKind,
+    AppInfo,
     Commit,
     CreateRequest,
     EnvFile,

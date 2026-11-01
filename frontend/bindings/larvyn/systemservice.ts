@@ -31,6 +31,13 @@ export function Home(): $CancellablePromise<string> {
 }
 
 /**
+ * Info returns the version, a readable OS description and where larvyn.log is.
+ */
+export function Info(): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3355000204);
+}
+
+/**
  * InstallComposer downloads the official installer, verifies its signature
  * and installs composer.phar into Larvyn's folder.
  */
@@ -68,6 +75,13 @@ export function OpenInEditor(path: string, line: number): $CancellablePromise<vo
 }
 
 /**
+ * OpenLogFolder shows the folder that holds larvyn.log.
+ */
+export function OpenLogFolder(): $CancellablePromise<void> {
+    return $Call.ByID(1604773714);
+}
+
+/**
  * OpenURL opens a link in the default browser.
  */
 export function OpenURL(url: string): $CancellablePromise<void> {
@@ -79,6 +93,22 @@ export function OpenURL(url: string): $CancellablePromise<void> {
  */
 export function Platform(): $CancellablePromise<string> {
     return $Call.ByID(255306651);
+}
+
+/**
+ * ReportBug opens a new bug report in the browser with the version and OS
+ * filled in. details, when given (a crash message and stack), prefills
+ * "What happened?".
+ */
+export function ReportBug(details: string): $CancellablePromise<void> {
+    return $Call.ByID(1983626288, details);
+}
+
+/**
+ * RequestFeature opens a new feature request in the browser.
+ */
+export function RequestFeature(): $CancellablePromise<void> {
+    return $Call.ByID(3802714153);
 }
 
 /**

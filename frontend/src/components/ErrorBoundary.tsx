@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { Bug } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn'
 
 /** Keeps one broken view from blanking the whole window. */
@@ -26,9 +27,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
             {this.state.error.stack?.split('\n').slice(0, 6).join('\n')}
           </span>
         </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={() => this.setState({ error: null })}>
-          Try again
-        </button>
+        <div className="row" style={{ marginTop: 12, gap: 8 }}>
+          <button className="btn" onClick={() => this.setState({ error: null })}>
+            Try again
+          </button>
+          <button className="btn ghost" onClick={() => SystemService.ReportBug('View crashed: ' + (this.state.error?.stack ?? this.state.error?.message ?? '')).catch(() => {})}>
+            <Bug /> Report this crash
+          </button>
+        </div>
       </div>
     )
   }

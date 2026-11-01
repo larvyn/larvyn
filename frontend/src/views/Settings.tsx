@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Check, Cog, ExternalLink, FolderOpen, Save, Wrench, X } from 'lucide-react'
-import { AgentService, ProjectService, SystemService, type AgentKind, type Settings as S, type Tool } from '../../bindings/larvyn'
+import { Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Info, Lightbulb, Save, Wrench, X } from 'lucide-react'
+import { AgentService, ProjectService, SystemService, type AgentKind, type AppInfo, type Settings as S, type Tool } from '../../bindings/larvyn'
 import { toast, useStore } from '../lib/store'
 import { setFontSize } from '../lib/terms'
 import { errMsg } from '../lib/util'
@@ -22,10 +22,12 @@ export function Settings() {
   const [tools, setTools] = useState<Tool[] | null>(null)
   const [agents, setAgents] = useState<AgentKind[]>([])
   const [home, setHome] = useState('')
+  const [info, setInfo] = useState<AppInfo | null>(null)
   useEffect(() => {
     SystemService.Tools().then(setTools)
     AgentService.Kinds().then((k) => setAgents(k ?? []))
     SystemService.Home().then(setHome)
+    SystemService.Info().then(setInfo)
   }, [])
   useEffect(() => setV(settings), [settings])
   if (!v) return null
@@ -156,6 +158,38 @@ export function Settings() {
               )}
             </div>
           ))}
+        </div>
+
+        <div className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h3>
+              <Info /> About &amp; feedback
+            </h3>
+          </div>
+          <div className="card-body">
+            <div className="kv" style={{ marginBottom: 14 }}>
+              <div>Version</div>
+              <div className="mono">{info?.version ?? '…'}</div>
+              <div>System</div>
+              <div className="mono">{info?.os ?? '…'}</div>
+              <div>Log file</div>
+              <div className="mono">{info?.logPath ?? '…'}</div>
+            </div>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn sm primary" onClick={() => SystemService.ReportBug('').catch((e) => toast('error', 'Could not open the browser', errMsg(e)))}>
+                <Bug /> Report a bug
+              </button>
+              <button className="btn sm" onClick={() => SystemService.RequestFeature().catch((e) => toast('error', 'Could not open the browser', errMsg(e)))}>
+                <Lightbulb /> Request a feature
+              </button>
+              <button className="btn sm ghost" onClick={() => SystemService.OpenLogFolder().catch((e) => toast('error', 'Could not open the folder', errMsg(e)))}>
+                <FileText /> Open log folder
+              </button>
+            </div>
+            <span style={{ display: 'block', marginTop: 10, fontSize: 11.5, color: 'var(--text-3)' }}>
+              Reports are public issues on github.com/larvyn/releases. Your version and system are filled in; check the log for paths or project names before pasting it.
+            </span>
+          </div>
         </div>
 
         <div className="section-title">Keyboard</div>
