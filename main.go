@@ -4,6 +4,9 @@ import (
 	"embed"
 	"log"
 
+	"larvyn/internal/proc"
+	"larvyn/internal/updater"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -16,8 +19,9 @@ var assets embed.FS
 var appIcon []byte
 
 func main() {
-	cleanupUpdate()
-	startShellEnvImport()
+	updater.Version = version
+	updater.Cleanup()
+	proc.StartShellEnvImport()
 	app := application.New(application.Options{
 		Name:        "Larvyn",
 		Description: "The Laravel workbench: projects, services, terminals, agents and data in one window",

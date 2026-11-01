@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // AgentKind is a coding agent CLI Larvyn knows how to launch.
@@ -50,7 +53,7 @@ type AgentService struct{}
 func (a *AgentService) Kinds() []AgentKind {
 	out := make([]AgentKind, len(agentKinds))
 	for i, k := range agentKinds {
-		k.Path = which(k.Binary)
+		k.Path = proc.Which(k.Binary)
 		k.Installed = k.Path != ""
 		out[i] = k
 	}
@@ -72,7 +75,7 @@ type LaunchRequest struct {
 // Launch starts an agent session. With Worktree set the agent works on its
 // own branch, so several can attack one task in parallel.
 func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
-	p, ok := store.Project(req.ProjectID)
+	p, ok := store.FindProject(req.ProjectID)
 	if !ok {
 		return SessionInfo{}, errors.New("project not found")
 	}
@@ -96,7 +99,7 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 	if title == "" {
 		title = kind.Name
 	}
-	cwd := firstNonEmpty(req.Cwd, p.Path)
+	cwd := proc.FirstNonEmpty(req.Cwd, p.Path)
 	meta := map[string]string{"agent": kind.ID, "agentName": kind.Name, "color": kind.Color, "prompt": req.Prompt}
 	if req.Worktree {
 		wt, err := (&GitService{}).CreateWorktree(WorktreeRequest{ProjectID: p.ID, Name: kind.ID + "-" + title, Base: req.Base, CopyEnv: true})
@@ -111,7 +114,7 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		}
 	}
 	argv := []string{kind.Path}
-	if f := yoloFlags[kind.ID]; len(f) > 0 && store.Settings().AgentPermissions != "manual" {
+	if f := yoloFlags[kind.ID]; len(f) > 0 && store.CurrentSettings().AgentPermissions != "manual" {
 		argv = append(argv, f...)
 		meta["yolo"] = "1"
 	}

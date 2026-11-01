@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
+	"larvyn/internal/updater"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -56,7 +60,7 @@ func (s *SystemService) Tools() []Tool {
 		wg.Add(1)
 		go func(i int, id, name, bin string, args []string, hint string) {
 			defer wg.Done()
-			t := Tool{ID: id, Name: name, Hint: hint, Path: which(bin)}
+			t := Tool{ID: id, Name: name, Hint: hint, Path: proc.Which(bin)}
 			cmd := []string{t.Path}
 			if id == "composer" && t.Path == "" {
 				if c := composerArgv(); c != nil {
@@ -64,7 +68,7 @@ func (s *SystemService) Tools() []Tool {
 				}
 			}
 			if t.Path != "" {
-				if res, err := run("", 8*time.Second, nil, cmd[0], append(cmd[1:], args...)...); err == nil {
+				if res, err := proc.Run("", 8*time.Second, nil, cmd[0], append(cmd[1:], args...)...); err == nil {
 					t.Version = versionRe.FindString(res.Stdout + res.Stderr)
 				}
 			}
@@ -76,11 +80,11 @@ func (s *SystemService) Tools() []Tool {
 }
 
 // Settings returns the user's settings.
-func (s *SystemService) Settings() Settings { return store.Settings() }
+func (s *SystemService) Settings() Settings { return store.CurrentSettings() }
 
 // SaveSettings stores the user's settings.
 func (s *SystemService) SaveSettings(v Settings) error {
-	return store.update(func(d *state) { d.Settings = v })
+	return store.Update(func(d *store.State) { d.Settings = v })
 }
 
 // Platform reports the OS for keyboard hints.
@@ -104,7 +108,7 @@ func (s *SystemService) Launch() LaunchOptions {
 }
 
 // Home returns Larvyn's state folder.
-func (s *SystemService) Home() string { return homeDir() }
+func (s *SystemService) Home() string { return store.HomeDir() }
 
 var editors = map[string][]string{
 	"code":     {"code", "-g", "{file}:{line}"},
@@ -118,7 +122,7 @@ var editors = map[string][]string{
 
 // OpenInEditor opens a file (or folder) at a line in the configured editor.
 func (s *SystemService) OpenInEditor(path string, line int) error {
-	st := store.Settings()
+	st := store.CurrentSettings()
 	if line <= 0 {
 		line = 1
 	}
@@ -139,11 +143,11 @@ func (s *SystemService) OpenInEditor(path string, line int) error {
 		a = strings.ReplaceAll(a, "{line}", fmt.Sprint(line))
 		args = append(args, a)
 	}
-	bin := which(tmpl[0])
+	bin := proc.Which(tmpl[0])
 	if bin == "" {
 		return errors.New(tmpl[0] + " was not found on PATH; pick another editor in Settings")
 	}
-	return startDetached(filepath.Dir(path), bin, args...)
+	return proc.StartDetached(filepath.Dir(path), bin, args...)
 }
 
 // OpenFolder reveals a folder in the file manager.
@@ -189,7 +193,7 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 		return nil, errors.New(target + " already exists")
 	}
 	var argv []string
-	if which("laravel") != "" {
+	if proc.Which("laravel") != "" {
 		argv = []string{"laravel", "new", name, "--no-interaction", "--git"}
 		switch req.Starter {
 		case "react", "vue", "livewire":
@@ -236,11 +240,22 @@ func createFallbackArgv(req CreateRequest, name string, composer []string) []str
 // Log appends a frontend error to larvyn.log in the state folder, so crashes
 // in the window leave a trace.
 func (s *SystemService) Log(level, message string) {
-	_ = os.MkdirAll(homeDir(), 0o755)
-	f, err := os.OpenFile(filepath.Join(homeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
+	store.AppendLog(level, message)
+}
+
+// CheckForUpdate looks up the newest release (betas included) and compares it
+// with this build.
+func (s *SystemService) CheckForUpdate() (UpdateInfo, error) { return updater.Check() }
+
+// InstallUpdate downloads tag, verifies it against the release checksums,
+// replaces this installation and restarts Larvyn.
+func (s *SystemService) InstallUpdate(tag string) error {
+	if err := updater.Install(tag); err != nil {
+		return err
 	}
-	defer f.Close()
-	fmt.Fprintf(f, "%s %s %s\n", time.Now().Format(time.RFC3339), level, message)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		application.Get().Quit()
+	}()
+	return nil
 }

@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package proc
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"larvyn/internal/store"
 )
 
 const pathMarker = "__LARVYN_PATH__"
@@ -42,7 +44,7 @@ func importShellPath() {
 	shellPath := between(string(out), pathMarker)
 	if shellPath == "" {
 		// Without this trace a missing tool (laravel, node…) is a mystery.
-		(&SystemService{}).Log("warn", fmt.Sprintf("shell PATH import from %s failed after %s (timeout %s, ctx %v)",
+		store.AppendLog("warn", fmt.Sprintf("shell PATH import from %s failed after %s (timeout %s, ctx %v)",
 			sh, time.Since(start).Round(time.Millisecond), shellEnvTimeout, ctx.Err()))
 		return
 	}
@@ -57,7 +59,7 @@ func addToolDirs() {
 	home, _ := os.UserHomeDir()
 	var dirs []string
 	for _, d := range toolDirs(home, os.Getenv("COMPOSER_HOME"), os.Getenv("XDG_CONFIG_HOME")) {
-		if isDir(d) {
+		if st, err := os.Stat(d); err == nil && st.IsDir() {
 			dirs = append(dirs, d)
 		}
 	}

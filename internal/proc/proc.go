@@ -1,4 +1,6 @@
-package main
+// Package proc runs external programs (PHP, artisan, git…) and finds them on
+// the user's PATH, including the PATH of their login shell.
+package proc
 
 import (
 	"bytes"
@@ -8,9 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
+
+	"larvyn/internal/store"
 )
 
 // RunResult is the captured outcome of a short, non-interactive command.
@@ -21,15 +24,15 @@ type RunResult struct {
 	Duration int64  `json:"duration"`
 }
 
-// run executes name with args in dir and captures its output.
-func run(dir string, timeout time.Duration, stdin []byte, name string, args ...string) (RunResult, error) {
-	waitShellEnv()
+// Run executes name with args in dir and captures its output.
+func Run(dir string, timeout time.Duration, stdin []byte, name string, args ...string) (RunResult, error) {
+	WaitShellEnv()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "NO_COLOR=1", "TERM=dumb")
-	hideWindow(cmd)
+	HideWindow(cmd)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
@@ -52,27 +55,31 @@ func run(dir string, timeout time.Duration, stdin []byte, name string, args ...s
 	return res, nil
 }
 
-// php runs the configured PHP binary in dir.
-func php(dir string, timeout time.Duration, stdin []byte, args ...string) (RunResult, error) {
-	return run(dir, timeout, stdin, store.PHP(), args...)
+// PHP runs the configured PHP binary in dir.
+func PHP(dir string, timeout time.Duration, stdin []byte, args ...string) (RunResult, error) {
+	return Run(dir, timeout, stdin, store.PHP(), args...)
 }
 
-func artisan(dir string, timeout time.Duration, args ...string) (RunResult, error) {
-	return php(dir, timeout, nil, append([]string{"artisan", "--no-interaction", "--no-ansi"}, args...)...)
+// Artisan runs php artisan non-interactively in dir.
+func Artisan(dir string, timeout time.Duration, args ...string) (RunResult, error) {
+	return PHP(dir, timeout, nil, append([]string{"artisan", "--no-interaction", "--no-ansi"}, args...)...)
 }
 
-func git(dir string, args ...string) (string, error) {
-	res, err := run(dir, 30*time.Second, nil, "git", args...)
+// Git runs git in dir and returns stdout; a non-zero exit is an error
+// carrying git's message.
+func Git(dir string, args ...string) (string, error) {
+	res, err := Run(dir, 30*time.Second, nil, "git", args...)
 	if err != nil {
 		return "", err
 	}
 	if res.Code != 0 {
-		return res.Stdout, errors.New(strings.TrimSpace(firstNonEmpty(res.Stderr, res.Stdout)))
+		return res.Stdout, errors.New(strings.TrimSpace(FirstNonEmpty(res.Stderr, res.Stdout)))
 	}
 	return res.Stdout, nil
 }
 
-func firstNonEmpty(vals ...string) string {
+// FirstNonEmpty returns the first value that is not blank.
+func FirstNonEmpty(vals ...string) string {
 	for _, v := range vals {
 		if strings.TrimSpace(v) != "" {
 			return v
@@ -81,8 +88,9 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-func which(name string) string {
-	waitShellEnv()
+// Which finds a program on PATH (after the shell PATH import), or "".
+func Which(name string) string {
+	WaitShellEnv()
 	p, err := exec.LookPath(name)
 	if err != nil {
 		return ""
@@ -90,13 +98,13 @@ func which(name string) string {
 	return p
 }
 
-// startDetached launches a program without waiting, e.g. an editor.
-func startDetached(dir, name string, args ...string) error {
-	waitShellEnv()
+// StartDetached launches a program without waiting, e.g. an editor.
+func StartDetached(dir, name string, args ...string) error {
+	WaitShellEnv()
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	if runtime.GOOS == "windows" && (strings.HasSuffix(strings.ToLower(name), ".cmd") || strings.HasSuffix(strings.ToLower(name), ".bat")) {
-		hideWindow(cmd)
+		HideWindow(cmd)
 	}
 	if err := cmd.Start(); err != nil {
 		return err
@@ -104,5 +112,3 @@ func startDetached(dir, name string, args ...string) error {
 	go cmd.Wait()
 	return nil
 }
-
-func itoa(i int) string { return strconv.Itoa(i) }

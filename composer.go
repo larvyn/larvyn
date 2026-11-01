@@ -3,19 +3,22 @@ package main
 import (
 	"os"
 	"path/filepath"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // Larvyn can run Composer even when it is not installed: it keeps its own
 // composer.phar and runs it with the configured PHP.
 
 func composerPhar() string {
-	return filepath.Join(homeDir(), "bin", "composer.phar")
+	return filepath.Join(store.HomeDir(), "bin", "composer.phar")
 }
 
 // composerArgv returns the command that runs Composer, or nil when there is
 // none yet.
 func composerArgv() []string {
-	if p := which("composer"); p != "" {
+	if p := proc.Which("composer"); p != "" {
 		return []string{p}
 	}
 	if _, err := os.Stat(composerPhar()); err == nil {

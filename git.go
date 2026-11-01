@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 type GitService struct{}
@@ -56,7 +59,7 @@ type Worktree struct {
 }
 
 func gitDir(path string) string {
-	if p, ok := store.Project(path); ok {
+	if p, ok := store.FindProject(path); ok {
 		return p.Path
 	}
 	return path
@@ -67,7 +70,7 @@ func gitDir(path string) string {
 func (g *GitService) Status(target string) (GitStatus, error) {
 	dir := gitDir(target)
 	st := GitStatus{}
-	out, err := git(dir, "status", "--porcelain=v1", "-b", "-uall")
+	out, err := proc.Git(dir, "status", "--porcelain=v1", "-b", "-uall")
 	if err != nil {
 		return st, nil
 	}
@@ -86,7 +89,7 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 		}
 		st.Files = append(st.Files, GitFile{Path: strings.Trim(path, `"`), Index: string(line[0]), Worktree: string(line[1])})
 	}
-	if num, err := git(dir, "diff", "HEAD", "--numstat"); err == nil {
+	if num, err := proc.Git(dir, "diff", "HEAD", "--numstat"); err == nil {
 		stats := map[string][2]int{}
 		for _, l := range nonEmptyLines(num) {
 			f := strings.Split(l, "\t")
@@ -101,7 +104,7 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 			st.Files[i].Added, st.Files[i].Removed = s[0], s[1]
 		}
 	}
-	if log, err := git(dir, "log", "-n", "30", "--pretty=format:%h\x1f%an\x1f%at\x1f%s"); err == nil {
+	if log, err := proc.Git(dir, "log", "-n", "30", "--pretty=format:%h\x1f%an\x1f%at\x1f%s"); err == nil {
 		for _, l := range nonEmptyLines(log) {
 			f := strings.Split(l, "\x1f")
 			if len(f) == 4 {
@@ -110,10 +113,10 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 			}
 		}
 	}
-	if br, err := git(dir, "branch", "--format=%(refname:short)"); err == nil {
+	if br, err := proc.Git(dir, "branch", "--format=%(refname:short)"); err == nil {
 		st.Branches = nonEmptyLines(br)
 	}
-	if sl, err := git(dir, "stash", "list"); err == nil {
+	if sl, err := proc.Git(dir, "stash", "list"); err == nil {
 		st.Stashes = len(nonEmptyLines(sl))
 	}
 	st.Worktree, _ = g.Worktrees(target)
@@ -148,7 +151,7 @@ func (g *GitService) Diff(target, path string, staged bool) (string, error) {
 	if path != "" {
 		args = append(args, "--", path)
 	}
-	out, err := git(dir, args...)
+	out, err := proc.Git(dir, args...)
 	if err == nil && out == "" && path != "" {
 		// Untracked file: show it as all-new.
 		if b, rerr := os.ReadFile(filepath.Join(dir, path)); rerr == nil && len(b) < 1<<20 {
@@ -170,13 +173,13 @@ func (g *GitService) BranchDiff(worktreePath, base string) (string, error) {
 	if base == "" {
 		base = "HEAD"
 	}
-	mb, err := git(worktreePath, "merge-base", base, "HEAD")
+	mb, err := proc.Git(worktreePath, "merge-base", base, "HEAD")
 	if err != nil {
 		return "", err
 	}
 	// Intent-to-add makes new files show up in the diff without staging them.
-	_, _ = git(worktreePath, append([]string{"add", "-A", "-N", "--", "."}, notCopied...)...)
-	return git(worktreePath, "diff", "--no-color", strings.TrimSpace(mb))
+	_, _ = proc.Git(worktreePath, append([]string{"add", "-A", "-N", "--", "."}, notCopied...)...)
+	return proc.Git(worktreePath, "diff", "--no-color", strings.TrimSpace(mb))
 }
 
 // Commit stages everything (or the given paths) and commits.
@@ -186,20 +189,20 @@ func (g *GitService) Commit(target, message string, paths []string) error {
 		return errors.New("commit message is empty")
 	}
 	add := append([]string{"add", "-A", "--"}, paths...)
-	if _, err := git(dir, add...); err != nil {
+	if _, err := proc.Git(dir, add...); err != nil {
 		return err
 	}
-	_, err := git(dir, "commit", "-m", message)
+	_, err := proc.Git(dir, "commit", "-m", message)
 	return err
 }
 
 // Discard throws away changes to a path.
 func (g *GitService) Discard(target, path string) error {
 	dir := gitDir(target)
-	if _, err := git(dir, "ls-files", "--error-unmatch", "--", path); err != nil {
+	if _, err := proc.Git(dir, "ls-files", "--error-unmatch", "--", path); err != nil {
 		return os.RemoveAll(filepath.Join(dir, path))
 	}
-	_, err := git(dir, "checkout", "HEAD", "--", path)
+	_, err := proc.Git(dir, "checkout", "HEAD", "--", path)
 	return err
 }
 
@@ -209,14 +212,14 @@ func (g *GitService) Checkout(target, branch string, create bool) error {
 	if create {
 		args = append(args, "-b")
 	}
-	_, err := git(gitDir(target), append(args, branch)...)
+	_, err := proc.Git(gitDir(target), append(args, branch)...)
 	return err
 }
 
 // Worktrees lists the project's worktrees.
 func (g *GitService) Worktrees(target string) ([]Worktree, error) {
 	dir := gitDir(target)
-	out, err := git(dir, "worktree", "list", "--porcelain")
+	out, err := proc.Git(dir, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
@@ -245,11 +248,11 @@ func (g *GitService) Worktrees(target string) ([]Worktree, error) {
 	for i := range list {
 		list[i].Main = i == 0
 		list[i].Managed = strings.HasPrefix(strings.ToLower(list[i].Path), strings.ToLower(root))
-		if st, err := git(list[i].Path, "status", "--porcelain"); err == nil {
+		if st, err := proc.Git(list[i].Path, "status", "--porcelain"); err == nil {
 			list[i].Changes = len(nonEmptyLines(st))
 		}
 		if i > 0 && len(list) > 0 && list[0].Branch != "" && list[i].Branch != "" {
-			if n, err := git(list[i].Path, "rev-list", "--count", list[0].Branch+".."+list[i].Branch); err == nil {
+			if n, err := proc.Git(list[i].Path, "rev-list", "--count", list[0].Branch+".."+list[i].Branch); err == nil {
 				list[i].Ahead, _ = strconv.Atoi(strings.TrimSpace(n))
 			}
 		}
@@ -258,10 +261,10 @@ func (g *GitService) Worktrees(target string) ([]Worktree, error) {
 }
 
 func worktreeRoot() string {
-	if r := store.Settings().WorktreeRoot; r != "" {
+	if r := store.CurrentSettings().WorktreeRoot; r != "" {
 		return filepath.Clean(r)
 	}
-	return filepath.Join(homeDir(), "worktrees")
+	return filepath.Join(store.HomeDir(), "worktrees")
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -288,7 +291,7 @@ type WorktreeRequest struct {
 // CreateWorktree adds a worktree on a new larvyn/<name> branch, with the
 // project's .env and SQLite database copied so the app runs there too.
 func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
-	p, ok := store.Project(req.ProjectID)
+	p, ok := store.FindProject(req.ProjectID)
 	if !ok {
 		return Worktree{}, errors.New("project not found")
 	}
@@ -307,7 +310,7 @@ func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
 	if req.Base != "" {
 		args = append(args, req.Base)
 	}
-	if _, err := git(p.Path, args...); err != nil {
+	if _, err := proc.Git(p.Path, args...); err != nil {
 		return Worktree{}, err
 	}
 	if req.CopyEnv {
@@ -325,7 +328,7 @@ func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
 
 // RemoveWorktree deletes a worktree and, when asked, its branch.
 func (g *GitService) RemoveWorktree(projectID, path string, deleteBranch bool) error {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return errors.New("project not found")
 	}
@@ -342,11 +345,11 @@ func (g *GitService) RemoveWorktree(projectID, path string, deleteBranch bool) e
 			}
 		}
 	}
-	if _, err := git(p.Path, "worktree", "remove", "--force", path); err != nil {
+	if _, err := proc.Git(p.Path, "worktree", "remove", "--force", path); err != nil {
 		return err
 	}
 	if deleteBranch && strings.HasPrefix(branch, "larvyn/") {
-		_, _ = git(p.Path, "branch", "-D", branch)
+		_, _ = proc.Git(p.Path, "branch", "-D", branch)
 	}
 	return nil
 }
@@ -367,26 +370,26 @@ func samePath(a, b string) bool {
 // MergeWorktree commits pending work in a worktree and merges its branch
 // into the project's current branch.
 func (g *GitService) MergeWorktree(projectID, path, message string) (string, error) {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return "", errors.New("project not found")
 	}
-	if st, _ := git(path, "status", "--porcelain"); len(nonEmptyLines(st)) > 0 {
+	if st, _ := proc.Git(path, "status", "--porcelain"); len(nonEmptyLines(st)) > 0 {
 		if message == "" {
 			message = "wip: agent changes"
 		}
-		if _, err := git(path, append([]string{"add", "-A", "--", "."}, notCopied...)...); err != nil {
+		if _, err := proc.Git(path, append([]string{"add", "-A", "--", "."}, notCopied...)...); err != nil {
 			return "", err
 		}
-		if _, err := git(path, "commit", "-m", message); err != nil {
+		if _, err := proc.Git(path, "commit", "-m", message); err != nil {
 			return "", err
 		}
 	}
-	branch, err := git(path, "rev-parse", "--abbrev-ref", "HEAD")
+	branch, err := proc.Git(path, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	return git(p.Path, "merge", "--no-ff", "--no-edit", strings.TrimSpace(branch))
+	return proc.Git(p.Path, "merge", "--no-ff", "--no-edit", strings.TrimSpace(branch))
 }
 
 // notCopied excludes the files CreateWorktree copies from the main checkout,

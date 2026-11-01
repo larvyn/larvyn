@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // Public repository where users report bugs and ask for features; the source
@@ -23,7 +26,7 @@ type AppInfo struct {
 
 // Info returns the version, a readable OS description and where larvyn.log is.
 func (s *SystemService) Info() AppInfo {
-	return AppInfo{Version: version, OS: osDescription(), LogPath: filepath.Join(homeDir(), "larvyn.log")}
+	return AppInfo{Version: version, OS: osDescription(), LogPath: filepath.Join(store.HomeDir(), "larvyn.log")}
 }
 
 // ReportBug opens a new bug report in the browser with the version and OS
@@ -57,8 +60,8 @@ func (s *SystemService) RequestFeature() error {
 
 // OpenLogFolder shows the folder that holds larvyn.log.
 func (s *SystemService) OpenLogFolder() error {
-	_ = os.MkdirAll(homeDir(), 0o755)
-	return s.OpenFolder(homeDir())
+	_ = os.MkdirAll(store.HomeDir(), 0o755)
+	return s.OpenFolder(store.HomeDir())
 }
 
 // osDescription is "Ubuntu 24.04.5 LTS (linux/amd64)", "macOS 15.1
@@ -83,7 +86,7 @@ func osDescription() string {
 		}
 	case "windows":
 		cmd := exec.Command("cmd", "/c", "ver")
-		hideWindow(cmd)
+		proc.HideWindow(cmd)
 		if out, err := cmd.Output(); err == nil {
 			name = strings.TrimSpace(string(out))
 		}

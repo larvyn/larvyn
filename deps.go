@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"larvyn/internal/proc"
 )
 
 // composerJSON runs a Composer command that prints JSON and returns it.
@@ -16,13 +18,13 @@ func composerJSON(projectID string, args ...string) (json.RawMessage, error) {
 	if c == nil {
 		return nil, errors.New("Composer is not installed: install it from Settings → Toolchain")
 	}
-	res, err := run(dir, 3*time.Minute, nil, c[0], append(append(c[1:], args...), "--no-interaction", "--no-ansi")...)
+	res, err := proc.Run(dir, 3*time.Minute, nil, c[0], append(append(c[1:], args...), "--no-interaction", "--no-ansi")...)
 	if err != nil {
 		return nil, err
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(firstNonEmpty(res.Stderr, res.Stdout, "composer printed no JSON")))
+		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "composer printed no JSON")))
 	}
 	return out, nil
 }

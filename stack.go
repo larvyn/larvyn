@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // StackItem is one dev process a Laravel project usually runs.
@@ -30,7 +33,7 @@ func devStackItems(procs []DevProcess, serve, vite StackItem) []StackItem {
 	items := []StackItem{}
 	for _, d := range procs {
 		args, plain := splitCommand(d.Command)
-		argv := shellCommand(d.Command)
+		argv := proc.ShellCommand(d.Command)
 		if plain {
 			argv = args
 			if argv[0] == "php" {
@@ -192,7 +195,7 @@ func stackItems(p Project) []StackItem {
 
 // Items lists the project's stack with what is running.
 func (s *StackService) Items(projectID string) ([]StackItem, error) {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return nil, errors.New("project not found")
 	}
@@ -201,7 +204,7 @@ func (s *StackService) Items(projectID string) ([]StackItem, error) {
 
 // Start runs a stack item (no-op when it already runs).
 func (s *StackService) Start(projectID, key string) (SessionInfo, error) {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return SessionInfo{}, errors.New("project not found")
 	}
@@ -216,7 +219,7 @@ func (s *StackService) Start(projectID, key string) (SessionInfo, error) {
 			_ = terminals.Close(it.Session.ID)
 		}
 		if !it.Available {
-			return SessionInfo{}, errors.New(firstNonEmpty(it.Reason, it.Label+" is not available here"))
+			return SessionInfo{}, errors.New(proc.FirstNonEmpty(it.Reason, it.Label+" is not available here"))
 		}
 		return terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
 			Cwd: p.Path, Argv: it.Argv, Meta: map[string]string{"url": it.URL}})
@@ -250,7 +253,7 @@ func (s *StackService) Restart(projectID, key string) (SessionInfo, error) {
 // would run (server, vite and queue on apps without dev:list).
 func (s *StackService) StartAll(projectID string, keys []string) error {
 	if len(keys) == 0 {
-		p, ok := store.Project(projectID)
+		p, ok := store.FindProject(projectID)
 		if !ok {
 			return errors.New("project not found")
 		}

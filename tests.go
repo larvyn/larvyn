@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"larvyn/internal/store"
 )
 
 // TestCase is one test from a JUnit report written by `artisan test`.
@@ -60,13 +62,13 @@ type junitCase struct {
 }
 
 func junitPath(projectID string) string {
-	return filepath.Join(homeDir(), "junit", projectID+".xml")
+	return filepath.Join(store.HomeDir(), "junit", projectID+".xml")
 }
 
 // RunTests runs `artisan test` in the console, writing a JUnit report Larvyn
 // reads afterwards. filter narrows it to matching tests.
 func (l *LaravelService) RunTests(projectID, filter string, parallel bool) (SessionInfo, error) {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return SessionInfo{}, errors.New("project not found")
 	}

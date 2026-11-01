@@ -1,10 +1,15 @@
-package main
+// Package store keeps Larvyn's state: the projects, the user's settings and
+// the folder they live in. It is the base layer and imports nothing of
+// Larvyn's own.
+package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Project is a folder Larvyn manages, usually a Laravel application.
@@ -37,21 +42,52 @@ type Settings struct {
 	AgentPermissions string `json:"agentPermissions"`
 }
 
-type state struct {
+// State is what state.json holds.
+type State struct {
 	Projects []Project `json:"projects"`
 	Settings Settings  `json:"settings"`
 	Active   string    `json:"active"`
 }
 
+// Store is the state loaded from (and saved to) HomeDir()/state.json.
 type Store struct {
 	mu   sync.Mutex
 	dir  string
-	data state
+	data State
 }
 
-var store = newStore()
+var (
+	defMu sync.Mutex
+	def   = New()
+)
 
-func defaultSettings() Settings {
+// Default is the store the app uses.
+func Default() *Store {
+	defMu.Lock()
+	defer defMu.Unlock()
+	return def
+}
+
+// Reload replaces the default store with a fresh read of HomeDir(), e.g.
+// after a test pointed LARVYN_HOME somewhere else.
+func Reload() {
+	s := New()
+	defMu.Lock()
+	def = s
+	defMu.Unlock()
+}
+
+// Projects, FindProject, CurrentSettings, PHP, Update and ActiveID act on the
+// default store.
+func Projects() []Project                   { return Default().Projects() }
+func FindProject(id string) (Project, bool) { return Default().Project(id) }
+func CurrentSettings() Settings             { return Default().Settings() }
+func PHP() string                           { return Default().PHP() }
+func Update(fn func(d *State)) error        { return Default().Update(fn) }
+func ActiveID() string                      { return Default().ActiveID() }
+
+// DefaultSettings are the preferences of a fresh install.
+func DefaultSettings() Settings {
 	return Settings{
 		Editor:           "code",
 		DefaultAgent:     "claude",
@@ -62,9 +98,9 @@ func defaultSettings() Settings {
 	}
 }
 
-// homeDir is where Larvyn keeps its state. LARVYN_HOME points it elsewhere,
+// HomeDir is where Larvyn keeps its state. LARVYN_HOME points it elsewhere,
 // which keeps test runs away from a real setup.
-func homeDir() string {
+func HomeDir() string {
 	if h := os.Getenv("LARVYN_HOME"); h != "" {
 		return h
 	}
@@ -75,8 +111,9 @@ func homeDir() string {
 	return filepath.Join(base, "larvyn")
 }
 
-func newStore() *Store {
-	s := &Store{dir: homeDir(), data: state{Settings: defaultSettings()}}
+// New reads the state from HomeDir().
+func New() *Store {
+	s := &Store{dir: HomeDir(), data: State{Settings: DefaultSettings()}}
 	if b, err := os.ReadFile(filepath.Join(s.dir, "state.json")); err == nil {
 		_ = json.Unmarshal(b, &s.data)
 	}
@@ -104,19 +141,22 @@ func (s *Store) saveLocked() error {
 	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
 }
 
-func (s *Store) update(fn func(d *state)) error {
+// Update changes the state under the lock and saves it.
+func (s *Store) Update(fn func(d *State)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fn(&s.data)
 	return s.saveLocked()
 }
 
+// Projects returns a copy of the saved projects.
 func (s *Store) Projects() []Project {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]Project(nil), s.data.Projects...)
 }
 
+// Project finds a project by id.
 func (s *Store) Project(id string) (Project, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -128,15 +168,35 @@ func (s *Store) Project(id string) (Project, bool) {
 	return Project{}, false
 }
 
+// ActiveID is the project that was open last.
+func (s *Store) ActiveID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Active
+}
+
+// Settings returns the current preferences.
 func (s *Store) Settings() Settings {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.data.Settings
 }
 
+// PHP is the PHP binary to run: the one set in Settings, or php from PATH.
 func (s *Store) PHP() string {
 	if b := s.Settings().PHPBinary; b != "" {
 		return b
 	}
 	return "php"
+}
+
+// AppendLog adds a line to larvyn.log in HomeDir(), so errors leave a trace.
+func AppendLog(level, message string) {
+	_ = os.MkdirAll(HomeDir(), 0o755)
+	f, err := os.OpenFile(filepath.Join(HomeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s %s\n", time.Now().Format(time.RFC3339), level, message)
 }
