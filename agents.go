@@ -33,6 +33,17 @@ var agentKinds = []AgentKind{
 	{ID: "pi", Name: "Pi", Binary: "pi", Install: "npm i -g @mariozechner/pi-coding-agent", Color: "#8B5CF6"},
 }
 
+// yoloFlags start each agent without approval prompts (the same flags Orca
+// uses for its "Yolo" agent permissions). Agents missing here have none.
+var yoloFlags = map[string][]string{
+	"claude":       {"--dangerously-skip-permissions"},
+	"codex":        {"--dangerously-bypass-approvals-and-sandbox"},
+	"opencode":     {"--dangerously-skip-permissions"},
+	"antigravity":  {"--dangerously-skip-permissions"},
+	"cursor-agent": {"--yolo"},
+	"aider":        {"--yes-always"},
+}
+
 type AgentService struct{}
 
 // Kinds lists the known agents and whether each is on PATH.
@@ -100,6 +111,10 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		}
 	}
 	argv := []string{kind.Path}
+	if f := yoloFlags[kind.ID]; len(f) > 0 && store.Settings().AgentPermissions != "manual" {
+		argv = append(argv, f...)
+		meta["yolo"] = "1"
+	}
 	// cmd.exe re-parses the arguments of .cmd shims, so a prompt with & or |
 	// in it would run as a command: type it into the agent instead.
 	ext := strings.ToLower(filepath.Ext(kind.Path))

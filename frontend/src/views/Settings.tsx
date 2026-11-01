@@ -94,6 +94,14 @@ export function Settings() {
               </select>
             </div>
             <div className="field">
+              <label>Agent permissions</label>
+              <select className="select" value={v.agentPermissions === 'manual' ? 'manual' : 'yolo'} onChange={(e) => set({ agentPermissions: e.target.value })}>
+                <option value="yolo">Yolo — skip approval prompts</option>
+                <option value="manual">Manual — the agent asks before acting</option>
+              </select>
+              <span className="hint">Yolo starts agents with their skip-approvals flag (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox…).</span>
+            </div>
+            <div className="field">
               <label>PHP binary</label>
               <input className="input mono" placeholder="php (from PATH)" value={v.phpBinary} onChange={(e) => set({ phpBinary: e.target.value })} />
               <span className="hint">Point to a specific version, e.g. a Herd PHP.</span>

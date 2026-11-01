@@ -24,6 +24,15 @@ export function Add(path: string): $CancellablePromise<$models.Project> {
 }
 
 /**
+ * EnsureSQLite creates the SQLite database file a project's .env points at
+ * when it is missing, so a fresh app does not fail with "Database file at
+ * path [...] does not exist". It reports whether a file was created.
+ */
+export function EnsureSQLite(id: string): $CancellablePromise<boolean> {
+    return $Call.ByID(96052822, id);
+}
+
+/**
  * Info inspects a project's files.
  */
 export function Info(id: string): $CancellablePromise<$models.ProjectInfo> {

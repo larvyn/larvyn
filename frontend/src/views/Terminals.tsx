@@ -20,6 +20,7 @@ import { clearTerm, focusTerm } from '../lib/terms'
 import { cx, duration } from '../lib/util'
 import { Empty, TermPane, promptDialog, useNow } from '../components/ui'
 import { Brand } from '../components/Brand'
+import { NewTabMenu } from '../components/NewTabMenu'
 
 // A stable empty list: a selector returning a fresh [] re-renders forever.
 const NO_TABS: TermTab[] = []
@@ -32,6 +33,7 @@ export function Terminals() {
   const tabs = useStore((s) => (id ? s.tabs[id] : undefined)) ?? NO_TABS
   const activeTabId = useStore((s) => (id ? s.activeTab[id] : undefined))
   const [focusedPane, setFocusedPane] = useState<string | null>(null)
+  const [menuAt, setMenuAt] = useState<HTMLElement | null>(null)
   const now = useNow(5000)
   if (!project || !id) return null
 
@@ -58,9 +60,11 @@ export function Terminals() {
       }))
   }
   const split = (dir: 'row' | 'col') => newTerminal(id, {}, dir)
+  const toggleMenu = (el: HTMLElement) => setMenuAt((cur) => (cur === el ? null : el))
 
   return (
     <div className="view flush">
+      {menuAt && <NewTabMenu projectId={id} anchor={menuAt} canSplit={!!tab} onClose={() => setMenuAt(null)} />}
       <div className="split">
         <div className="pane-list" style={{ width: 240 }}>
           <div className="toolbar" style={{ padding: '8px 10px', minHeight: 44 }}>
@@ -68,7 +72,7 @@ export function Terminals() {
               Sessions
             </span>
             <span className="spacer" />
-            <button className="icon-btn sm" title="New terminal (Ctrl+Shift+T)" onClick={() => newTerminal(id)}>
+            <button className={cx('icon-btn sm', menuAt?.dataset.menu === 'side' && 'active')} data-menu="side" title="New tab…" onClick={(e) => toggleMenu(e.currentTarget)}>
               <Plus />
             </button>
           </div>
@@ -114,7 +118,7 @@ export function Terminals() {
                 </button>
               )
             })}
-            <button className="icon-btn sm" title="New terminal" onClick={() => newTerminal(id)}>
+            <button className={cx('icon-btn sm', menuAt?.dataset.menu === 'bar' && 'active')} data-menu="bar" title="New tab…" onClick={(e) => toggleMenu(e.currentTarget)}>
               <Plus />
             </button>
             <span className="spacer" />

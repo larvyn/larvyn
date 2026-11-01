@@ -54,6 +54,12 @@ export interface CreateRequest {
      */
     "testing": string;
     "db": string;
+
+    /**
+     * CreateSQLite asks for database/database.sqlite (and migrations) once
+     * the app is scaffolded, when DB is sqlite.
+     */
+    "createSqlite": boolean;
 }
 
 /**
@@ -237,6 +243,8 @@ export interface ProjectInfo {
     "hasEnv": boolean;
     "hasEnvExample": boolean;
     "hasAppKey": boolean;
+    "sqliteFile": string;
+    "sqliteMissing": boolean;
     "testRunner": string;
     "composerScripts": { [_ in string]?: string } | null;
     "npmScripts": { [_ in string]?: string } | null;
@@ -315,6 +323,12 @@ export interface Settings {
      * NoUpdateCheck turns off the check for new releases at start.
      */
     "noUpdateCheck": boolean;
+
+    /**
+     * AgentPermissions is "yolo" (agents start with their skip-approvals
+     * flag, as Orca does by default) or "manual" (they ask as usual).
+     */
+    "agentPermissions": string;
 }
 
 export interface Snapshot {

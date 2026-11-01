@@ -95,7 +95,7 @@ export function Overview() {
         .then((r: any) => setPending(r?.ok ? r.migrations.filter((m: any) => !m.ran).length : null))
         .catch(() => setPending(null))
     }
-  }, [id, info?.hasVendor, info?.hasEnv])
+  }, [id, info?.hasVendor, info?.hasEnv, info?.sqliteMissing])
 
   if (!project || !info) return <div className="view pad" />
 
@@ -114,6 +114,23 @@ export function Overview() {
           key: 'key', label: 'Application key', detail: info.hasAppKey ? 'APP_KEY is set' : 'APP_KEY is empty: sessions and encryption fail', ok: info.hasEnv ? info.hasAppKey : null,
           fix: { label: 'key:generate', run: () => artisanRun(id!, ['key:generate']) },
         },
+        ...(info.sqliteFile
+          ? [
+              {
+                key: 'sqlite', label: 'SQLite database',
+                detail: info.sqliteMissing ? `${info.sqliteFile} does not exist: every query fails` : 'Database file exists',
+                ok: !info.sqliteMissing,
+                fix: {
+                  label: 'Create database',
+                  run: () =>
+                    ProjectService.EnsureSQLite(id!)
+                      .then(() => refreshInfo(id!))
+                      .then(() => artisanRun(id!, ['migrate', '--graceful', '--force']))
+                      .catch(fail('Could not create the database')),
+                },
+              },
+            ]
+          : []),
         {
           key: 'node', label: 'Frontend dependencies', detail: Object.keys(info.npmScripts ?? {}).length === 0 ? 'No package.json' : info.hasNodeModules ? 'node_modules/ is installed' : 'node_modules/ is missing',
           ok: Object.keys(info.npmScripts ?? {}).length === 0 ? true : info.hasNodeModules,
