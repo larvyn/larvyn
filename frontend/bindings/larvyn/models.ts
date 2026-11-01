@@ -9,6 +9,9 @@ import * as proc$0 from "./internal/proc/models.js";
 import * as store$0 from "./internal/store/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as terminal$0 from "./internal/terminal/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as updater$0 from "./internal/updater/models.js";
 
 /**
@@ -277,55 +280,12 @@ export type RunResult = proc$0.RunResult;
 /**
  * SessionInfo is what the UI knows about a terminal.
  */
-export interface SessionInfo {
-    "id": string;
-    "projectId": string;
-    "kind": string;
-    "key": string;
-    "title": string;
-    "cwd": string;
-    "command": string;
-    "running": boolean;
-    "exitCode": number;
-    "stopped": boolean;
-    "startedAt": number;
-    "endedAt": number;
-    "lastActivity": number;
-    "bell": boolean;
-    "meta": { [_ in string]?: string } | null;
-}
-
-/**
- * SessionSpec describes a terminal to start. Argv runs a program directly;
- * Command runs a line through the shell; with neither, an interactive shell.
- */
-export interface SessionSpec {
-    "projectId": string;
-
-    /**
-     * shell, service, agent, run
-     */
-    "kind": string;
-    "key": string;
-    "title": string;
-    "cwd": string;
-    "argv": string[] | null;
-    "command": string;
-    "env": { [_ in string]?: string } | null;
-    "cols": number;
-    "rows": number;
-    "meta": { [_ in string]?: string } | null;
-}
+export type SessionInfo = terminal$0.SessionInfo;
 
 /**
  * Settings are the user's global preferences.
  */
 export type Settings = store$0.Settings;
-
-export interface Snapshot {
-    "data": string;
-    "seq": number;
-}
 
 /**
  * StackItem is one dev process a Laravel project usually runs.
@@ -344,18 +304,6 @@ export interface StackItem {
      * Dev is set for the processes `php artisan dev` would start (from dev:list).
      */
     "dev": boolean;
-}
-
-export interface TermData {
-    "id": string;
-    "seq": number;
-    "data": string;
-}
-
-export interface TermExit {
-    "id": string;
-    "code": number;
-    "stopped": boolean;
 }
 
 /**

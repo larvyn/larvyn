@@ -7,15 +7,13 @@ import * as LaravelService from "./laravelservice.js";
 import * as ProjectService from "./projectservice.js";
 import * as StackService from "./stackservice.js";
 import * as SystemService from "./systemservice.js";
-import * as TerminalService from "./terminalservice.js";
 export {
     AgentService,
     FileService,
     LaravelService,
     ProjectService,
     StackService,
-    SystemService,
-    TerminalService
+    SystemService
 };
 
 export type {
@@ -36,12 +34,8 @@ export type {
     ProjectInfo,
     RunResult,
     SessionInfo,
-    SessionSpec,
     Settings,
-    Snapshot,
     StackItem,
-    TermData,
-    TermExit,
     TestCase,
     TestReport,
     Tool,

@@ -3,6 +3,7 @@ package main
 import (
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 	"larvyn/internal/updater"
 )
 
@@ -20,3 +21,12 @@ type RunResult = proc.RunResult
 
 // UpdateInfo tells the window whether a newer release exists.
 type UpdateInfo = updater.Info
+
+// SessionSpec describes a terminal to start.
+type SessionSpec = terminal.SessionSpec
+
+// SessionInfo is what the UI knows about a terminal.
+type SessionInfo = terminal.SessionInfo
+
+// terminals is the app's terminal service.
+var terminals = terminal.Sessions

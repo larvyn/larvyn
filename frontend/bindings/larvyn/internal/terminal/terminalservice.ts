@@ -13,68 +13,70 @@ import * as $models from "./models.js";
  * ClearBell marks a terminal's attention flag as seen.
  */
 export function ClearBell(id: string): $CancellablePromise<void> {
-    return $Call.ByID(2132189607, id);
+    return $Call.ByID(130543607, id);
 }
 
 /**
  * Close kills a terminal and forgets it.
  */
 export function Close(id: string): $CancellablePromise<void> {
-    return $Call.ByID(3052890075, id);
+    return $Call.ByID(166087339, id);
 }
 
 /**
- * Kill stops the program in a terminal; the session stays until Close.
+ * Kill stops the program in a terminal; the session stays until Close. It
+ * returns right away; the program and its descendants get a few seconds to
+ * exit before they are killed outright.
  */
 export function Kill(id: string): $CancellablePromise<void> {
-    return $Call.ByID(2346399937, id);
+    return $Call.ByID(3190856273, id);
 }
 
 /**
  * List returns every terminal, oldest first.
  */
 export function List(): $CancellablePromise<$models.SessionInfo[] | null> {
-    return $Call.ByID(3179968105);
+    return $Call.ByID(261221241);
 }
 
 /**
  * Output returns the scrollback as plain text without escape sequences.
  */
 export function Output(id: string): $CancellablePromise<string> {
-    return $Call.ByID(3143974396, id);
+    return $Call.ByID(1268805356, id);
 }
 
 /**
  * Rename sets a terminal's title.
  */
 export function Rename(id: string, title: string): $CancellablePromise<void> {
-    return $Call.ByID(3378983931, id, title);
+    return $Call.ByID(2235938987, id, title);
 }
 
 /**
  * Resize changes a terminal's size in cells.
  */
 export function Resize(id: string, cols: number, rows: number): $CancellablePromise<void> {
-    return $Call.ByID(270758441, id, cols, rows);
+    return $Call.ByID(289152729, id, cols, rows);
 }
 
 /**
  * Snapshot returns the scrollback so a freshly mounted view can catch up.
  */
 export function Snapshot(id: string): $CancellablePromise<$models.Snapshot> {
-    return $Call.ByID(661476613, id);
+    return $Call.ByID(1006029781, id);
 }
 
 /**
  * Start launches a new terminal session.
  */
 export function Start(spec: $models.SessionSpec): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(3774501399, spec);
+    return $Call.ByID(3791324871, spec);
 }
 
 /**
  * Write sends keyboard input to a terminal.
  */
 export function Write(id: string, data: string): $CancellablePromise<void> {
-    return $Call.ByID(371925220, id, data);
+    return $Call.ByID(3489904948, id, data);
 }

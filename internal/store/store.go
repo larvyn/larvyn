@@ -4,6 +4,8 @@
 package store
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -96,6 +98,13 @@ func DefaultSettings() Settings {
 		Accent:           "#FF2D20",
 		ConfirmDangerous: true,
 	}
+}
+
+// NewID returns a short random id for a project or a terminal session.
+func NewID() string {
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // HomeDir is where Larvyn keeps its state. LARVYN_HOME points it elsewhere,

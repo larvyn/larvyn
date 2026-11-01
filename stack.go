@@ -10,6 +10,7 @@ import (
 
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 // StackItem is one dev process a Laravel project usually runs.
@@ -188,7 +189,7 @@ func stackItems(p Project) []StackItem {
 		}
 	}
 	for i := range items {
-		items[i].Session = terminals.find(p.ID, "service", items[i].Key)
+		items[i].Session = terminal.Find(p.ID, "service", items[i].Key)
 	}
 	return items
 }
@@ -229,7 +230,7 @@ func (s *StackService) Start(projectID, key string) (SessionInfo, error) {
 
 // Stop stops a stack item.
 func (s *StackService) Stop(projectID, key string) error {
-	if sess := terminals.find(projectID, "service", key); sess != nil {
+	if sess := terminal.Find(projectID, "service", key); sess != nil {
 		return terminals.Kill(sess.ID)
 	}
 	return nil
@@ -237,11 +238,11 @@ func (s *StackService) Stop(projectID, key string) error {
 
 // Restart stops and starts a stack item.
 func (s *StackService) Restart(projectID, key string) (SessionInfo, error) {
-	if sess := terminals.find(projectID, "service", key); sess != nil {
+	if sess := terminal.Find(projectID, "service", key); sess != nil {
 		_ = terminals.Kill(sess.ID)
 		// A program that ignores SIGTERM is killed after about 3 s.
 		for i := 0; i < 80; i++ {
-			if cur := terminals.find(projectID, "service", key); cur == nil || !cur.Running {
+			if cur := terminal.Find(projectID, "service", key); cur == nil || !cur.Running {
 				break
 			}
 			time.Sleep(50 * time.Millisecond)

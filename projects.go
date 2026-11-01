@@ -145,7 +145,7 @@ func (s *ProjectService) Add(path string) (Project, error) {
 	}
 	n := len(store.Projects())
 	p := Project{
-		ID:           newID(),
+		ID:           store.NewID(),
 		Name:         prettyName(path),
 		Path:         path,
 		Color:        palette[n%len(palette)],
@@ -471,4 +471,11 @@ func prettyName(path string) string {
 		words[i] = strings.ToUpper(w[:1]) + w[1:]
 	}
 	return strings.Join(words, " ")
+}
+
+// emit sends an event to the window, once the app is running.
+func emit(name string, data any) {
+	if app := application.Get(); app != nil {
+		app.Event.Emit(name, data)
+	}
 }
