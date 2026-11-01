@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { LaravelService, ProjectService, StackService, SystemService, type StackItem } from '../../bindings/larvyn'
 import { GitService, type Commit } from '../../bindings/larvyn/internal/git'
+import { askRemoveProject } from '../components/removeProject'
 import {
   artisanRun,
   composerRun,
@@ -47,7 +48,7 @@ import {
   type View,
 } from '../lib/store'
 import { ago, cx } from '../lib/util'
-import { Toggle, confirmDialog, promptDialog } from '../components/ui'
+import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
 
 const KIND_COLOR: Record<string, string> = {
@@ -193,10 +194,7 @@ export function Overview() {
             <button
               className="icon-btn danger"
               title="Remove from Larvyn"
-              onClick={async () => {
-                if (await confirmDialog({ title: `Remove ${project.name}?`, message: 'Larvyn forgets the project and stops its terminals. Your files are not touched.', confirm: 'Remove', danger: true }))
-                  ProjectService.Remove(project.id)
-              }}
+              onClick={() => askRemoveProject(project)}
             >
               <Trash2 />
             </button>
