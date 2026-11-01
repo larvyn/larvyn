@@ -51,7 +51,8 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
   to use another folder. For scripts: `LARVYN_VIEW=<view>` opens a view,
   `LARVYN_RUN=<command>` opens a terminal running it, `LARVYN_AGENT=<id>`
   starts an agent (claude, codex, …) in the last opened project, and
-  `LARVYN_PALETTE=<text>` opens the command palette with that text typed.
+  `LARVYN_PALETTE=<text>` opens the command palette with that text typed, and
+  `LARVYN_FILE=<path>` opens a project file in the Files editor.
 - `create.php`: embedded stand-in for `laravel new`, used when the Laravel
   installer is missing. It applies the New app choices (starter kit,
   database, git, Pest, npm) the same way the installer does.

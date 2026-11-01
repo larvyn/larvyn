@@ -11,6 +11,7 @@ import {
   FileCode2,
   FlaskConical,
   FolderOpen,
+  FolderTree,
   GitBranch,
   Globe,
   LayoutDashboard,
@@ -168,6 +169,7 @@ const NAV: { group: string; items: { view: View; label: string; icon: any; hint?
   {
     group: 'Project',
     items: [
+      { view: 'files', label: 'Files', icon: FolderTree },
       { view: 'git', label: 'Source control', icon: GitBranch },
       { view: 'env', label: 'Environment', icon: Braces },
       { view: 'deps', label: 'Dependencies', icon: Package },
