@@ -101,6 +101,7 @@ export interface FileContent {
     "path": string;
     "abs": string;
     "content": string;
+    "size": number;
 
     /**
      * Version identifies what is on disk (modification time and size). It is
@@ -108,7 +109,6 @@ export interface FileContent {
      * nanoseconds do not fit a JavaScript number exactly.
      */
     "version": string;
-    "size": number;
     "binary": boolean;
     "tooLarge": boolean;
 }
