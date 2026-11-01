@@ -37,6 +37,7 @@ uninstall() {
 		rm -f "$BIN_DIR/larvyn" \
 			"$DATA_DIR/applications/larvyn.desktop" \
 			"$DATA_DIR/icons/hicolor/1024x1024/apps/larvyn.png"
+		rm -rf "$DATA_DIR/larvyn"
 		command -v update-desktop-database >/dev/null 2>&1 &&
 			update-desktop-database -q "$DATA_DIR/applications" 2>/dev/null || true
 		;;
@@ -98,16 +99,19 @@ if [ "$os" = "Darwin" ]; then
 else
 	install -m 755 "$tmp/larvyn" "$BIN_DIR/larvyn"
 
-	icon_dir="$DATA_DIR/icons/hicolor/1024x1024/apps"
-	mkdir -p "$icon_dir" "$DATA_DIR/applications"
-	install -m 644 "$tmp/larvyn.png" "$icon_dir/larvyn.png"
+	# The icon theme has no 1024px folder, so a themed name would not resolve;
+	# an absolute path works in every desktop. Older installs used hicolor.
+	rm -f "$DATA_DIR/icons/hicolor/1024x1024/apps/larvyn.png"
+	mkdir -p "$DATA_DIR/larvyn" "$DATA_DIR/applications"
+	install -m 644 "$tmp/larvyn.png" "$DATA_DIR/larvyn/larvyn.png"
 	cat >"$DATA_DIR/applications/larvyn.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Larvyn
 Comment=The Laravel workbench
 Exec=$BIN_DIR/larvyn
-Icon=larvyn
+Icon=$DATA_DIR/larvyn/larvyn.png
+StartupWMClass=larvyn
 Categories=Development;
 Terminal=false
 EOF
