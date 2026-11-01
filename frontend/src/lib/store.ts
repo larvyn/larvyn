@@ -175,9 +175,13 @@ function onExit(id: string, code: number, stopped = false) {
   if (sess.meta?.target && sess.key === 'create') {
     if (code === 0) {
       ProjectService.Add(sess.meta.target)
-        .then((p) => {
+        .then(async (p) => {
           toast('success', 'Project created', p.name)
           selectProject(p.id)
+          // The installer does not always leave the SQLite file behind (or
+          // migrate it), and every request then fails with "Database file
+          // at path [...] does not exist".
+          if (await ProjectService.EnsureSQLite(p.id).catch(() => false)) artisanRun(p.id, ['migrate', '--graceful', '--force'])
         })
         .catch(fail('Could not add project'))
     } else toast('error', 'Project creation failed', `exit code ${code}`)
