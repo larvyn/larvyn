@@ -40,13 +40,6 @@ export interface AppInfo {
     "logPath": string;
 }
 
-export interface Commit {
-    "hash": string;
-    "author": string;
-    "date": number;
-    "subject": string;
-}
-
 /**
  * CreateRequest describes a new Laravel application.
  */
@@ -125,33 +118,6 @@ export interface FileEntry {
     "path": string;
     "dir": boolean;
     "size": number;
-}
-
-/**
- * GitFile is one changed path.
- */
-export interface GitFile {
-    "path": string;
-    "index": string;
-    "worktree": string;
-    "added": number;
-    "removed": number;
-}
-
-/**
- * GitStatus summarises a working tree.
- */
-export interface GitStatus {
-    "isRepo": boolean;
-    "branch": string;
-    "upstream": string;
-    "ahead": number;
-    "behind": number;
-    "files": GitFile[] | null;
-    "commits": Commit[] | null;
-    "branches": string[] | null;
-    "stashes": number;
-    "worktrees": Worktree[] | null;
 }
 
 /**
@@ -434,27 +400,3 @@ export interface Tool {
  * UpdateInfo tells the window whether a newer release exists.
  */
 export type UpdateInfo = updater$0.Info;
-
-/**
- * Worktree is a git worktree; Larvyn gives each agent task one.
- */
-export interface Worktree {
-    "path": string;
-    "branch": string;
-    "head": string;
-    "main": boolean;
-    "managed": boolean;
-    "changes": number;
-    "ahead": number;
-    "detached": boolean;
-}
-
-/**
- * WorktreeRequest describes a new isolated checkout.
- */
-export interface WorktreeRequest {
-    "projectId": string;
-    "name": string;
-    "base": string;
-    "copyEnv": boolean;
-}

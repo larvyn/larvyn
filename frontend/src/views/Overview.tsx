@@ -29,15 +29,8 @@ import {
   Workflow,
   Wrench,
 } from 'lucide-react'
-import {
-  GitService,
-  LaravelService,
-  ProjectService,
-  StackService,
-  SystemService,
-  type Commit,
-  type StackItem,
-} from '../../bindings/larvyn'
+import { LaravelService, ProjectService, StackService, SystemService, type StackItem } from '../../bindings/larvyn'
+import { GitService, type Commit } from '../../bindings/larvyn/internal/git'
 import {
   artisanRun,
   composerRun,

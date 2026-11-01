@@ -40,11 +40,14 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
 - `bridge.php`: embedded PHP script that boots the project's Laravel app and
   answers one JSON request (database, models, migrations, queues, schedule,
   tinker). Answers follow a marker so boot noise never breaks parsing.
-- `stack.go`, `agents.go`, `git.go`, `laravel.go`, `projects.go`,
-  `system.go`: the services the frontend calls through generated bindings.
+- `stack.go`, `agents.go`, `laravel.go`, `projects.go`, `system.go` and
+  `internal/git`: the services the frontend calls through generated bindings
+  (a service in `internal/<pkg>` gets its bindings in
+  `frontend/bindings/larvyn/internal/<pkg>`).
 - `internal/store` (projects, settings, the state folder), `internal/proc`
-  (running PHP, artisan and git, finding programs, the login-shell PATH) and
-  `internal/updater` (self-update): the base packages the services build on.
+  (running PHP, artisan and git, finding programs, the login-shell PATH),
+  `internal/dotenv` (.env parsing) and `internal/updater` (self-update): the
+  base packages the services build on.
   They never import the services. `aliases.go` keeps their types' names in
   `main`, so the bindings and the frontend imports don't change.
 - State lives in `%APPDATA%\larvyn` (`~/.config/larvyn`); set `LARVYN_HOME`

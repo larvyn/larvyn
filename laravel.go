@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"larvyn/internal/dotenv"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 )
@@ -238,9 +239,9 @@ func (l *LaravelService) Env(projectID, name string) (EnvFile, error) {
 	if b, err := os.ReadFile(f.Path); err == nil {
 		f.Exists = true
 		f.Raw = string(b)
-		f.Values = readEnvFile(f.Path)
+		f.Values = dotenv.Read(f.Path)
 	}
-	if example := readEnvFile(filepath.Join(dir, ".env.example")); example != nil && name != ".env.example" {
+	if example := dotenv.Read(filepath.Join(dir, ".env.example")); example != nil && name != ".env.example" {
 		for k := range example {
 			if _, ok := f.Values[k]; !ok {
 				f.Missing = append(f.Missing, k)
@@ -293,7 +294,7 @@ func (l *LaravelService) SetEnv(projectID, key, value string) error {
 	lines := strings.Split(f.Raw, "\n")
 	found := false
 	for i, line := range lines {
-		if k, _, ok := parseEnvLine(line); ok && k == key {
+		if k, _, ok := dotenv.ParseLine(line); ok && k == key {
 			lines[i] = key + "=" + value
 			found = true
 		}

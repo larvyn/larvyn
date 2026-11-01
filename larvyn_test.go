@@ -22,25 +22,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestParseEnvLine(t *testing.T) {
-	cases := map[string][2]string{
-		`APP_NAME="My App"`:        {"APP_NAME", "My App"},
-		`DB_PASSWORD='s3cr#t'`:     {"DB_PASSWORD", "s3cr#t"},
-		`CACHE_STORE=redis # note`: {"CACHE_STORE", "redis"},
-		`export FOO=bar`:           {"FOO", "bar"},
-		`EMPTY=`:                   {"EMPTY", ""},
-	}
-	for line, want := range cases {
-		k, v, ok := parseEnvLine(line)
-		if !ok || k != want[0] || v != want[1] {
-			t.Errorf("%q: got %q=%q ok=%v", line, k, v, ok)
-		}
-	}
-	if _, _, ok := parseEnvLine("# comment"); ok {
-		t.Error("comment parsed as a key")
-	}
-}
-
 func TestParseLog(t *testing.T) {
 	log := `[2026-10-30 12:00:01] local.ERROR: Undefined variable $user {"exception":"[object] (ErrorException(code: 0): Undefined variable $user at /app/app/Http/Controllers/HomeController.php:14)
 [stacktrace]
@@ -156,56 +137,6 @@ func TestBridgeAgainstRealProject(t *testing.T) {
 	}
 	items := stackItems(p)
 	t.Logf("stack: %d items", len(items))
-}
-
-func TestWorktreeLifecycle(t *testing.T) {
-	if proc.Which("git") == "" {
-		t.Skip("git not installed")
-	}
-	repo := t.TempDir()
-	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
-		if _, err := proc.Git(repo, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	os.WriteFile(repo+"/README.md", []byte("hi\n"), 0o644)
-	os.WriteFile(repo+"/.env", []byte("APP_NAME=Demo\n"), 0o644)
-	proc.Git(repo, "add", "README.md")
-	if _, err := proc.Git(repo, "commit", "-m", "init"); err != nil {
-		t.Fatal(err)
-	}
-	p, err := (&ProjectService{}).Add(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &GitService{}
-	wt, err := g.CreateWorktree(WorktreeRequest{ProjectID: p.ID, Name: "Add Feature!", CopyEnv: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if wt.Branch != "larvyn/add-feature" {
-		t.Errorf("branch = %s", wt.Branch)
-	}
-	if b, _ := os.ReadFile(wt.Path + "/.env"); string(b) != "APP_NAME=Demo\n" {
-		t.Error(".env not copied")
-	}
-	os.WriteFile(wt.Path+"/feature.php", []byte("<?php // agent work\n"), 0o644)
-	diff, err := g.BranchDiff(wt.Path, "main")
-	if err != nil || !strings.Contains(diff, "agent work") {
-		t.Fatalf("diff missing new file: %v %q", err, diff)
-	}
-	if _, err := g.MergeWorktree(p.ID, wt.Path, "feat: add feature"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(repo + "/feature.php"); err != nil {
-		t.Error("merge did not bring feature.php into main")
-	}
-	if err := g.RemoveWorktree(p.ID, wt.Path, true); err != nil {
-		t.Fatal(err)
-	}
-	if out, _ := proc.Git(repo, "branch"); strings.Contains(out, "larvyn/") {
-		t.Errorf("branch not deleted: %s", out)
-	}
 }
 
 func TestTerminalShellCommand(t *testing.T) {

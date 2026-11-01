@@ -112,3 +112,14 @@ func StartDetached(dir, name string, args ...string) error {
 	go cmd.Wait()
 	return nil
 }
+
+// NonEmptyLines splits command output into its non-blank lines.
+func NonEmptyLines(s string) []string {
+	var out []string
+	for _, l := range strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n") {
+		if strings.TrimSpace(l) != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}

@@ -3,7 +3,10 @@ package main
 import (
 	"embed"
 	"log"
+	"path/filepath"
+	"strings"
 
+	"larvyn/internal/git"
 	"larvyn/internal/proc"
 	"larvyn/internal/updater"
 
@@ -20,6 +23,14 @@ var appIcon []byte
 
 func main() {
 	updater.Version = version
+	// Removing a worktree stops the terminals running in it.
+	git.CloseSessionsIn = func(dir string) {
+		for _, s := range terminals.List() {
+			if strings.EqualFold(filepath.Clean(s.Cwd), filepath.Clean(dir)) {
+				_ = terminals.Close(s.ID)
+			}
+		}
+	}
 	updater.Cleanup()
 	proc.StartShellEnvImport()
 	app := application.New(application.Options{
@@ -31,7 +42,7 @@ func main() {
 			application.NewService(terminals),
 			application.NewService(&StackService{}),
 			application.NewService(&LaravelService{}),
-			application.NewService(&GitService{}),
+			application.NewService(&git.GitService{}),
 			application.NewService(&AgentService{}),
 			application.NewService(&SystemService{}),
 			application.NewService(&FileService{}),

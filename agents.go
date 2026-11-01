@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/git"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 )
@@ -102,7 +103,7 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 	cwd := proc.FirstNonEmpty(req.Cwd, p.Path)
 	meta := map[string]string{"agent": kind.ID, "agentName": kind.Name, "color": kind.Color, "prompt": req.Prompt}
 	if req.Worktree {
-		wt, err := (&GitService{}).CreateWorktree(WorktreeRequest{ProjectID: p.ID, Name: kind.ID + "-" + title, Base: req.Base, CopyEnv: true})
+		wt, err := (&git.GitService{}).CreateWorktree(git.WorktreeRequest{ProjectID: p.ID, Name: kind.ID + "-" + title, Base: req.Base, CopyEnv: true})
 		if err != nil {
 			return SessionInfo{}, err
 		}

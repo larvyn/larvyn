@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/dotenv"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 
@@ -153,7 +153,7 @@ func (s *ProjectService) Add(path string) (Project, error) {
 		AddedAt:      time.Now().UnixMilli(),
 		LastOpenedAt: time.Now().UnixMilli(),
 	}
-	if env := readEnvFile(filepath.Join(path, ".env")); env["APP_NAME"] != "" && env["APP_NAME"] != "Laravel" {
+	if env := dotenv.Read(filepath.Join(path, ".env")); env["APP_NAME"] != "" && env["APP_NAME"] != "Laravel" {
 		p.Name = env["APP_NAME"]
 	}
 	err = store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
@@ -250,7 +250,7 @@ func (s *ProjectService) EnsureSQLite(id string) (bool, error) {
 	if !ok {
 		return false, errors.New("project not found")
 	}
-	path := sqlitePath(p.Path, readEnvFile(filepath.Join(p.Path, ".env")))
+	path := sqlitePath(p.Path, dotenv.Read(filepath.Join(p.Path, ".env")))
 	if path == "" {
 		return false, nil
 	}
@@ -378,7 +378,7 @@ func inspect(p Project) ProjectInfo {
 	info.HasNodeModules = isDir(filepath.Join(root, "node_modules"))
 	_, err := os.Stat(filepath.Join(root, ".env.example"))
 	info.HasEnvExample = err == nil
-	if env := readEnvFile(filepath.Join(root, ".env")); env != nil {
+	if env := dotenv.Read(filepath.Join(root, ".env")); env != nil {
 		info.HasEnv = true
 		info.AppName = env["APP_NAME"]
 		info.AppURL = env["APP_URL"]
@@ -413,7 +413,7 @@ func inspect(p Project) ProjectInfo {
 	if out, err := proc.Git(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
 		info.Branch = strings.TrimSpace(out)
 		if st, err := proc.Git(root, "status", "--porcelain"); err == nil {
-			info.Dirty = len(nonEmptyLines(st))
+			info.Dirty = len(proc.NonEmptyLines(st))
 		}
 	}
 	return info
@@ -463,16 +463,6 @@ func countFiles(dir string) int {
 	return n
 }
 
-func nonEmptyLines(s string) []string {
-	var out []string
-	for _, l := range strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n") {
-		if strings.TrimSpace(l) != "" {
-			out = append(out, l)
-		}
-	}
-	return out
-}
-
 var nonWord = regexp.MustCompile(`[-_.]+`)
 
 func prettyName(path string) string {
@@ -481,42 +471,4 @@ func prettyName(path string) string {
 		words[i] = strings.ToUpper(w[:1]) + w[1:]
 	}
 	return strings.Join(words, " ")
-}
-
-// readEnvFile parses a dotenv file; nil when it does not exist.
-func readEnvFile(path string) map[string]string {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	out := map[string]string{}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		k, v, ok := parseEnvLine(sc.Text())
-		if ok {
-			out[k] = v
-		}
-	}
-	return out
-}
-
-func parseEnvLine(line string) (string, string, bool) {
-	line = strings.TrimSpace(line)
-	if line == "" || strings.HasPrefix(line, "#") {
-		return "", "", false
-	}
-	line = strings.TrimPrefix(line, "export ")
-	k, v, ok := strings.Cut(line, "=")
-	if !ok {
-		return "", "", false
-	}
-	k = strings.TrimSpace(k)
-	v = strings.TrimSpace(v)
-	if len(v) >= 2 && (v[0] == '"' && v[len(v)-1] == '"' || v[0] == '\'' && v[len(v)-1] == '\'') {
-		v = v[1 : len(v)-1]
-	} else if i := strings.Index(v, " #"); i >= 0 {
-		v = strings.TrimSpace(v[:i])
-	}
-	return k, v, true
 }

@@ -14,21 +14,21 @@ import * as $models from "./models.js";
  * where it left base: the changes an agent made.
  */
 export function BranchDiff(worktreePath: string, base: string): $CancellablePromise<string> {
-    return $Call.ByID(3973112042, worktreePath, base);
+    return $Call.ByID(1396374898, worktreePath, base);
 }
 
 /**
  * Checkout switches branches, creating it when create is set.
  */
 export function Checkout(target: string, branch: string, create: boolean): $CancellablePromise<void> {
-    return $Call.ByID(41166665, target, branch, create);
+    return $Call.ByID(3931189041, target, branch, create);
 }
 
 /**
  * Commit stages everything (or the given paths) and commits.
  */
 export function Commit(target: string, message: string, paths: string[] | null): $CancellablePromise<void> {
-    return $Call.ByID(471482348, target, message, paths);
+    return $Call.ByID(2482799940, target, message, paths);
 }
 
 /**
@@ -36,21 +36,21 @@ export function Commit(target: string, message: string, paths: string[] | null):
  * project's .env and SQLite database copied so the app runs there too.
  */
 export function CreateWorktree(req: $models.WorktreeRequest): $CancellablePromise<$models.Worktree> {
-    return $Call.ByID(1842991184, req);
+    return $Call.ByID(819586344, req);
 }
 
 /**
  * Diff returns the unified diff of one file (or the whole tree when empty).
  */
 export function Diff(target: string, path: string, staged: boolean): $CancellablePromise<string> {
-    return $Call.ByID(1934352874, target, path, staged);
+    return $Call.ByID(2964687570, target, path, staged);
 }
 
 /**
  * Discard throws away changes to a path.
  */
 export function Discard(target: string, path: string): $CancellablePromise<void> {
-    return $Call.ByID(3983866289, target, path);
+    return $Call.ByID(3595195561, target, path);
 }
 
 /**
@@ -58,14 +58,14 @@ export function Discard(target: string, path: string): $CancellablePromise<void>
  * into the project's current branch.
  */
 export function MergeWorktree(projectID: string, path: string, message: string): $CancellablePromise<string> {
-    return $Call.ByID(675289566, projectID, path, message);
+    return $Call.ByID(1198445462, projectID, path, message);
 }
 
 /**
  * RemoveWorktree deletes a worktree and, when asked, its branch.
  */
 export function RemoveWorktree(projectID: string, path: string, deleteBranch: boolean): $CancellablePromise<void> {
-    return $Call.ByID(3510277616, projectID, path, deleteBranch);
+    return $Call.ByID(3473696296, projectID, path, deleteBranch);
 }
 
 /**
@@ -73,12 +73,12 @@ export function RemoveWorktree(projectID: string, path: string, deleteBranch: bo
  * project ID or a worktree path.
  */
 export function Status(target: string): $CancellablePromise<$models.GitStatus> {
-    return $Call.ByID(1385891039, target);
+    return $Call.ByID(2788604055, target);
 }
 
 /**
  * Worktrees lists the project's worktrees.
  */
 export function Worktrees(target: string): $CancellablePromise<$models.Worktree[] | null> {
-    return $Call.ByID(2642558065, target);
+    return $Call.ByID(989878969, target);
 }
