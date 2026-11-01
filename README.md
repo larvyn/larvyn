@@ -61,3 +61,11 @@ go test ./...     # LARVYN_TEST_PROJECT=<laravel app> also runs the bridge again
 ```
 
 Requires Go 1.25+, Node 20+, PHP 8.2+ on PATH (or set in Settings), and git.
+
+Without `task`/`wails3` on macOS, `scripts/build-macos.sh --run` builds the
+frontend if needed and then `bin/larvyn`, with the same deployment target as
+`build/darwin/Taskfile.yml` (12.0) and Apple's clang. A plain `go build`
+leaves the target unset and ld warns "object file was built for newer
+'macOS' version". If WebKit logs "could not create directory
+~/Library/WebKit/larvyn/...", that folder is not owned by you and the app
+cannot keep its settings: `sudo chown -R $(id -un):staff ~/Library/WebKit`.
