@@ -239,6 +239,54 @@ func (s *ProjectService) Info(id string) (ProjectInfo, error) {
 	return inspect(p), nil
 }
 
+// EnsureSQLite creates the SQLite database file a project's .env points at
+// when it is missing, so a fresh app does not fail with "Database file at
+// path [...] does not exist". It reports whether a file was created.
+func (s *ProjectService) EnsureSQLite(id string) (bool, error) {
+	p, ok := store.Project(id)
+	if !ok {
+		return false, errors.New("project not found")
+	}
+	path := sqlitePath(p.Path, readEnvFile(filepath.Join(p.Path, ".env")))
+	if path == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, f.Close()
+}
+
+// sqlitePath returns the database file of a project that uses SQLite, or ""
+// when it uses another driver or an in-memory database. An empty
+// DB_DATABASE means Laravel's default, database/database.sqlite.
+func sqlitePath(root string, env map[string]string) string {
+	if !strings.EqualFold(env["DB_CONNECTION"], "sqlite") {
+		return ""
+	}
+	db := strings.TrimSpace(env["DB_DATABASE"])
+	switch {
+	case db == "":
+		return filepath.Join(root, "database", "database.sqlite")
+	case db == ":memory:" || strings.HasPrefix(db, "file:"):
+		return ""
+	case filepath.IsAbs(db):
+		return db
+	default:
+		return filepath.Join(root, db)
+	}
+}
+
 func inspect(p Project) ProjectInfo {
 	info := ProjectInfo{Project: p, ComposerScripts: map[string]string{}, NpmScripts: map[string]string{}, Counts: map[string]int{}}
 	if _, err := os.Stat(p.Path); err != nil {
