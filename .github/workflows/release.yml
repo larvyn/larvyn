@@ -113,6 +113,11 @@ jobs:
           prev=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
           range="${prev:+$prev..}$GITHUB_REF_NAME"
           {
+            # A hand-written summary for this tag, when there is one.
+            if [ -f ".github/release-notes/$GITHUB_REF_NAME.md" ]; then
+              cat ".github/release-notes/$GITHUB_REF_NAME.md"
+              echo
+            fi
             echo "## Install"
             echo
             echo '```sh'
@@ -127,7 +132,7 @@ jobs:
             echo
             git log --no-merges --pretty='- %s' "$range"
             echo
-            echo "Found a bug? [Open an issue](https://github.com/$RELEASES_REPO/issues/new/choose) or use **Settings → Report a bug** in the app."
+            echo "Found a bug? [Open an issue](https://github.com/$RELEASES_REPO/issues/new/choose) or use **Report a bug** at the top of the app."
           } > ../notes.md
       - name: Sync install scripts
         working-directory: releases
