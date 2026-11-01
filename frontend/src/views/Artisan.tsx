@@ -166,7 +166,11 @@ export function Artisan() {
 
 function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; onFav: () => void; projectId: string }) {
   const args = arr(cmd.definition?.arguments)
-  const opts = arr(cmd.definition?.options).filter((o) => !GLOBAL_OPTS.has(o.name))
+  // `artisan list --format=json` names options with their dashes ("--all");
+  // strip them so the form adds exactly one "--" and the global filter matches.
+  const opts = arr(cmd.definition?.options)
+    .map((o) => ({ ...o, name: o.name.replace(/^-+/, '') }))
+    .filter((o) => !GLOBAL_OPTS.has(o.name))
   const [vals, setVals] = useState<Record<string, string>>({})
   const [flags, setFlags] = useState<Record<string, boolean>>({})
   const php = useStore((s) => s.settings?.phpBinary) || 'php'
