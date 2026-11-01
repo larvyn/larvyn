@@ -54,6 +54,12 @@ export interface CreateRequest {
      */
     "testing": string;
     "db": string;
+
+    /**
+     * CreateSQLite asks for database/database.sqlite (and migrations) once
+     * the app is scaffolded, when DB is sqlite.
+     */
+    "createSqlite": boolean;
 }
 
 /**

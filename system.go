@@ -169,6 +169,9 @@ type CreateRequest struct {
 	Starter string `json:"starter"` // none, react, vue, livewire
 	Testing string `json:"testing"` // pest, phpunit
 	DB      string `json:"db"`
+	// CreateSQLite asks for database/database.sqlite (and migrations) once
+	// the app is scaffolded, when DB is sqlite.
+	CreateSQLite bool `json:"createSqlite"`
 }
 
 // CreateProject scaffolds a new Laravel app in a terminal and registers it.
@@ -204,8 +207,12 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 	} else {
 		return nil, errors.New("install Composer first (Settings → Toolchain)")
 	}
+	meta := map[string]string{"target": target}
+	if req.CreateSQLite && (req.DB == "" || req.DB == "sqlite") {
+		meta["sqlite"] = "1"
+	}
 	sess, err := terminals.Start(SessionSpec{Kind: "run", Key: "create", Title: "laravel new " + name, Cwd: req.Parent, Argv: argv,
-		Meta: map[string]string{"target": target}})
+		Meta: meta})
 	if err != nil {
 		return nil, err
 	}

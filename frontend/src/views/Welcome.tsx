@@ -68,13 +68,14 @@ export function NewProject() {
   const [starter, setStarter] = useState('none')
   const [testing, setTesting] = useState('pest')
   const [db, setDb] = useState('sqlite')
+  const [createSqlite, setCreateSqlite] = useState(true)
   const [busy, setBusy] = useState(false)
   if (!open) return null
   const close = () => useStore.setState({ newProjectOpen: false })
   const create = async () => {
     setBusy(true)
     try {
-      const r: any = await SystemService.CreateProject({ parent, name, starter, testing, db })
+      const r: any = await SystemService.CreateProject({ parent, name, starter, testing, db, createSqlite: db === 'sqlite' && createSqlite })
       toast('info', 'Creating your app…', r.path)
       showConsole(true, r.session.id)
       close()
@@ -147,6 +148,11 @@ export function NewProject() {
           </div>
         </div>
       </div>
+      {db === 'sqlite' && (
+        <label className="check">
+          <input type="checkbox" checked={createSqlite} onChange={(e) => setCreateSqlite(e.target.checked)} /> Create the SQLite database file (database/database.sqlite) and run migrations
+        </label>
+      )}
     </Modal>
   )
 }
