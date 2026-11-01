@@ -239,7 +239,8 @@ func (s *StackService) Stop(projectID, key string) error {
 func (s *StackService) Restart(projectID, key string) (SessionInfo, error) {
 	if sess := terminals.find(projectID, "service", key); sess != nil {
 		_ = terminals.Kill(sess.ID)
-		for i := 0; i < 40; i++ {
+		// A program that ignores SIGTERM is killed after about 3 s.
+		for i := 0; i < 80; i++ {
 			if cur := terminals.find(projectID, "service", key); cur == nil || !cur.Running {
 				break
 			}

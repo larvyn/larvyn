@@ -368,12 +368,22 @@ func (t *TerminalService) Rename(id, title string) {
 	}
 }
 
-// Kill stops the program in a terminal; the session stays until Close.
+// Kill stops the program in a terminal; the session stays until Close. It
+// returns right away; the program and its descendants get a few seconds to
+// exit before they are killed outright.
 func (t *TerminalService) Kill(id string) error {
+	_, err := t.kill(id)
+	return err
+}
+
+// kill stops a terminal's program and every process it started; done closes
+// once they are gone.
+func (t *TerminalService) kill(id string) (done <-chan struct{}, err error) {
 	s, err := t.get(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	ch := make(chan struct{})
 	s.mu.Lock()
 	running := s.info.Running
 	if running {
@@ -381,11 +391,35 @@ func (t *TerminalService) Kill(id string) error {
 		s.info.Stopped = true
 	}
 	s.mu.Unlock()
-	if running && s.cmd.Process != nil {
-		proc.KillTree(s.cmd.Process.Pid)
-		_ = s.cmd.Process.Kill()
+	if !running || s.cmd.Process == nil {
+		close(ch)
+		return ch, nil
 	}
-	return nil
+	pid := s.cmd.Process.Pid
+	// The program leads its own process group (see proc.KillTree); a command
+	// typed into an interactive shell runs in the terminal's foreground group.
+	groups := []int{pid}
+	if up, ok := s.pty.(pty.UnixPty); ok {
+		_ = up.Control(func(fd uintptr) {
+			if fg := proc.ForegroundGroup(fd); fg != 0 && fg != pid {
+				groups = append(groups, fg)
+			}
+		})
+	}
+	go func() {
+		defer close(ch)
+		var wg sync.WaitGroup
+		for _, g := range groups {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proc.KillTree(g)
+			}()
+		}
+		wg.Wait()
+		_ = s.cmd.Process.Kill() // no-op once it exited
+	}()
+	return ch, nil
 }
 
 // Close kills a terminal and forgets it.
@@ -436,10 +470,17 @@ func (t *TerminalService) broadcast() {
 	emit("sessions:changed", t.List())
 }
 
-// ServiceShutdown kills every child when the app quits.
+// ServiceShutdown kills every child, with its descendants, when the app quits
+// and waits for them so none outlives Larvyn.
 func (t *TerminalService) ServiceShutdown() error {
+	var pending []<-chan struct{}
 	for _, s := range t.List() {
-		_ = t.Kill(s.ID)
+		if done, err := t.kill(s.ID); err == nil {
+			pending = append(pending, done)
+		}
+	}
+	for _, done := range pending {
+		<-done
 	}
 	return nil
 }
