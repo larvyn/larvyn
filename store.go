@@ -32,6 +32,9 @@ type Settings struct {
 	ConfirmDangerous bool   `json:"confirmDangerous"`
 	// NoUpdateCheck turns off the check for new releases at start.
 	NoUpdateCheck bool `json:"noUpdateCheck"`
+	// AgentPermissions is "yolo" (agents start with their skip-approvals
+	// flag, as Orca does by default) or "manual" (they ask as usual).
+	AgentPermissions string `json:"agentPermissions"`
 }
 
 type state struct {
@@ -52,6 +55,7 @@ func defaultSettings() Settings {
 	return Settings{
 		Editor:           "code",
 		DefaultAgent:     "claude",
+		AgentPermissions: "yolo",
 		TerminalFontSize: 13,
 		Accent:           "#FF2D20",
 		ConfirmDangerous: true,

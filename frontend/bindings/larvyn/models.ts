@@ -315,6 +315,12 @@ export interface Settings {
      * NoUpdateCheck turns off the check for new releases at start.
      */
     "noUpdateCheck": boolean;
+
+    /**
+     * AgentPermissions is "yolo" (agents start with their skip-approvals
+     * flag, as Orca does by default) or "manual" (they ask as usual).
+     */
+    "agentPermissions": string;
 }
 
 export interface Snapshot {
