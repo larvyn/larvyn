@@ -19,6 +19,7 @@ import { newTerminal, openInTab, useActive, useStore, type TermTab } from '../li
 import { clearTerm, focusTerm } from '../lib/terms'
 import { cx, duration } from '../lib/util'
 import { Empty, TermPane, promptDialog, useNow } from '../components/ui'
+import { Brand } from '../components/Brand'
 
 // A stable empty list: a selector returning a fresh [] re-renders forever.
 const NO_TABS: TermTab[] = []
@@ -94,7 +95,11 @@ export function Terminals() {
               const bell = t.panes.some((p) => byId.get(p)?.bell)
               return (
                 <button key={t.id} className={cx('dtab', t.id === tab?.id && 'active')} onClick={() => setActive(t.id)} onAuxClick={(e) => e.button === 1 && closeTab(t.id)}>
-                  <Icon size={13} style={{ flexShrink: 0, color: bell ? 'var(--yellow)' : undefined }} />
+                  {first?.kind === 'agent' && !bell ? (
+                    <Brand id={first.key} size={13} fallback={<Icon size={13} style={{ flexShrink: 0 }} />} />
+                  ) : (
+                    <Icon size={13} style={{ flexShrink: 0, color: bell ? 'var(--yellow)' : undefined }} />
+                  )}
                   <span className="ellipsis">{t.panes.map((p) => byId.get(p)?.title ?? '…').join(' · ')}</span>
                   {t.panes.length > 1 && <span className="pill-n">{t.panes.length}</span>}
                   <span
@@ -176,7 +181,11 @@ function SessionRow({ s, now, active, onOpen }: { s: SessionInfo; now: number; a
   const Icon = KIND_ICON[s.kind] ?? TermIcon
   return (
     <button className={cx('list-item', active && 'active')} onClick={onOpen} title={s.command || s.cwd}>
-      <Icon style={s.meta?.color ? { color: s.meta.color } : undefined} />
+      {s.kind === 'agent' ? (
+        <Brand id={s.key} size={14} fallback={<Icon style={s.meta?.color ? { color: s.meta.color } : undefined} />} />
+      ) : (
+        <Icon style={s.meta?.color ? { color: s.meta.color } : undefined} />
+      )}
       <div className="grow">
         <div className="ellipsis" style={{ fontSize: 12.5 }}>
           {s.title}

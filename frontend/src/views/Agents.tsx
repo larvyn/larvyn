@@ -36,6 +36,7 @@ import { agentStatus, composerRun, fail, runInConsole, toast, useActive, useStor
 import { activity } from '../lib/terms'
 import { cx, duration, errMsg, initials, load, save } from '../lib/util'
 import { Diff, Empty, Modal, TermPane, confirmDialog, useNow } from '../components/ui'
+import { Brand, brandUrl } from '../components/Brand'
 
 const TEMPLATES = [
   {
@@ -196,8 +197,8 @@ export function Agents() {
                       setPicked((p) => (on ? p.filter((x) => x !== k.id) : [...p, k.id]))
                     }}
                   >
-                    <span className="sq" style={{ background: k.color }}>
-                      {k.installed && on ? <Check size={10} strokeWidth={3.5} /> : initials(k.name).slice(0, 1)}
+                    <span className="sq" style={{ background: brandUrl(k.id) && !(k.installed && on) ? 'var(--bg-3)' : k.color }}>
+                      {k.installed && on ? <Check size={10} strokeWidth={3.5} /> : <Brand id={k.id} size={12} fallback={initials(k.name).slice(0, 1)} />}
                     </span>
                     {k.name}
                     {!k.installed && <Download size={11} />}
@@ -321,8 +322,8 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
   return (
     <div className={cx('agent-card', status === 'working' && 'working', status === 'attention' && 'attention')} onMouseDown={() => s.bell && TerminalService.ClearBell(s.id)}>
       <div className="ahead">
-        <div className="avatar" style={{ background: color }}>
-          {initials(s.meta?.agentName || s.key).slice(0, 1)}
+        <div className="avatar" style={{ background: brandUrl(s.key) ? 'var(--bg-3)' : color }}>
+          <Brand id={s.key} size={15} fallback={initials(s.meta?.agentName || s.key).slice(0, 1)} />
         </div>
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="ttl ellipsis" title={s.meta?.prompt}>

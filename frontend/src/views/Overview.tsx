@@ -55,6 +55,7 @@ import {
 } from '../lib/store'
 import { ago, cx } from '../lib/util'
 import { Toggle, confirmDialog, promptDialog } from '../components/ui'
+import { Brand } from '../components/Brand'
 
 const KIND_COLOR: Record<string, string> = {
   queue: 'orange', debug: 'yellow', monitoring: 'cyan', realtime: 'purple', server: 'red', auth: 'blue', starter: 'accent',
@@ -167,6 +168,7 @@ export function Overview() {
               {info.testRunner && <span className="badge blue">{info.testRunner}</span>}
               {info.frontend?.map((f) => (
                 <span key={f} className="badge purple">
+                  <Brand id={f} size={11} />
                   {f}
                 </span>
               ))}
@@ -355,6 +357,7 @@ export function Overview() {
               <div className="card-body row wrap" style={{ gap: 6 }}>
                 {packages.map((p) => (
                   <span key={p.name} className={cx('badge', KIND_COLOR[p.kind])} title={`${p.name} ${p.version}${p.dev ? ' (dev)' : ''}`}>
+                    <Brand id={p.label} size={11} />
                     {p.label}
                     <span style={{ opacity: 0.6, fontWeight: 500 }}>{p.version.replace(/^[\^~]/, '').split('.').slice(0, 2).join('.')}</span>
                   </span>
