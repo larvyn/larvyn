@@ -39,4 +39,10 @@ export interface Settings {
      * flag, as Orca does by default) or "manual" (they ask as usual).
      */
     "agentPermissions": string;
+
+    /**
+     * NoRestore stops Larvyn from bringing back terminals, agents and
+     * services from the previous run.
+     */
+    "noRestore": boolean;
 }

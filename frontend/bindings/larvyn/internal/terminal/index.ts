@@ -7,9 +7,11 @@ export {
 };
 
 export type {
+    ProjectLayout,
     SessionInfo,
     SessionSpec,
     Snapshot,
+    TabLayout,
     TermData,
     TermExit
 } from "./models.js";

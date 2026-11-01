@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   Maximize2,
   Rocket,
+  RotateCcw,
   Send,
   ShieldCheck,
   Sparkles,
@@ -32,7 +33,7 @@ import {
 } from '../../bindings/larvyn'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { GitService } from '../../bindings/larvyn/internal/git'
-import { agentStatus, composerRun, fail, runInConsole, toast, useActive, useStore } from '../lib/store'
+import { agentStatus, composerRun, fail, relaunch, runInConsole, toast, useActive, useStore } from '../lib/store'
 import { activity } from '../lib/terms'
 import { cx, duration, errMsg, initials, load, save } from '../lib/util'
 import { Diff, Empty, Modal, TermPane, confirmDialog, useNow } from '../components/ui'
@@ -343,7 +344,7 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
         </div>
         <span className={cx('badge', status === 'working' ? 'accent' : status === 'attention' ? 'yellow' : status === 'idle' ? '' : s.exitCode === 0 ? 'green' : 'red')}>
           <span className={cx('status-dot', status === 'working' ? 'busy' : status === 'attention' ? 'idle' : status === 'idle' ? 'on' : '')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
-          {STATUS_LABEL[status]}
+          {status === 'exited' && s.restored ? 'Restored' : STATUS_LABEL[status]}
         </span>
         {s.meta?.worktree && (
           <>
@@ -361,6 +362,11 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
         <button className="icon-btn sm" title={props.focused ? 'Back to grid' : 'Focus'} onClick={props.onFocus}>
           {props.focused ? <LayoutGrid /> : <Maximize2 />}
         </button>
+        {!s.running && (
+          <button className="btn sm" title="Start the agent again, resuming its conversation when it can" onClick={() => relaunch(s.id)}>
+            <RotateCcw /> Relaunch
+          </button>
+        )}
         {s.running ? (
           <button className="icon-btn sm danger" title="Stop" onClick={() => TerminalService.Kill(s.id)}>
             <Square />

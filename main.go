@@ -33,6 +33,13 @@ func main() {
 		}
 	}
 	terminal.ResolveProgram = resolveProgram
+	terminal.AgentRelaunch = agentRelaunchArgv
+	terminal.ResolveResumeID = func(key, cwd string, startedAt int64, claimed map[string]bool) string {
+		if key == "codex" {
+			return codexSessionID(cwd, startedAt, claimed)
+		}
+		return ""
+	}
 	updater.Cleanup()
 	proc.StartShellEnvImport()
 	app := application.New(application.Options{

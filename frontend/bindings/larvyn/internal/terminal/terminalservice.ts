@@ -47,6 +47,15 @@ export function Output(id: string): $CancellablePromise<string> {
 }
 
 /**
+ * Relaunch starts a stopped terminal's program again in the same session:
+ * an agent resumes its conversation when it can, anything else runs its
+ * command again.
+ */
+export function Relaunch(id: string): $CancellablePromise<$models.SessionInfo> {
+    return $Call.ByID(2758670763, id);
+}
+
+/**
  * Rename sets a terminal's title.
  */
 export function Rename(id: string, title: string): $CancellablePromise<void> {
@@ -58,6 +67,23 @@ export function Rename(id: string, title: string): $CancellablePromise<void> {
  */
 export function Resize(id: string, cols: number, rows: number): $CancellablePromise<void> {
     return $Call.ByID(289152729, id, cols, rows);
+}
+
+/**
+ * Restore brings back the workspace saved when Larvyn last quit; it does so
+ * once per run. It returns the terminal layout to show, with the ids of the
+ * restored sessions, also when the window loads again later.
+ */
+export function Restore(): $CancellablePromise<{ [_ in string]?: $models.ProjectLayout } | null> {
+    return $Call.ByID(1049276233);
+}
+
+/**
+ * SetLayout records the terminal tabs of every project, so they can be put
+ * back after a restart.
+ */
+export function SetLayout(layout: { [_ in string]?: $models.ProjectLayout } | null): $CancellablePromise<void> {
+    return $Call.ByID(2930729121, layout);
 }
 
 /**

@@ -10,7 +10,7 @@ import {
   type SessionInfo,
   type Settings,
 } from '../../bindings/larvyn'
-import { TerminalService, type SessionSpec } from '../../bindings/larvyn/internal/terminal'
+import { TerminalService, type ProjectLayout, type SessionSpec } from '../../bindings/larvyn/internal/terminal'
 import { errMsg, load, save } from './util'
 
 export type View =
@@ -128,6 +128,12 @@ export function boot() {
 
 async function doBoot() {
   SystemService.Log('info', 'boot start')
+  // Bring back the terminals of the previous run first, so the session list
+  // below already holds them.
+  const layout = await TerminalService.Restore().catch((e) => {
+    SystemService.Log('error', 'restore failed: ' + errMsg(e))
+    return null
+  })
   const [projectList, settings, platform, active, sessionList, launch] = await Promise.all([
     ProjectService.List(),
     SystemService.Settings(),
@@ -140,7 +146,19 @@ async function doBoot() {
   const sessions = sessionList ?? []
   const activeId = projects.find((p) => p.id === active)?.id ?? projects[0]?.id ?? null
   SystemService.Log('info', `boot loaded ${projects.length} projects, active ${activeId}, launch ${JSON.stringify(launch)}`)
-  set({ projects, settings, platform, activeId, sessions, ready: true, ...(launch.view ? { view: launch.view as View } : {}) })
+  const ids = new Set(sessions.map((x) => x.id))
+  const tabs: Record<string, TermTab[]> = {}
+  const activeTab: Record<string, string> = {}
+  for (const [pid, pl] of Object.entries(layout ?? {})) {
+    const ts = (pl?.tabs ?? [])
+      .map((t) => ({ id: t.id, dir: (t.dir === 'col' ? 'col' : 'row') as TermTab['dir'], panes: (t.panes ?? []).filter((p) => ids.has(p)) }))
+      .filter((t) => t.panes.length > 0)
+    if (!ts.length) continue
+    tabs[pid] = ts
+    activeTab[pid] = ts.some((t) => t.id === pl?.active) ? pl!.active : ts[0].id
+  }
+  set({ projects, settings, platform, activeId, sessions, tabs, activeTab, ready: true, ...(launch.view ? { view: launch.view as View } : {}) })
+  syncLayout()
   if (launch.palette) openPalette(launch.palette === '1' ? '' : launch.palette)
   if (activeId && launch.file) handoff('files', { file: launch.file })
   if (activeId && launch.run) newTerminal(activeId, { command: launch.run, title: launch.run })
@@ -156,6 +174,33 @@ async function doBoot() {
   })
   Events.On('sessions:changed', (ev: any) => onSessions((ev.data ?? []) as SessionInfo[]))
   Events.On('term:exit', (ev: any) => onExit(ev.data.id, ev.data.code, !!ev.data.stopped))
+}
+
+/** Sends the terminal tabs to the backend whenever they change, so they come
+ * back after a restart. */
+function syncLayout() {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  useStore.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.activeTab === prev.activeTab) return
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      const { tabs, activeTab } = get()
+      const layout: Record<string, ProjectLayout> = {}
+      for (const [pid, ts] of Object.entries(tabs)) {
+        if (ts.length) layout[pid] = { tabs: ts.map((t) => ({ id: t.id, panes: t.panes, dir: t.dir })), active: activeTab[pid] ?? '' }
+      }
+      TerminalService.SetLayout(layout).catch(() => {})
+    }, 250)
+  })
+}
+
+/** Starts a stopped terminal again in place; agents resume their conversation. */
+export async function relaunch(id: string) {
+  try {
+    await TerminalService.Relaunch(id)
+  } catch (e) {
+    toast('error', 'Could not relaunch', errMsg(e))
+  }
 }
 
 function onSessions(list: SessionInfo[]) {

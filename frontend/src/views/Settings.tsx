@@ -130,6 +130,14 @@ export function Settings() {
               <label>Terminal font size · {v.terminalFontSize}px</label>
               <input type="range" min={10} max={20} value={v.terminalFontSize} onChange={(e) => set({ terminalFontSize: Number(e.target.value) })} style={{ accentColor: 'var(--accent)' }} />
             </div>
+            <div className="field">
+              <label>Restore on start</label>
+              <select className="select" value={v.noRestore ? 'off' : 'on'} onChange={(e) => set({ noRestore: e.target.value === 'off' })}>
+                <option value="on">Restore terminals, agents and services</option>
+                <option value="off">Start with nothing open</option>
+              </select>
+              <span className="hint">Shells come back with their output, agents resume their conversation and services that ran start again.</span>
+            </div>
           </div>
         </div>
 
