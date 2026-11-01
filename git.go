@@ -337,7 +337,7 @@ func (g *GitService) RemoveWorktree(projectID, path string, deleteBranch bool) e
 	branch := ""
 	if wts, err := g.Worktrees(projectID); err == nil {
 		for _, w := range wts {
-			if strings.EqualFold(filepath.Clean(w.Path), filepath.Clean(path)) {
+			if samePath(w.Path, path) {
 				branch = w.Branch
 			}
 		}
@@ -349,6 +349,19 @@ func (g *GitService) RemoveWorktree(projectID, path string, deleteBranch bool) e
 		_, _ = git(p.Path, "branch", "-D", branch)
 	}
 	return nil
+}
+
+// samePath reports whether a and b name the same directory. git prints
+// worktree paths with symlinks and Windows short names (RUNNER~1) resolved,
+// so a plain string compare misses /var vs /private/var on macOS.
+func samePath(a, b string) bool {
+	resolve := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			p = r
+		}
+		return filepath.Clean(p)
+	}
+	return strings.EqualFold(resolve(a), resolve(b))
 }
 
 // MergeWorktree commits pending work in a worktree and merges its branch

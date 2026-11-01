@@ -8,7 +8,8 @@ import (
 
 func TestSQLitePath(t *testing.T) {
 	root := filepath.FromSlash("/apps/acme")
-	abs := filepath.FromSlash("/data/acme.sqlite")
+	// Rooted at the current drive, so it is absolute on Windows too.
+	abs, _ := filepath.Abs(filepath.FromSlash("/data/acme.sqlite"))
 	cases := []struct {
 		env  map[string]string
 		want string
