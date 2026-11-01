@@ -1,0 +1,54 @@
+# Runs the Go tests on Linux, Windows and macOS and type-checks the frontend
+# on every push and pull request.
+
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: System libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      # main.go embeds frontend/dist, which is not committed; the tests do not
+      # need the real build, only something for the embed to match.
+      - name: Placeholder frontend build
+        shell: bash
+        run: mkdir -p frontend/dist && echo '<!doctype html>' > frontend/dist/index.html
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race ./...
+
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Type-check
+        working-directory: frontend
+        run: npx tsc --noEmit
