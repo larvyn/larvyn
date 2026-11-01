@@ -14,7 +14,7 @@ points both at Laravel.
 | --- | --- |
 | **Overview** | Laravel/PHP versions, detected ecosystem (Filament, Livewire, Inertia, Horizon, Pest…), config summary, recent commits, and a **Doctor** that finds and fixes setup problems (missing vendor, `.env`, `APP_KEY`, pending migrations, storage link, debug in production). |
 | **Dev stack** | One toggle each for `artisan serve`, Vite, queue (or Horizon), scheduler, Pail, Reverb, Octane. Output in the console drawer; processes are killed with their children. |
-| **Agents** | Launch Claude Code, Codex, OpenCode, Gemini, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied. Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). |
+| **Agents** | Launch Claude Code, Codex, OpenCode, Antigravity CLI, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied. Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). |
 | **Terminals** | Real PTYs (ConPTY on Windows) with tabs and splits that keep running across views and projects. |
 | **Artisan** | Every command with a generated form for its arguments and options, favourites, and a generator studio for every `make:*`. |
 | **Routes** | Searchable route table with method filters, middleware, open-controller-at-method, open in browser, copy `route()`. |

@@ -17,14 +17,17 @@ type AgentKind struct {
 	Path        string `json:"path"`
 	Install     string `json:"install"`
 	PromptAsArg bool   `json:"promptAsArg"`
-	Color       string `json:"color"`
+	// PromptFlag goes before the prompt argument, for CLIs that take the
+	// first message through an option (agy -i "…").
+	PromptFlag string `json:"promptFlag"`
+	Color      string `json:"color"`
 }
 
 var agentKinds = []AgentKind{
 	{ID: "claude", Name: "Claude Code", Binary: "claude", Install: "npm i -g @anthropic-ai/claude-code", PromptAsArg: true, Color: "#D97757"},
 	{ID: "codex", Name: "Codex", Binary: "codex", Install: "npm i -g @openai/codex", PromptAsArg: true, Color: "#10A37F"},
 	{ID: "opencode", Name: "OpenCode", Binary: "opencode", Install: "npm i -g opencode-ai", Color: "#F5A623"},
-	{ID: "gemini", Name: "Gemini CLI", Binary: "gemini", Install: "npm i -g @google/gemini-cli", Color: "#4285F4"},
+	{ID: "antigravity", Name: "Antigravity CLI", Binary: "agy", Install: "curl -fsSL https://antigravity.google/cli | bash", PromptAsArg: true, PromptFlag: "-i", Color: "#4285F4"},
 	{ID: "cursor-agent", Name: "Cursor Agent", Binary: "cursor-agent", Install: "see cursor.com/cli", PromptAsArg: true, Color: "#A3A3A3"},
 	{ID: "aider", Name: "Aider", Binary: "aider", Install: "pip install aider-install", Color: "#14B8A6"},
 	{ID: "pi", Name: "Pi", Binary: "pi", Install: "npm i -g @mariozechner/pi-coding-agent", Color: "#8B5CF6"},
@@ -104,6 +107,9 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		kind.PromptAsArg = false
 	}
 	if req.Prompt != "" && kind.PromptAsArg {
+		if kind.PromptFlag != "" {
+			argv = append(argv, kind.PromptFlag)
+		}
 		argv = append(argv, req.Prompt)
 	}
 	sess, err := terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Meta: meta})
