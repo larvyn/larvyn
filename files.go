@@ -3,12 +3,16 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"larvyn/internal/proc"
 )
 
 // maxEditableSize is the largest file the editor opens.
@@ -177,4 +181,188 @@ func resolveWithin(root, rel string) (string, error) {
 func inside(root, path string) bool {
 	r, err := filepath.Rel(root, path)
 	return err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator))
+}
+
+// FileIndex is every file of a project, for the quick-open finder.
+type FileIndex struct {
+	Files     []string `json:"files"` // relative to the project, with forward slashes, sorted
+	Truncated bool     `json:"truncated"`
+}
+
+// maxIndexedFiles caps FileIndex: past it the finder gets a partial list and
+// says so. A variable so the tests can lower it.
+var maxIndexedFiles = 20000
+
+// skippedDirNames are folders the index never walks into, wherever they are.
+var skippedDirNames = map[string]bool{".git": true, "node_modules": true, "vendor": true, "dist": true, ".idea": true, ".vscode": true}
+
+// skippedDirPaths are build and cache folders skipped by their place in the
+// project.
+var skippedDirPaths = map[string]bool{"storage/framework": true, "bootstrap/cache": true, "public/build": true}
+
+// AllFiles lists every file of a project in one call, for the finder. In a git
+// repository it asks git, so .gitignore is honoured exactly (tracked and
+// untracked files, minus the ignored ones); elsewhere it walks the tree and
+// skips .git, dependencies and build output. Nothing outside the project is
+// returned: entries that do not exist or resolve elsewhere (symlinks) are
+// dropped.
+func (s *FileService) AllFiles(projectID string) (FileIndex, error) {
+	root, err := projectPath(projectID)
+	if err != nil {
+		return FileIndex{}, err
+	}
+	if _, err := resolveWithin(root, ""); err != nil {
+		return FileIndex{}, err
+	}
+	if idx, ok := gitFileIndex(root); ok {
+		return idx, nil
+	}
+	return walkFileIndex(root)
+}
+
+// gitFileIndex asks git for the project's files. ok is false when the folder
+// is not in a repository, git is missing, or git lists nothing (for example a
+// project its parent repository ignores), so the caller walks instead.
+func gitFileIndex(root string) (FileIndex, bool) {
+	if proc.Which("git") == "" {
+		return FileIndex{}, false
+	}
+	out, err := proc.Git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return FileIndex{}, false
+	}
+	var paths []string
+	for _, p := range strings.Split(out, "\x00") {
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	if len(paths) == 0 {
+		return FileIndex{}, false
+	}
+	// --cached and --others can both name a file (e.g. one staged for removal
+	// and recreated), so sort and skip repeats.
+	sort.Strings(paths)
+	ix := newFileIndexer(root)
+	prev := ""
+	for _, p := range paths {
+		if p == prev {
+			continue
+		}
+		prev = p
+		ix.addChecked(p)
+		if ix.truncated {
+			break
+		}
+	}
+	return ix.result(), true
+}
+
+// walkFileIndex walks the project without git, skipping the usual noise.
+func walkFileIndex(root string) (FileIndex, error) {
+	ix := newFileIndexer(root)
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if p == root {
+				return err
+			}
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if p == root {
+			return nil
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		name := d.Name()
+		if d.IsDir() {
+			// WalkDir does not follow symlinked folders, so every folder it
+			// enters really is inside the project.
+			if skippedDirNames[name] || skippedDirPaths[rel] {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if hiddenEntries[name] {
+			return nil
+		}
+		ix.addChecked(rel)
+		if ix.truncated {
+			return fs.SkipAll
+		}
+		return nil
+	})
+	if err != nil {
+		return FileIndex{}, err
+	}
+	return ix.result(), nil
+}
+
+// fileIndexer collects index entries up to maxIndexedFiles.
+type fileIndexer struct {
+	root      string
+	files     []string
+	truncated bool
+	dirOK     map[string]bool // folder -> really inside the project
+}
+
+func newFileIndexer(root string) *fileIndexer {
+	return &fileIndexer{root: root, files: []string{}, dirOK: map[string]bool{}}
+}
+
+// addChecked adds rel (forward slashes) when it is a regular file that really
+// is inside the project: its folder resolves inside (checked once per folder)
+// and, for a symlink, so does its target. A file past the cap is not added and
+// marks the index truncated.
+func (ix *fileIndexer) addChecked(rel string) {
+	if rel == "" || strings.HasPrefix(rel, "/") {
+		return
+	}
+	dir := path.Dir(rel)
+	if dir == "." {
+		dir = ""
+	}
+	ok, seen := ix.dirOK[dir]
+	if !seen {
+		_, err := resolveWithin(ix.root, dir)
+		ok = err == nil
+		ix.dirOK[dir] = ok
+	}
+	if !ok {
+		return
+	}
+	abs := filepath.Join(ix.root, filepath.FromSlash(rel))
+	if !inside(ix.root, abs) {
+		return
+	}
+	info, err := os.Lstat(abs)
+	if err != nil {
+		return // listed by git but deleted since
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		if _, err := resolveWithin(ix.root, rel); err != nil {
+			return // points outside the project, or nowhere
+		}
+		if info, err = os.Stat(abs); err != nil {
+			return
+		}
+	}
+	if !info.Mode().IsRegular() {
+		return // folders (e.g. git submodules), sockets, devices
+	}
+	if len(ix.files) >= maxIndexedFiles {
+		ix.truncated = true
+		return
+	}
+	ix.files = append(ix.files, rel)
+}
+
+func (ix *fileIndexer) result() FileIndex {
+	sort.Strings(ix.files)
+	return FileIndex{Files: ix.files, Truncated: ix.truncated}
 }

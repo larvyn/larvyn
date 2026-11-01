@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Code2, File, FileCode2, Folder, FolderOpen, FolderTree, RefreshCw, RotateCcw, Save } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, Code2, File, FileCode2, Folder, FolderOpen, FolderTree, RefreshCw, RotateCcw, Save, Search } from 'lucide-react'
 import { FileService, SystemService, type FileContent, type FileEntry } from '../../bindings/larvyn'
 import { fail, toast, useActive, useStore } from '../lib/store'
-import { cx, errMsg, load, mod, save } from '../lib/util'
+import { cx, errMsg, isMac, load, mod, save } from '../lib/util'
 import { Empty, Loading, confirmDialog } from '../components/ui'
 import { CodeEditor } from '../components/CodeEditor'
-
-const CODE_EXT = /\.(php|js|mjs|cjs|jsx|ts|tsx|vue|svelte|css|scss|json|ya?ml|md|xml|html?|sh|env.*)$/i
+import { CODE_EXT, FileFinder } from '../components/FileFinder'
 
 // Unsaved edits outlive the view (switching to Terminals and back keeps them).
 const drafts = new Map<string, { text: string; version: string }>()
@@ -30,6 +29,21 @@ export function Files() {
   const [opening, setOpening] = useState(false)
   const [saving, setSaving] = useState(false)
   const dirty = !!open && open.text !== open.saved
+  // Quick open: every file of the project, loaded when the finder opens and
+  // refreshed after a save, a tree refresh or a project switch.
+  const [finder, setFinder] = useState(false)
+  const finderRef = useRef(finder)
+  finderRef.current = finder
+  // Focus goes back where it was (usually the editor) when the finder closes.
+  const finderReturn = useRef<HTMLElement | null>(null)
+  const showFinder = useCallback((show: boolean) => {
+    if (show && !finderRef.current) finderReturn.current = document.activeElement as HTMLElement | null
+    setFinder(show)
+  }, [])
+  const [index, setIndex] = useState<{ id: string; files: string[]; truncated: boolean } | null>(null)
+  const [indexError, setIndexError] = useState<string | null>(null)
+  const idRef = useRef(id)
+  idRef.current = id
 
   const loadDir = useCallback(
     async (rel: string) => {
@@ -75,8 +89,51 @@ export function Files() {
     [id, dirty, open, children, loadDir],
   )
 
+  const loadIndex = useCallback(async () => {
+    const pid = idRef.current
+    if (!pid) return
+    try {
+      const idx = await FileService.AllFiles(pid)
+      if (idRef.current !== pid) return
+      setIndex({ id: pid, files: idx.files ?? [], truncated: idx.truncated })
+      setIndexError(null)
+    } catch (e) {
+      if (idRef.current === pid) setIndexError(errMsg(e))
+    }
+  }, [])
+
+  // Load (or refresh, keeping the old list on screen) whenever the finder
+  // opens, and again if the project changes while it is open.
+  useEffect(() => {
+    if (finder && id) loadIndex()
+  }, [finder, id, loadIndex])
+
+  // Cmd+P (Ctrl+P elsewhere) opens the finder, also from inside the editor:
+  // a capture listener runs before CodeMirror sees the key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const modKey = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+      if (!modKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'p') return
+      if (useStore.getState().paletteOpen) return
+      e.preventDefault()
+      e.stopPropagation()
+      showFinder(!finderRef.current)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [showFinder])
+
+  useEffect(() => {
+    if (finder) return
+    const el = finderReturn.current
+    finderReturn.current = null
+    if (el?.isConnected) el.focus()
+  }, [finder])
+
   // New project: fresh tree, and the file that was open there last.
   useEffect(() => {
+    setIndex(null)
+    setIndexError(null)
     setChildren({})
     setExpanded(new Set())
     setOpen(null)
@@ -124,6 +181,7 @@ export function Files() {
       setOpen((o) => (o ? { ...o, saved: text, file: { ...o.file, version, content: text } } : o))
       drafts.delete(id + ':' + open.file.path)
       toast('success', 'Saved', open.file.path)
+      if (index) loadIndex()
     } catch (e) {
       toast('error', 'Could not save', errMsg(e))
     } finally {
@@ -142,6 +200,7 @@ export function Files() {
     setChildren({})
     loadDir('')
     for (const d of expanded) loadDir(d)
+    if (index) loadIndex()
   }
 
   const renderDir = (rel: string, depth: number): ReactNode =>
@@ -172,6 +231,9 @@ export function Files() {
             <span className="grow ellipsis" style={{ fontWeight: 600 }}>
               {project.name}
             </span>
+            <button className="icon-btn" title={`Go to file (${mod}P)`} onClick={() => showFinder(true)}>
+              <Search />
+            </button>
             <button className="icon-btn" title="Refresh the tree" onClick={refreshTree}>
               <RefreshCw />
             </button>
@@ -216,11 +278,20 @@ export function Files() {
             <Loading />
           ) : (
             <Empty icon={<FolderTree />} title="Browse and edit your code">
-              Pick a file on the left. {mod}S saves, {mod}F searches inside the file.
+              Pick a file on the left or press {mod}P to find one. {mod}S saves, {mod}F searches inside the file.
             </Empty>
           )}
         </div>
       </div>
+      {finder && (
+        <FileFinder
+          files={index?.id === id ? index.files : null}
+          truncated={index?.id === id && index.truncated}
+          error={indexError}
+          onPick={(p) => openFile(p)}
+          onClose={() => showFinder(false)}
+        />
+      )}
     </div>
   )
 }
