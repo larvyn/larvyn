@@ -1,4 +1,6 @@
-package main
+// Package git is the Source control service: status, diffs, commits,
+// branches and the worktrees agents work in.
+package git
 
 import (
 	"errors"
@@ -10,11 +12,17 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/dotenv"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 )
 
 type GitService struct{}
+
+// CloseSessionsIn stops the terminals running in a folder before its worktree
+// is removed. main wires it to the terminal service, so this package does not
+// depend on it.
+var CloseSessionsIn = func(dir string) {}
 
 // GitFile is one changed path.
 type GitFile struct {
@@ -75,7 +83,7 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 		return st, nil
 	}
 	st.IsRepo = true
-	for i, line := range nonEmptyLines(out) {
+	for i, line := range proc.NonEmptyLines(out) {
 		if i == 0 && strings.HasPrefix(line, "## ") {
 			parseBranchLine(strings.TrimPrefix(line, "## "), &st)
 			continue
@@ -91,7 +99,7 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 	}
 	if num, err := proc.Git(dir, "diff", "HEAD", "--numstat"); err == nil {
 		stats := map[string][2]int{}
-		for _, l := range nonEmptyLines(num) {
+		for _, l := range proc.NonEmptyLines(num) {
 			f := strings.Split(l, "\t")
 			if len(f) == 3 {
 				a, _ := strconv.Atoi(f[0])
@@ -105,7 +113,7 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 		}
 	}
 	if log, err := proc.Git(dir, "log", "-n", "30", "--pretty=format:%h\x1f%an\x1f%at\x1f%s"); err == nil {
-		for _, l := range nonEmptyLines(log) {
+		for _, l := range proc.NonEmptyLines(log) {
 			f := strings.Split(l, "\x1f")
 			if len(f) == 4 {
 				t, _ := strconv.ParseInt(f[2], 10, 64)
@@ -114,10 +122,10 @@ func (g *GitService) Status(target string) (GitStatus, error) {
 		}
 	}
 	if br, err := proc.Git(dir, "branch", "--format=%(refname:short)"); err == nil {
-		st.Branches = nonEmptyLines(br)
+		st.Branches = proc.NonEmptyLines(br)
 	}
 	if sl, err := proc.Git(dir, "stash", "list"); err == nil {
-		st.Stashes = len(nonEmptyLines(sl))
+		st.Stashes = len(proc.NonEmptyLines(sl))
 	}
 	st.Worktree, _ = g.Worktrees(target)
 	return st, nil
@@ -249,7 +257,7 @@ func (g *GitService) Worktrees(target string) ([]Worktree, error) {
 		list[i].Main = i == 0
 		list[i].Managed = strings.HasPrefix(strings.ToLower(list[i].Path), strings.ToLower(root))
 		if st, err := proc.Git(list[i].Path, "status", "--porcelain"); err == nil {
-			list[i].Changes = len(nonEmptyLines(st))
+			list[i].Changes = len(proc.NonEmptyLines(st))
 		}
 		if i > 0 && len(list) > 0 && list[0].Branch != "" && list[i].Branch != "" {
 			if n, err := proc.Git(list[i].Path, "rev-list", "--count", list[0].Branch+".."+list[i].Branch); err == nil {
@@ -269,7 +277,8 @@ func worktreeRoot() string {
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
 
-func slug(s string) string {
+// Slug turns a title into a branch or folder name: lowercase, dashes.
+func Slug(s string) string {
 	s = strings.Trim(slugRe.ReplaceAllString(strings.ToLower(s), "-"), "-")
 	if len(s) > 40 {
 		s = strings.Trim(s[:40], "-")
@@ -295,13 +304,13 @@ func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
 	if !ok {
 		return Worktree{}, errors.New("project not found")
 	}
-	name := slug(req.Name)
-	path := filepath.Join(worktreeRoot(), slug(p.Name), name)
+	name := Slug(req.Name)
+	path := filepath.Join(worktreeRoot(), Slug(p.Name), name)
 	for i := 2; ; i++ {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			break
 		}
-		path = filepath.Join(worktreeRoot(), slug(p.Name), name+"-"+strconv.Itoa(i))
+		path = filepath.Join(worktreeRoot(), Slug(p.Name), name+"-"+strconv.Itoa(i))
 		name = name + "-" + strconv.Itoa(i)
 	}
 	branch := "larvyn/" + name
@@ -315,7 +324,7 @@ func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
 	}
 	if req.CopyEnv {
 		copyFile(filepath.Join(p.Path, ".env"), filepath.Join(path, ".env"))
-		env := readEnvFile(filepath.Join(p.Path, ".env"))
+		env := dotenv.Read(filepath.Join(p.Path, ".env"))
 		if env["DB_CONNECTION"] == "sqlite" {
 			db := env["DB_DATABASE"]
 			if db == "" || !filepath.IsAbs(db) {
@@ -332,11 +341,7 @@ func (g *GitService) RemoveWorktree(projectID, path string, deleteBranch bool) e
 	if !ok {
 		return errors.New("project not found")
 	}
-	for _, s := range terminals.List() {
-		if strings.EqualFold(filepath.Clean(s.Cwd), filepath.Clean(path)) {
-			_ = terminals.Close(s.ID)
-		}
-	}
+	CloseSessionsIn(path)
 	branch := ""
 	if wts, err := g.Worktrees(projectID); err == nil {
 		for _, w := range wts {
@@ -374,7 +379,7 @@ func (g *GitService) MergeWorktree(projectID, path, message string) (string, err
 	if !ok {
 		return "", errors.New("project not found")
 	}
-	if st, _ := proc.Git(path, "status", "--porcelain"); len(nonEmptyLines(st)) > 0 {
+	if st, _ := proc.Git(path, "status", "--porcelain"); len(proc.NonEmptyLines(st)) > 0 {
 		if message == "" {
 			message = "wip: agent changes"
 		}

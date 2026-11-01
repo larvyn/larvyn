@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"larvyn/internal/git"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/updater"
@@ -184,7 +185,7 @@ type CreateRequest struct {
 
 // CreateProject scaffolds a new Laravel app in a terminal and registers it.
 func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error) {
-	name := slug(req.Name)
+	name := git.Slug(req.Name)
 	if req.Parent == "" || name == "" {
 		return nil, errors.New("pick a folder and a name")
 	}

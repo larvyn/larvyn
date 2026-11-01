@@ -3,7 +3,6 @@
 
 import * as AgentService from "./agentservice.js";
 import * as FileService from "./fileservice.js";
-import * as GitService from "./gitservice.js";
 import * as LaravelService from "./laravelservice.js";
 import * as ProjectService from "./projectservice.js";
 import * as StackService from "./stackservice.js";
@@ -12,7 +11,6 @@ import * as TerminalService from "./terminalservice.js";
 export {
     AgentService,
     FileService,
-    GitService,
     LaravelService,
     ProjectService,
     StackService,
@@ -23,13 +21,10 @@ export {
 export type {
     AgentKind,
     AppInfo,
-    Commit,
     CreateRequest,
     EnvFile,
     FileContent,
     FileEntry,
-    GitFile,
-    GitStatus,
     LaunchOptions,
     LaunchRequest,
     LogChunk,
@@ -49,7 +44,5 @@ export type {
     TestCase,
     TestReport,
     Tool,
-    UpdateInfo,
-    Worktree,
-    WorktreeRequest
+    UpdateInfo
 } from "./models.js";
