@@ -28,6 +28,7 @@ export type View =
   | 'logs'
   | 'git'
   | 'env'
+  | 'files'
   | 'deps'
   | 'settings'
 
@@ -61,7 +62,7 @@ interface State {
   tabs: Record<string, TermTab[]>
   activeTab: Record<string, string>
   drawer: { open: boolean; active: string | null; height: number }
-  focus: { table?: string; agentPrompt?: string; tinker?: string; logEntry?: string; artisan?: string } // cross-view hand-offs
+  focus: { table?: string; agentPrompt?: string; tinker?: string; logEntry?: string; artisan?: string; file?: string } // cross-view hand-offs
   logErrors: Record<string, number>
 }
 
@@ -142,6 +143,7 @@ async function doBoot() {
   SystemService.Log('info', `boot loaded ${projects.length} projects, active ${activeId}, launch ${JSON.stringify(launch)}`)
   set({ projects, settings, platform, activeId, sessions, ready: true, ...(launch.view ? { view: launch.view as View } : {}) })
   if (launch.palette) openPalette(launch.palette === '1' ? '' : launch.palette)
+  if (activeId && launch.file) handoff('files', { file: launch.file })
   if (activeId && launch.run) newTerminal(activeId, { command: launch.run, title: launch.run })
   if (activeId && launch.agent) AgentService.Launch({ projectId: activeId, agent: launch.agent } as any).catch(fail('Could not start agent'))
   if (activeId) refreshInfo(activeId)

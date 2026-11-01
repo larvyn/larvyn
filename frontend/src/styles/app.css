@@ -633,3 +633,12 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .ntm-hint { margin-left: auto; padding-left: 8px; font-size: 11px; font-weight: 450; color: var(--text-3); }
 .ntm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 .ntm-empty { padding: 10px 8px; font-size: 12px; color: var(--text-3); }
+
+/* Files: tree and CodeMirror editor */
+.files-tree .file-row { gap: 6px; padding-top: 3px; padding-bottom: 3px; font-size: 12.5px; }
+.files-tree .file-row svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-3); }
+.files-tree .file-row .chev { width: 12px; height: 12px; flex-shrink: 0; }
+.files-tree .dot-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); flex-shrink: 0; }
+.files-head { padding: 8px 12px; gap: 6px; border-bottom: 1px solid var(--line); min-height: 42px; }
+.code-editor { flex: 1; min-height: 0; overflow: hidden; }
+.code-editor .cm-editor { height: 100%; }

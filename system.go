@@ -94,11 +94,13 @@ type LaunchOptions struct {
 	Agent string `json:"agent"` // LARVYN_AGENT: agent id to start
 	// LARVYN_PALETTE opens the command palette with this text typed ("1" for empty).
 	Palette string `json:"palette"`
+	// LARVYN_FILE opens this project-relative file in the Files editor.
+	File string `json:"file"`
 }
 
 // Launch returns the launch options for the active project.
 func (s *SystemService) Launch() LaunchOptions {
-	return LaunchOptions{View: os.Getenv("LARVYN_VIEW"), Run: os.Getenv("LARVYN_RUN"), Agent: os.Getenv("LARVYN_AGENT"), Palette: os.Getenv("LARVYN_PALETTE")}
+	return LaunchOptions{View: os.Getenv("LARVYN_VIEW"), Run: os.Getenv("LARVYN_RUN"), Agent: os.Getenv("LARVYN_AGENT"), Palette: os.Getenv("LARVYN_PALETTE"), File: os.Getenv("LARVYN_FILE")}
 }
 
 // Home returns Larvyn's state folder.
