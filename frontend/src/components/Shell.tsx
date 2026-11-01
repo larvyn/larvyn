@@ -54,6 +54,7 @@ import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
 import { FeedbackButton, TitleFeedback } from './Feedback'
+import { askRemoveProject } from './removeProject'
 
 export function TitleBar() {
   const platform = useStore((s) => s.platform)
@@ -210,7 +211,10 @@ export function Sidebar() {
       <div className="side-head">
         <h2>
           <span style={{ width: 9, height: 9, borderRadius: 3, background: project.color, flexShrink: 0 }} />
-          <span className="ellipsis">{project.name}</span>
+          <span className="ellipsis grow">{project.name}</span>
+          <button className="icon-btn sm danger side-remove" title="Remove from Larvyn (your files stay)" onClick={() => askRemoveProject(project)}>
+            <Trash2 />
+          </button>
         </h2>
         <div className="meta">
           {info?.isLaravel ? (
