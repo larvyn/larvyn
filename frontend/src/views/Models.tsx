@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Box, Code2, EyeOff, FlaskConical, Lock, RefreshCw, Rows3, Shapes, Sparkles } from 'lucide-react'
+import { ArrowRight, Box, Code2, EyeOff, FlaskConical, Lock, Plus, RefreshCw, Rows3, Shapes, Sparkles } from 'lucide-react'
 import { LaravelService, SystemService } from '../../bindings/larvyn'
 import { fail, handoff, useActive } from '../lib/store'
 import { cx, num } from '../lib/util'
@@ -40,7 +40,10 @@ export function Models() {
         <div className="pane-list" style={{ width: 260 }}>
           <div className="row" style={{ padding: 10, borderBottom: '1px solid var(--line)' }}>
             <SearchInput value={q} onChange={setQ} placeholder="Filter models…" width="100%" />
-            <button className="icon-btn" onClick={res.reload}>
+            <button className="icon-btn" title="New model (make:model)" onClick={() => handoff('artisan', { artisan: 'make:model' })}>
+              <Plus />
+            </button>
+            <button className="icon-btn" title="Reload models" onClick={res.reload}>
               <RefreshCw />
             </button>
           </div>
@@ -159,7 +162,12 @@ export function Models() {
             </div>
           ) : !res.loading && models.length === 0 ? (
             <Empty icon={<Sparkles />} title="No models yet">
-              Create one in Artisan → make:model, or ask an agent.
+              Create one with make:model, or ask an agent.
+              <div style={{ marginTop: 12 }}>
+                <button className="btn primary" onClick={() => handoff('artisan', { artisan: 'make:model' })}>
+                  <Plus /> New model
+                </button>
+              </div>
             </Empty>
           ) : null}
         </div>

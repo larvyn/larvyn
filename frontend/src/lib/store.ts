@@ -61,7 +61,7 @@ interface State {
   tabs: Record<string, TermTab[]>
   activeTab: Record<string, string>
   drawer: { open: boolean; active: string | null; height: number }
-  focus: { table?: string; agentPrompt?: string; tinker?: string; logEntry?: string } // cross-view hand-offs
+  focus: { table?: string; agentPrompt?: string; tinker?: string; logEntry?: string; artisan?: string } // cross-view hand-offs
   logErrors: Record<string, number>
 }
 

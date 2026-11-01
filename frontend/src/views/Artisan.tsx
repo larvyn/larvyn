@@ -70,6 +70,14 @@ export function Artisan() {
   const [favs, setFavs] = useState<string[]>(() => load('artisan:favs', ['migrate', 'test', 'optimize:clear', 'db:seed']))
   useEffect(() => save('artisan:favs', favs), [favs])
   useEffect(() => setSel(null), [id])
+  // Another view (e.g. Models' "New model") can open a command's form.
+  const focusCmd = useStore((s) => s.focus.artisan)
+  useEffect(() => {
+    if (focusCmd) {
+      setSel(focusCmd)
+      useStore.setState({ focus: {} })
+    }
+  }, [focusCmd])
 
   const commands: Cmd[] = useMemo(() => ((data?.commands ?? []) as Cmd[]).filter((c) => !c.hidden && c.name !== '_complete' && c.name !== 'completion'), [data])
   const groups = useMemo(() => {
