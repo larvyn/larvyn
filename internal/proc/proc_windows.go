@@ -41,6 +41,10 @@ func KillTree(pid int) {
 	_ = cmd.Run()
 }
 
+// ForegroundGroup is a Unix notion; taskkill /T already reaches a console's
+// processes.
+func ForegroundGroup(fd uintptr) int { return 0 }
+
 var shimLine = regexp.MustCompile(`(?i)^\s*@?\s*"?([a-z]:\\[^"]+\.exe)"?\s+%\*\s*$`)
 
 // UnwrapShim returns the program a one-line .bat/.cmd wrapper runs, such as
