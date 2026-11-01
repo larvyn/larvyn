@@ -1,0 +1,147 @@
+# Builds Larvyn for Linux, Windows and macOS when a version tag is pushed and
+# publishes a GitHub release with the files install.sh and install.ps1 download.
+#
+#   git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1
+#
+# Tags with a dash (v0.1.0-beta.1) are published as prereleases.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v3.0.0
+
+jobs:
+  linux-windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+      - name: Linux build
+        run: |
+          wails3 build
+          mkdir -p dist/linux
+          cp bin/larvyn dist/linux/larvyn
+          cp build/appicon.png dist/linux/larvyn.png
+          tar -czf larvyn-linux-amd64.tar.gz -C dist/linux larvyn larvyn.png
+      - name: Windows build
+        run: |
+          wails3 build GOOS=windows
+          cp bin/larvyn.exe larvyn-windows-amd64.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-windows
+          path: |
+            larvyn-linux-amd64.tar.gz
+            larvyn-windows-amd64.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+      - name: Stamp version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          plutil -replace CFBundleShortVersionString -string "$v" build/darwin/Info.plist
+          plutil -replace CFBundleVersion -string "$v" build/darwin/Info.plist
+      - name: Universal app bundle (ad-hoc signed)
+        run: wails3 task darwin:package:universal
+      - name: Archive
+        run: tar -czf larvyn-darwin-universal.tar.gz -C bin larvyn.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: larvyn-darwin-universal.tar.gz
+
+  # Releases go to the public distribution repo; the source repo stays private.
+  # RELEASES_TOKEN: fine-grained token with Contents read/write on that repo.
+  release:
+    needs: [linux-windows, macos]
+    runs-on: ubuntu-24.04
+    env:
+      RELEASES_REPO: ivanmercedes/larvyn-releases
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: source
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN }}
+          path: releases
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: assets
+      - name: Checksums
+        working-directory: assets
+        run: sha256sum larvyn-* > checksums.txt && cat checksums.txt
+      - name: Release notes
+        working-directory: source
+        run: |
+          prev=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          range="${prev:+$prev..}$GITHUB_REF_NAME"
+          {
+            echo "## Install"
+            echo
+            echo '```sh'
+            echo "curl -fsSL https://raw.githubusercontent.com/$RELEASES_REPO/main/install.sh | sh"
+            echo '```'
+            echo
+            echo '```powershell'
+            echo "irm https://raw.githubusercontent.com/$RELEASES_REPO/main/install.ps1 | iex"
+            echo '```'
+            echo
+            echo "## Changes"
+            echo
+            git log --no-merges --pretty='- %s' "$range"
+          } > ../notes.md
+      - name: Sync install scripts
+        working-directory: releases
+        run: |
+          cp ../source/install.sh ../source/install.ps1 .
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add install.sh install.ps1
+            git commit -m "chore: install scripts from $GITHUB_REF_NAME"
+            git push
+          fi
+      - name: Publish
+        working-directory: assets
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          flags=""
+          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --repo "$RELEASES_REPO" \
+            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags \
+            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt
