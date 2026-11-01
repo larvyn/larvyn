@@ -144,11 +144,84 @@ func (s *SystemService) OpenInEditor(path string, line int) error {
 		a = strings.ReplaceAll(a, "{line}", fmt.Sprint(line))
 		args = append(args, a)
 	}
-	bin := proc.Which(tmpl[0])
+	bin := findEditor(tmpl[0])
 	if bin == "" {
-		return errors.New(tmpl[0] + " was not found on PATH; pick another editor in Settings")
+		return errors.New(editorNotFound(tmpl[0]))
 	}
 	return proc.StartDetached(filepath.Dir(path), bin, args...)
+}
+
+// macEditorBundles maps an editor's command to the same CLI inside its app
+// bundle. On macOS the command is only on PATH when the user installs it by
+// hand, so a GUI launch usually can't find it.
+var macEditorBundles = map[string]string{
+	"code":     "Visual Studio Code.app/Contents/Resources/app/bin/code",
+	"cursor":   "Cursor.app/Contents/Resources/app/bin/cursor",
+	"windsurf": "Windsurf.app/Contents/Resources/app/bin/windsurf",
+	"zed":      "Zed.app/Contents/MacOS/cli",
+	"phpstorm": "PhpStorm.app/Contents/MacOS/phpstorm",
+	"subl":     "Sublime Text.app/Contents/SharedSupport/bin/subl",
+}
+
+// editorInstallHints tells the user how to put an editor's command on PATH.
+var editorInstallHints = map[string]string{
+	"code":     `in VS Code run "Shell Command: Install 'code' command in PATH" (⌘⇧P)`,
+	"cursor":   `in Cursor run "Shell Command: Install 'cursor' command in PATH" (⌘⇧P)`,
+	"windsurf": `in Windsurf run "Shell Command: Install 'windsurf' command in PATH" (⌘⇧P)`,
+	"zed":      `in Zed run "cli: install" from the command palette`,
+	"phpstorm": `in PhpStorm use Tools → Create Command-line Launcher, or turn on shell scripts in JetBrains Toolbox`,
+	"subl":     `link "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl" into a folder on your PATH`,
+}
+
+// macAppDirs are the folders searched for app bundles.
+var macAppDirs = func() []string {
+	dirs := []string{"/Applications"}
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, "Applications"))
+	}
+	return dirs
+}
+
+// findEditor finds an editor's command on PATH and, on macOS, inside its app
+// bundle in /Applications or ~/Applications. It returns "" when neither has it.
+func findEditor(name string) string {
+	if bin := proc.Which(name); bin != "" {
+		return bin
+	}
+	if runtime.GOOS == "darwin" {
+		return bundledEditor(name, macAppDirs())
+	}
+	return ""
+}
+
+// bundledEditor returns the first executable copy of name's bundled CLI in dirs.
+func bundledEditor(name string, dirs []string) string {
+	rel, ok := macEditorBundles[filepath.Base(name)]
+	if !ok {
+		return ""
+	}
+	for _, d := range dirs {
+		p := filepath.Join(d, filepath.FromSlash(rel))
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && fi.Mode()&0o111 != 0 {
+			return p
+		}
+	}
+	return ""
+}
+
+func editorNotFound(name string) string {
+	msg := name + " was not found on PATH"
+	if runtime.GOOS == "darwin" {
+		if _, ok := macEditorBundles[name]; ok {
+			msg += " or in /Applications"
+		}
+	}
+	if hint, ok := editorInstallHints[name]; ok {
+		msg += "; " + hint + ", or pick another editor in Settings"
+	} else {
+		msg += "; pick another editor in Settings"
+	}
+	return msg
 }
 
 // OpenFolder reveals a folder in the file manager.
