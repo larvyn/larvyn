@@ -9,7 +9,7 @@ import { CodeEditor } from '../components/CodeEditor'
 const CODE_EXT = /\.(php|js|mjs|cjs|jsx|ts|tsx|vue|svelte|css|scss|json|ya?ml|md|xml|html?|sh|env.*)$/i
 
 // Unsaved edits outlive the view (switching to Terminals and back keeps them).
-const drafts = new Map<string, { text: string; modTime: number }>()
+const drafts = new Map<string, { text: string; version: string }>()
 let openSeq = 0
 
 interface Open {
@@ -58,7 +58,7 @@ export function Files() {
       try {
         const file = await FileService.Read(id, path)
         const draft = drafts.get(id + ':' + path)
-        const text = draft && draft.modTime === file.modTime && !force ? draft.text : file.content
+        const text = draft && draft.version === file.version && !force ? draft.text : file.content
         setOpen({ file, seq: ++openSeq, text, saved: file.content })
         save('files:last:' + id, path)
         // Reveal it in the tree.
@@ -99,7 +99,7 @@ export function Files() {
   useEffect(() => {
     if (!id || !open) return
     const key = id + ':' + open.file.path
-    if (open.text !== open.saved) drafts.set(key, { text: open.text, modTime: open.file.modTime })
+    if (open.text !== open.saved) drafts.set(key, { text: open.text, version: open.file.version })
     else drafts.delete(key)
   }, [id, open])
 
@@ -120,8 +120,8 @@ export function Files() {
     setSaving(true)
     const text = open.text
     try {
-      const modTime = await FileService.Write(id, open.file.path, text, open.file.modTime)
-      setOpen((o) => (o ? { ...o, saved: text, file: { ...o.file, modTime, content: text } } : o))
+      const version = await FileService.Write(id, open.file.path, text, open.file.version)
+      setOpen((o) => (o ? { ...o, saved: text, file: { ...o.file, version, content: text } } : o))
       drafts.delete(id + ':' + open.file.path)
       toast('success', 'Saved', open.file.path)
     } catch (e) {

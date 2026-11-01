@@ -93,9 +93,11 @@ export interface FileContent {
     "content": string;
 
     /**
-     * unix nanoseconds, sent back on save to detect outside changes
+     * Version identifies what is on disk (modification time and size). It is
+     * sent back on save to detect outside changes. A string, because unix
+     * nanoseconds do not fit a JavaScript number exactly.
      */
-    "modTime": number;
+    "version": string;
     "size": number;
     "binary": boolean;
     "tooLarge": boolean;

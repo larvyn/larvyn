@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,25 +40,29 @@ func TestFileServiceListReadWrite(t *testing.T) {
 
 	fc, err := svc.Read(p.ID, "app/Models/User.php")
 	must(err)
-	if fc.Content != "<?php\n" || fc.Binary || fc.ModTime == 0 {
+	if fc.Content != "<?php\n" || fc.Binary || fc.Version == "" {
 		t.Fatalf("read = %+v", fc)
 	}
 	if bin, _ := svc.Read(p.ID, "logo.png"); !bin.Binary || bin.Content != "" {
 		t.Fatalf("logo.png should be binary: %+v", bin)
 	}
 
-	mt, err := svc.Write(p.ID, "app/Models/User.php", "<?php // edited\n", fc.ModTime)
+	mt, err := svc.Write(p.ID, "app/Models/User.php", "<?php // edited\n", fc.Version)
 	must(err)
 	if b, _ := os.ReadFile(filepath.Join(root, "app", "Models", "User.php")); string(b) != "<?php // edited\n" {
 		t.Fatalf("content not written: %q", b)
 	}
-	// A stale modTime (the file changed since it was read) is refused.
-	if _, err := svc.Write(p.ID, "app/Models/User.php", "lost", mt-1); err == nil {
+	// Saving again with the version Write returned works; a stale one (the
+	// file changed since it was read) is refused.
+	if _, err := svc.Write(p.ID, "app/Models/User.php", "<?php // again\n", mt); err != nil {
+		t.Fatalf("save with the returned version: %v", err)
+	}
+	if _, err := svc.Write(p.ID, "app/Models/User.php", "lost", fc.Version); err == nil {
 		t.Fatal("stale write should fail")
 	}
 	// The executable bit survives a save.
 	art, _ := svc.Read(p.ID, "artisan")
-	_, err = svc.Write(p.ID, "artisan", "#!/usr/bin/env php\n// x\n", art.ModTime)
+	_, err = svc.Write(p.ID, "artisan", "#!/usr/bin/env php\n// x\n", art.Version)
 	must(err)
 	if st, _ := os.Stat(filepath.Join(root, "artisan")); runtime.GOOS != "windows" && st.Mode().Perm()&0o100 == 0 {
 		t.Fatalf("artisan lost its executable bit: %v", st.Mode())
@@ -94,5 +99,36 @@ func TestResolveWithinRefusesEscapes(t *testing.T) {
 	}
 	if abs, err := resolveWithin(root, ""); err != nil || abs != root {
 		t.Errorf("root = %q, %v", abs, err)
+	}
+}
+
+// The version makes a round trip through the window as JSON, where numbers
+// are float64: it must come back unchanged, or every save looks stale.
+func TestFileVersionSurvivesJSON(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.php"), []byte("<?php\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	svc := &FileService{}
+	p, err := (&ProjectService{}).Add(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer (&ProjectService{}).Remove(p.ID)
+	fc, err := svc.Read(p.ID, "a.php")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(fc)
+	var js map[string]any // what JSON.parse gives the frontend
+	if err := json.Unmarshal(raw, &js); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := js["version"].(string)
+	if !ok || v != fc.Version {
+		t.Fatalf("version after JSON = %#v, want %q", js["version"], fc.Version)
+	}
+	if _, err := svc.Write(p.ID, "a.php", "<?php // saved\n", v); err != nil {
+		t.Fatalf("save with the version from JSON: %v", err)
 	}
 }

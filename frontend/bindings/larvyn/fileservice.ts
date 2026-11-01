@@ -24,10 +24,10 @@ export function Read(projectID: string, rel: string): $CancellablePromise<$model
 }
 
 /**
- * Write saves a file. modTime is what Read returned: when the file changed on
+ * Write saves a file. version is what Read returned: when the file changed on
  * disk since, nothing is written and the error says so. It returns the new
- * modification time.
+ * version.
  */
-export function Write(projectID: string, rel: string, content: string, modTime: number): $CancellablePromise<number> {
-    return $Call.ByID(485235902, projectID, rel, content, modTime);
+export function Write(projectID: string, rel: string, content: string, version: string): $CancellablePromise<string> {
+    return $Call.ByID(485235902, projectID, rel, content, version);
 }

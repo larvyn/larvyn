@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -27,11 +28,14 @@ type FileEntry struct {
 // FileContent is a file opened in the editor. Binary and TooLarge files come
 // without Content.
 type FileContent struct {
-	Path     string `json:"path"`
-	Abs      string `json:"abs"`
-	Content  string `json:"content"`
-	Size     int64  `json:"size"`
-	ModTime  int64  `json:"modTime"` // unix nanoseconds, sent back on save to detect outside changes
+	Path    string `json:"path"`
+	Abs     string `json:"abs"`
+	Content string `json:"content"`
+	Size    int64  `json:"size"`
+	// Version identifies what is on disk (modification time and size). It is
+	// sent back on save to detect outside changes. A string, because unix
+	// nanoseconds do not fit a JavaScript number exactly.
+	Version  string `json:"version"`
 	Binary   bool   `json:"binary"`
 	TooLarge bool   `json:"tooLarge"`
 }
@@ -84,7 +88,7 @@ func (s *FileService) Read(projectID, rel string) (FileContent, error) {
 	if info.IsDir() {
 		return FileContent{}, errors.New(rel + " is a folder")
 	}
-	fc := FileContent{Path: filepath.ToSlash(filepath.Clean(rel)), Abs: abs, Size: info.Size(), ModTime: info.ModTime().UnixNano()}
+	fc := FileContent{Path: filepath.ToSlash(filepath.Clean(rel)), Abs: abs, Size: info.Size(), Version: fileVersion(info)}
 	if info.Size() > maxEditableSize {
 		fc.TooLarge = true
 		return fc, nil
@@ -101,32 +105,38 @@ func (s *FileService) Read(projectID, rel string) (FileContent, error) {
 	return fc, nil
 }
 
-// Write saves a file. modTime is what Read returned: when the file changed on
+// Write saves a file. version is what Read returned: when the file changed on
 // disk since, nothing is written and the error says so. It returns the new
-// modification time.
-func (s *FileService) Write(projectID, rel, content string, modTime int64) (int64, error) {
+// version.
+func (s *FileService) Write(projectID, rel, content, version string) (string, error) {
 	_, abs, err := resolveProjectFile(projectID, rel)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	if info.IsDir() {
-		return 0, errors.New(rel + " is a folder")
+		return "", errors.New(rel + " is a folder")
 	}
-	if modTime != 0 && info.ModTime().UnixNano() != modTime {
-		return 0, errors.New(rel + " changed on disk since it was opened; reload it first")
+	if version != "" && fileVersion(info) != version {
+		return "", errors.New(rel + " changed on disk since it was opened; reload it first")
 	}
 	if err := os.WriteFile(abs, []byte(content), info.Mode().Perm()); err != nil {
-		return 0, err
+		return "", err
 	}
 	info, err = os.Stat(abs)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return info.ModTime().UnixNano(), nil
+	return fileVersion(info), nil
+}
+
+// fileVersion changes whenever the file is written: modification time in
+// nanoseconds plus size.
+func fileVersion(info os.FileInfo) string {
+	return strconv.FormatInt(info.ModTime().UnixNano(), 10) + "-" + strconv.FormatInt(info.Size(), 10)
 }
 
 // resolveProjectFile turns a project-relative path into an absolute one and
