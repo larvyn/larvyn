@@ -23,6 +23,7 @@ type RunResult struct {
 
 // run executes name with args in dir and captures its output.
 func run(dir string, timeout time.Duration, stdin []byte, name string, args ...string) (RunResult, error) {
+	waitShellEnv()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -81,6 +82,7 @@ func firstNonEmpty(vals ...string) string {
 }
 
 func which(name string) string {
+	waitShellEnv()
 	p, err := exec.LookPath(name)
 	if err != nil {
 		return ""
@@ -90,6 +92,7 @@ func which(name string) string {
 
 // startDetached launches a program without waiting, e.g. an editor.
 func startDetached(dir, name string, args ...string) error {
+	waitShellEnv()
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	if runtime.GOOS == "windows" && (strings.HasSuffix(strings.ToLower(name), ".cmd") || strings.HasSuffix(strings.ToLower(name), ".bat")) {

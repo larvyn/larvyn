@@ -109,6 +109,7 @@ func emit(name string, data any) {
 
 // Start launches a new terminal session.
 func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
+	waitShellEnv()
 	argv := spec.Argv
 	display := spec.Command
 	switch {
