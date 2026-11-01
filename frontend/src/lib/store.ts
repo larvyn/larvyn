@@ -181,8 +181,11 @@ function onExit(id: string, code: number, stopped = false) {
           // When asked for in the New app dialog: the installer does not always
           // leave the SQLite file behind (or migrate it), and every request
           // then fails with "Database file at path [...] does not exist".
-          if (sess.meta?.sqlite === '1' && (await ProjectService.EnsureSQLite(p.id).catch(() => false)))
-            artisanRun(p.id, ['migrate', '--graceful', '--force'])
+          const created = sess.meta?.sqlite === '1' && (await ProjectService.EnsureSQLite(p.id).catch((e) => {
+            fail('Could not create the SQLite database')(e)
+            return false
+          }))
+          if (created) artisanRun(p.id, ['migrate', '--graceful', '--force'])
         })
         .catch(fail('Could not add project'))
     } else toast('error', 'Project creation failed', `exit code ${code}`)
