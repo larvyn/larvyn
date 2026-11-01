@@ -8,12 +8,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 func TestMain(m *testing.M) {
 	home, _ := os.MkdirTemp("", "larvyn-test")
 	os.Setenv("LARVYN_HOME", home)
-	store = newStore()
+	store.Reload()
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)
@@ -156,19 +159,19 @@ func TestBridgeAgainstRealProject(t *testing.T) {
 }
 
 func TestWorktreeLifecycle(t *testing.T) {
-	if which("git") == "" {
+	if proc.Which("git") == "" {
 		t.Skip("git not installed")
 	}
 	repo := t.TempDir()
 	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
-		if _, err := git(repo, args...); err != nil {
+		if _, err := proc.Git(repo, args...); err != nil {
 			t.Fatal(err)
 		}
 	}
 	os.WriteFile(repo+"/README.md", []byte("hi\n"), 0o644)
 	os.WriteFile(repo+"/.env", []byte("APP_NAME=Demo\n"), 0o644)
-	git(repo, "add", "README.md")
-	if _, err := git(repo, "commit", "-m", "init"); err != nil {
+	proc.Git(repo, "add", "README.md")
+	if _, err := proc.Git(repo, "commit", "-m", "init"); err != nil {
 		t.Fatal(err)
 	}
 	p, err := (&ProjectService{}).Add(repo)
@@ -200,7 +203,7 @@ func TestWorktreeLifecycle(t *testing.T) {
 	if err := g.RemoveWorktree(p.ID, wt.Path, true); err != nil {
 		t.Fatal(err)
 	}
-	if out, _ := git(repo, "branch"); strings.Contains(out, "larvyn/") {
+	if out, _ := proc.Git(repo, "branch"); strings.Contains(out, "larvyn/") {
 		t.Errorf("branch not deleted: %s", out)
 	}
 }
@@ -228,7 +231,7 @@ func TestTestResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.MkdirAll(homeDir()+"/junit", 0o755)
+	os.MkdirAll(store.HomeDir()+"/junit", 0o755)
 	xml := `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
   <testsuite name="Tests\Feature" tests="3">
@@ -317,14 +320,14 @@ func TestUnwrapShim(t *testing.T) {
 		return p
 	}
 	herd := write("php.bat", "@echo off\r\n\""+exe+"\" %*\r\n")
-	if got := unwrapShim(herd); got != exe {
+	if got := proc.UnwrapShim(herd); got != exe {
 		t.Errorf("Herd-style shim: got %q", got)
 	}
 	complex := write("npm.cmd", "@echo off\r\nSETLOCAL\r\n\""+exe+"\" %*\r\n")
-	if got := unwrapShim(complex); got != complex {
+	if got := proc.UnwrapShim(complex); got != complex {
 		t.Errorf("a script with more than one command must run as is, got %q", got)
 	}
-	if got := unwrapShim(exe); got != exe {
+	if got := proc.UnwrapShim(exe); got != exe {
 		t.Errorf("an .exe stays as is, got %q", got)
 	}
 }

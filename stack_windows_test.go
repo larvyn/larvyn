@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"larvyn/internal/store"
 )
 
 // processes maps every running process id to "parent creationTime", so a
@@ -67,8 +69,8 @@ func TestStackStopKillsEveryProcess(t *testing.T) {
 		t.Skip("set LARVYN_TEST_PROJECT to a Laravel app")
 	}
 	p := Project{ID: "stacktest", Name: "stack test", Path: dir, Port: 8765}
-	store.update(func(d *state) { d.Projects = append(d.Projects, p) })
-	defer store.update(func(d *state) { d.Projects = d.Projects[:len(d.Projects)-1] })
+	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
+	defer store.Update(func(d *store.State) { d.Projects = d.Projects[:len(d.Projects)-1] })
 
 	for _, it := range stackItems(p) {
 		t.Logf("item %-8s dev=%v avail=%v %q", it.Key, it.Dev, it.Available, joinArgs(it.Argv))
@@ -118,8 +120,8 @@ func TestCtrlCStopsServe(t *testing.T) {
 		t.Skip("set LARVYN_TEST_PROJECT to a Laravel app")
 	}
 	p := Project{ID: "ctrlc", Name: "ctrl c", Path: dir, Port: 8767}
-	store.update(func(d *state) { d.Projects = append(d.Projects, p) })
-	defer store.update(func(d *state) { d.Projects = d.Projects[:len(d.Projects)-1] })
+	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
+	defer store.Update(func(d *store.State) { d.Projects = d.Projects[:len(d.Projects)-1] })
 	s, err := (&StackService{}).Start(p.ID, "serve")
 	if err != nil {
 		t.Fatal(err)

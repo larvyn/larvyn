@@ -1,4 +1,6 @@
-package main
+// Package updater checks the public releases for a newer Larvyn and replaces
+// the running installation with it.
+package updater
 
 import (
 	"archive/tar"
@@ -18,15 +20,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // Releases are published to the public distribution repository.
 const releasesAPI = "https://api.github.com/repos/larvyn/releases/releases?per_page=10"
 
-// UpdateInfo tells the window whether a newer release exists.
-type UpdateInfo struct {
+// Version is the running build ("dev" locally); main sets it at start.
+var Version = "dev"
+
+// Info tells the window whether a newer release exists.
+type Info struct {
 	Available bool   `json:"available"`
 	Current   string `json:"current"`
 	Latest    string `json:"latest"`
@@ -53,13 +56,13 @@ func currentVersion() string {
 	if v := os.Getenv("LARVYN_UPDATE_TEST_VERSION"); v != "" {
 		return v
 	}
-	return version
+	return Version
 }
 
-// CheckForUpdate looks up the newest release (betas included) and compares it
-// with this build.
-func (s *SystemService) CheckForUpdate() (UpdateInfo, error) {
-	info := UpdateInfo{Current: currentVersion()}
+// Check looks up the newest release (betas included) and compares it with
+// this build.
+func Check() (Info, error) {
+	info := Info{Current: currentVersion()}
 	if info.Current == "dev" {
 		info.Reason = "Development build: updates are not checked."
 		return info, nil
@@ -81,7 +84,7 @@ func (s *SystemService) CheckForUpdate() (UpdateInfo, error) {
 func latestRelease() (ghRelease, error) {
 	req, _ := http.NewRequest("GET", releasesAPI, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "larvyn/"+version)
+	req.Header.Set("User-Agent", "larvyn/"+Version)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		return ghRelease{}, fmt.Errorf("could not reach GitHub: %w", err)
@@ -115,9 +118,10 @@ func updateAsset() (string, error) {
 	return "", fmt.Errorf("automatic updates are not available for %s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
-// InstallUpdate downloads tag, verifies it against the release checksums,
-// replaces this installation and restarts Larvyn.
-func (s *SystemService) InstallUpdate(tag string) error {
+// Install downloads tag, verifies it against the release checksums, replaces
+// this installation and starts the new one. The caller quits the running app
+// afterwards.
+func Install(tag string) error {
 	if !strings.HasPrefix(tag, "v") || strings.ContainsAny(tag, "/\\ ") {
 		return errors.New("invalid release tag")
 	}
@@ -144,16 +148,12 @@ func (s *SystemService) InstallUpdate(tag string) error {
 	if err := relaunch.Start(); err != nil {
 		return fmt.Errorf("updated, but could not restart Larvyn: %w (open it again)", err)
 	}
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		application.Get().Quit()
-	}()
 	return nil
 }
 
 func download(url string) ([]byte, error) {
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("User-Agent", "larvyn/"+version)
+	req.Header.Set("User-Agent", "larvyn/"+Version)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download failed: %w", err)
@@ -303,9 +303,9 @@ func untar(data []byte, dir string) error {
 	}
 }
 
-// cleanupUpdate removes what a previous update left behind (Windows keeps the
+// Cleanup removes what a previous update left behind (Windows keeps the
 // replaced .exe until the next start).
-func cleanupUpdate() {
+func Cleanup() {
 	if exe, err := os.Executable(); err == nil {
 		_ = os.Remove(exe + ".old")
 	}

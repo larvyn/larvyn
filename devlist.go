@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"larvyn/internal/proc"
 )
 
 // DevProcess is one entry of `php artisan dev:list --json` (Laravel 13+): the
@@ -68,7 +70,7 @@ func devProcesses(p Project) ([]DevProcess, bool) {
 		devListCache.Store(p.Path, devListEntry{sig: sig})
 		return nil, false
 	}
-	if res, err := artisan(p.Path, 30*time.Second, "dev:list", "--json"); err == nil && res.Code == 0 {
+	if res, err := proc.Artisan(p.Path, 30*time.Second, "dev:list", "--json"); err == nil && res.Code == 0 {
 		if raw := extractJSON(res.Stdout); raw != nil && json.Unmarshal(raw, &procs) == nil {
 			ok = true
 		}

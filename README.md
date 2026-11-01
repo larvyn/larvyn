@@ -42,6 +42,11 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
   tinker). Answers follow a marker so boot noise never breaks parsing.
 - `stack.go`, `agents.go`, `git.go`, `laravel.go`, `projects.go`,
   `system.go`: the services the frontend calls through generated bindings.
+- `internal/store` (projects, settings, the state folder), `internal/proc`
+  (running PHP, artisan and git, finding programs, the login-shell PATH) and
+  `internal/updater` (self-update): the base packages the services build on.
+  They never import the services. `aliases.go` keeps their types' names in
+  `main`, so the bindings and the frontend imports don't change.
 - State lives in `%APPDATA%\larvyn` (`~/.config/larvyn`); set `LARVYN_HOME`
   to use another folder. For scripts: `LARVYN_VIEW=<view>` opens a view,
   `LARVYN_RUN=<command>` opens a terminal running it, `LARVYN_AGENT=<id>`

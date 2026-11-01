@@ -1,16 +1,16 @@
-package main
+package proc
 
 import "time"
 
 // shellEnvReady is closed once the login shell's PATH has been imported. It
-// starts closed, so code that never calls startShellEnvImport (tests) does
+// starts closed, so code that never calls StartShellEnvImport (tests) does
 // not wait.
 var shellEnvReady = func() chan struct{} { c := make(chan struct{}); close(c); return c }()
 
-// startShellEnvImport imports the shell PATH in the background, so the window
+// StartShellEnvImport imports the shell PATH in the background, so the window
 // opens right away; lookups and launches wait for it through waitShellEnv.
 // Call it from main before anything else runs.
-func startShellEnvImport() {
+func StartShellEnvImport() {
 	shellEnvReady = make(chan struct{})
 	go func() {
 		defer close(shellEnvReady)
@@ -18,10 +18,10 @@ func startShellEnvImport() {
 	}()
 }
 
-// waitShellEnv blocks until the shell PATH is in place. It waits a little
+// WaitShellEnv blocks until the shell PATH is in place. It waits a little
 // longer than the import itself may take, so a slow shell never makes a
-// lookup like which("laravel") run against the bare desktop PATH.
-func waitShellEnv() {
+// lookup like Which("laravel") run against the bare desktop PATH.
+func WaitShellEnv() {
 	select {
 	case <-shellEnvReady:
 	case <-time.After(12 * time.Second):

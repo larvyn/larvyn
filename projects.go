@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -153,7 +156,7 @@ func (s *ProjectService) Add(path string) (Project, error) {
 	if env := readEnvFile(filepath.Join(path, ".env")); env["APP_NAME"] != "" && env["APP_NAME"] != "Laravel" {
 		p.Name = env["APP_NAME"]
 	}
-	err = store.update(func(d *state) { d.Projects = append(d.Projects, p) })
+	err = store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
 	s.changed()
 	return p, err
 }
@@ -184,7 +187,7 @@ func (s *ProjectService) Remove(id string) error {
 			_ = terminals.Close(sess.ID)
 		}
 	}
-	err := store.update(func(d *state) {
+	err := store.Update(func(d *store.State) {
 		out := d.Projects[:0]
 		for _, p := range d.Projects {
 			if p.ID != id {
@@ -199,7 +202,7 @@ func (s *ProjectService) Remove(id string) error {
 
 // Update saves the editable fields of a project.
 func (s *ProjectService) Update(p Project) error {
-	err := store.update(func(d *state) {
+	err := store.Update(func(d *store.State) {
 		for i := range d.Projects {
 			if d.Projects[i].ID == p.ID {
 				d.Projects[i].Name = p.Name
@@ -215,7 +218,7 @@ func (s *ProjectService) Update(p Project) error {
 
 // Touch marks a project as just opened.
 func (s *ProjectService) Touch(id string) {
-	_ = store.update(func(d *state) {
+	_ = store.Update(func(d *store.State) {
 		d.Active = id
 		for i := range d.Projects {
 			if d.Projects[i].ID == id {
@@ -227,14 +230,12 @@ func (s *ProjectService) Touch(id string) {
 
 // Active returns the project that was open last.
 func (s *ProjectService) Active() string {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	return store.data.Active
+	return store.ActiveID()
 }
 
 // Info inspects a project's files.
 func (s *ProjectService) Info(id string) (ProjectInfo, error) {
-	p, ok := store.Project(id)
+	p, ok := store.FindProject(id)
 	if !ok {
 		return ProjectInfo{}, errors.New("project not found")
 	}
@@ -245,7 +246,7 @@ func (s *ProjectService) Info(id string) (ProjectInfo, error) {
 // when it is missing, so a fresh app does not fail with "Database file at
 // path [...] does not exist". It reports whether a file was created.
 func (s *ProjectService) EnsureSQLite(id string) (bool, error) {
-	p, ok := store.Project(id)
+	p, ok := store.FindProject(id)
 	if !ok {
 		return false, errors.New("project not found")
 	}
@@ -387,9 +388,9 @@ func inspect(p Project) ProjectInfo {
 		info.DBConnection = env["DB_CONNECTION"]
 		info.DBDatabase = env["DB_DATABASE"]
 		info.QueueConnection = env["QUEUE_CONNECTION"]
-		info.CacheStore = firstNonEmpty(env["CACHE_STORE"], env["CACHE_DRIVER"])
+		info.CacheStore = proc.FirstNonEmpty(env["CACHE_STORE"], env["CACHE_DRIVER"])
 		info.SessionDriver = env["SESSION_DRIVER"]
-		info.MailMailer = firstNonEmpty(env["MAIL_MAILER"], env["MAIL_DRIVER"])
+		info.MailMailer = proc.FirstNonEmpty(env["MAIL_MAILER"], env["MAIL_DRIVER"])
 		if f := sqlitePath(root, env); f != "" {
 			info.SQLiteFile = f
 			_, err := os.Stat(f)
@@ -409,9 +410,9 @@ func inspect(p Project) ProjectInfo {
 		info.Counts[key] = countFiles(filepath.Join(root, dir))
 	}
 
-	if out, err := git(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+	if out, err := proc.Git(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
 		info.Branch = strings.TrimSpace(out)
-		if st, err := git(root, "status", "--porcelain"); err == nil {
+		if st, err := proc.Git(root, "status", "--porcelain"); err == nil {
 			info.Dirty = len(nonEmptyLines(st))
 		}
 	}
@@ -420,7 +421,7 @@ func inspect(p Project) ProjectInfo {
 
 func herdSite(root string) bool {
 	// Herd and Valet serve every folder in a parked directory as <name>.test.
-	if which("herd") == "" && which("valet") == "" {
+	if proc.Which("herd") == "" && proc.Which("valet") == "" {
 		return false
 	}
 	parent := strings.ToLower(filepath.Base(filepath.Dir(root)))

@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
+
 	"github.com/aymanbagabas/go-pty"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -109,7 +112,7 @@ func emit(name string, data any) {
 
 // Start launches a new terminal session.
 func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
-	waitShellEnv()
+	proc.WaitShellEnv()
 	argv := spec.Argv
 	display := spec.Command
 	switch {
@@ -119,21 +122,21 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 			display = joinArgs(spec.Argv)
 		}
 	case spec.Command != "":
-		argv = shellCommand(spec.Command)
+		argv = proc.ShellCommand(spec.Command)
 	default:
-		if sh := store.Settings().Shell; sh != "" {
+		if sh := store.CurrentSettings().Shell; sh != "" {
 			argv = []string{sh}
 		} else {
-			argv = defaultShell()
+			argv = proc.DefaultShell()
 		}
 	}
 	// go-pty looks a bare program name up relative to the working directory,
 	// so resolve it against PATH first.
 	if p, err := exec.LookPath(argv[0]); err == nil {
-		argv = append([]string{unwrapShim(p)}, argv[1:]...)
+		argv = append([]string{proc.UnwrapShim(p)}, argv[1:]...)
 	}
 	if spec.Cwd == "" {
-		if p, ok := store.Project(spec.ProjectID); ok {
+		if p, ok := store.FindProject(spec.ProjectID); ok {
 			spec.Cwd = p.Path
 		}
 	}
@@ -180,7 +183,7 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 		StartedAt: now, LastActivity: now, Meta: spec.Meta,
 	}}
 	if s.info.Title == "" {
-		s.info.Title = firstNonEmpty(display, "Terminal")
+		s.info.Title = proc.FirstNonEmpty(display, "Terminal")
 	}
 	t.mu.Lock()
 	t.sessions[s.info.ID] = s
@@ -379,7 +382,7 @@ func (t *TerminalService) Kill(id string) error {
 	}
 	s.mu.Unlock()
 	if running && s.cmd.Process != nil {
-		killTree(s.cmd.Process.Pid)
+		proc.KillTree(s.cmd.Process.Pid)
 		_ = s.cmd.Process.Kill()
 	}
 	return nil

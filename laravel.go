@@ -15,6 +15,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 //go:embed bridge.php
@@ -26,8 +29,8 @@ var createSource []byte
 // createScript returns the path of create.php, Larvyn's stand-in for
 // `laravel new` when the installer is missing, written next to the app state.
 func createScript() string {
-	path := filepath.Join(homeDir(), "create.php")
-	_ = os.MkdirAll(homeDir(), 0o755)
+	path := filepath.Join(store.HomeDir(), "create.php")
+	_ = os.MkdirAll(store.HomeDir(), 0o755)
 	if b, err := os.ReadFile(path); err != nil || !bytes.Equal(b, createSource) {
 		_ = os.WriteFile(path, createSource, 0o644)
 	}
@@ -40,8 +43,8 @@ var bridgePath string
 // bridge returns the path of the PHP bridge, written next to the app state.
 func bridge() string {
 	bridgeOnce.Do(func() {
-		bridgePath = filepath.Join(homeDir(), "bridge.php")
-		_ = os.MkdirAll(homeDir(), 0o755)
+		bridgePath = filepath.Join(store.HomeDir(), "bridge.php")
+		_ = os.MkdirAll(store.HomeDir(), 0o755)
 		if b, err := os.ReadFile(bridgePath); err != nil || !bytes.Equal(b, bridgeSource) {
 			_ = os.WriteFile(bridgePath, bridgeSource, 0o644)
 		}
@@ -51,7 +54,7 @@ func bridge() string {
 
 // callBridge boots the project's Laravel app and runs one bridge action.
 func callBridge(projectID, action string, payload any, timeout time.Duration) (json.RawMessage, error) {
-	p, ok := store.Project(projectID)
+	p, ok := store.FindProject(projectID)
 	if !ok {
 		return nil, errors.New("project not found")
 	}
@@ -60,14 +63,14 @@ func callBridge(projectID, action string, payload any, timeout time.Duration) (j
 	}
 	in, _ := json.Marshal(payload)
 	// Deprecations from newer PHP versions in config files are noise here.
-	res, err := php(p.Path, timeout, in, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "-d", "display_errors=stderr", bridge(), p.Path, action)
+	res, err := proc.PHP(p.Path, timeout, in, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "-d", "display_errors=stderr", bridge(), p.Path, action)
 	if err != nil {
 		return nil, err
 	}
 	const mark = "\n@@LARVYN@@"
 	i := strings.LastIndex(res.Stdout, mark)
 	if i < 0 {
-		msg := strings.TrimSpace(firstNonEmpty(res.Stderr, res.Stdout))
+		msg := strings.TrimSpace(proc.FirstNonEmpty(res.Stderr, res.Stdout))
 		if msg == "" {
 			msg = fmt.Sprintf("php exited with code %d", res.Code)
 		}
@@ -82,7 +85,7 @@ type LaravelService struct {
 }
 
 func projectPath(id string) (string, error) {
-	p, ok := store.Project(id)
+	p, ok := store.FindProject(id)
 	if !ok {
 		return "", errors.New("project not found")
 	}
@@ -113,13 +116,13 @@ func (l *LaravelService) Commands(projectID string, refresh bool) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	res, err := artisan(dir, 60*time.Second, "list", "--format=json")
+	res, err := proc.Artisan(dir, 60*time.Second, "list", "--format=json")
 	if err != nil {
 		return nil, err
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(firstNonEmpty(res.Stderr, res.Stdout, "artisan list failed")))
+		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "artisan list failed")))
 	}
 	l.mu.Lock()
 	l.commands[projectID] = out
@@ -133,13 +136,13 @@ func (l *LaravelService) Routes(projectID string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := artisan(dir, 60*time.Second, "route:list", "--json")
+	res, err := proc.Artisan(dir, 60*time.Second, "route:list", "--json")
 	if err != nil {
 		return nil, err
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(firstNonEmpty(res.Stderr, res.Stdout, "route:list failed")))
+		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "route:list failed")))
 	}
 	return out, nil
 }
@@ -150,13 +153,13 @@ func (l *LaravelService) About(projectID string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := artisan(dir, 60*time.Second, "about", "--json")
+	res, err := proc.Artisan(dir, 60*time.Second, "about", "--json")
 	if err != nil {
 		return nil, err
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(firstNonEmpty(res.Stderr, res.Stdout, "about failed")))
+		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "about failed")))
 	}
 	return out, nil
 }
@@ -167,13 +170,13 @@ func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, 
 	if err != nil {
 		return nil, err
 	}
-	res, err := artisan(dir, 60*time.Second, "model:show", class, "--json")
+	res, err := proc.Artisan(dir, 60*time.Second, "model:show", class, "--json")
 	if err != nil {
 		return nil, err
 	}
 	out := extractJSON(res.Stdout)
 	if out == nil {
-		return nil, errors.New(stripANSI(firstNonEmpty(res.Stderr, res.Stdout, "model:show failed")))
+		return nil, errors.New(stripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "model:show failed")))
 	}
 	return out, nil
 }
@@ -184,7 +187,7 @@ func (l *LaravelService) Artisan(projectID string, args []string) (RunResult, er
 	if err != nil {
 		return RunResult{}, err
 	}
-	res, err := artisan(dir, 5*time.Minute, args...)
+	res, err := proc.Artisan(dir, 5*time.Minute, args...)
 	res.Stdout = stripANSI(res.Stdout)
 	res.Stderr = stripANSI(res.Stderr)
 	return res, err
@@ -272,8 +275,8 @@ func (l *LaravelService) SaveEnv(projectID, name, raw string) error {
 	}
 	path := filepath.Join(dir, name)
 	if old, err := os.ReadFile(path); err == nil {
-		_ = os.MkdirAll(filepath.Join(homeDir(), "backups"), 0o755)
-		_ = os.WriteFile(filepath.Join(homeDir(), "backups", fmt.Sprintf("%s-%s-%d", projectID, name, time.Now().Unix())), old, 0o600)
+		_ = os.MkdirAll(filepath.Join(store.HomeDir(), "backups"), 0o755)
+		_ = os.WriteFile(filepath.Join(store.HomeDir(), "backups", fmt.Sprintf("%s-%s-%d", projectID, name, time.Now().Unix())), old, 0o600)
 	}
 	return os.WriteFile(path, []byte(raw), 0o644)
 }
