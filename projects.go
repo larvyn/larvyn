@@ -180,13 +180,29 @@ func (s *ProjectService) PickFolder(title string) (string, error) {
 		SetTitle(title).PromptForSingleSelection()
 }
 
-// Remove forgets a project; its files stay.
-func (s *ProjectService) Remove(id string) error {
+// closeSessions stops and closes every terminal of a project.
+func closeSessions(id string) {
 	for _, sess := range terminals.List() {
 		if sess.ProjectID == id {
 			_ = terminals.Close(sess.ID)
 		}
 	}
+}
+
+// Close stops a project's terminals and dev services and leaves it, so the
+// window goes back to the welcome screen. The project stays in Larvyn.
+func (s *ProjectService) Close(id string) error {
+	closeSessions(id)
+	return store.Update(func(d *store.State) {
+		if d.Active == id {
+			d.Active = ""
+		}
+	})
+}
+
+// Remove forgets a project; its files stay.
+func (s *ProjectService) Remove(id string) error {
+	closeSessions(id)
 	err := store.Update(func(d *store.State) {
 		out := d.Projects[:0]
 		for _, p := range d.Projects {

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Bot, Database, Download, FlaskConical, FolderOpen, Plus, RefreshCw, ScrollText, Server, SquareTerminal, Waypoints, Zap } from 'lucide-react'
 import { ProjectService, SystemService, type Tool } from '../../bindings/larvyn'
-import { addProject, showConsole, toast, updateLaravelInstaller, useStore } from '../lib/store'
-import { cx, errMsg } from '../lib/util'
+import { addProject, selectProject, showConsole, toast, updateLaravelInstaller, useStore } from '../lib/store'
+import { cx, errMsg, initials } from '../lib/util'
 import { Logo, Modal } from '../components/ui'
 
 const FEATURES = [
@@ -17,6 +17,7 @@ const FEATURES = [
 ]
 
 export function Welcome() {
+  const projects = useStore((s) => s.projects)
   return (
     <div className="welcome">
       <div className="glow" />
@@ -40,6 +41,23 @@ export function Welcome() {
             <Plus /> New Laravel app
           </button>
         </div>
+        {projects.length > 0 && (
+          <div className="welcome-projects">
+            <div className="welcome-projects-head">Your projects</div>
+            {[...projects]
+              .sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0))
+              .slice(0, 6)
+              .map((p) => (
+                <button key={p.id} className="list-item welcome-project" title={p.path} onClick={() => selectProject(p.id)}>
+                  <span className="welcome-project-badge" style={{ background: p.color }}>
+                    {initials(p.name)}
+                  </span>
+                  <span className="grow ellipsis">{p.name}</span>
+                  <span className="faint mono ellipsis welcome-project-path">{p.path}</span>
+                </button>
+              ))}
+          </div>
+        )}
         <div className="feature-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {FEATURES.map((f) => (
             <div key={f.title} className="feature">

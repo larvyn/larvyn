@@ -22,6 +22,7 @@ import {
   Code2,
   Zap,
   RefreshCw,
+  X,
 } from 'lucide-react'
 import { StackService, SystemService, type StackItem } from '../../bindings/larvyn'
 import {
@@ -38,6 +39,7 @@ import {
   useStore,
 } from '../lib/store'
 import { NAV_ITEMS } from './Shell'
+import { askCloseProject } from './closeProject'
 import { initials, splitArgs } from '../lib/util'
 
 const QUICK: { args: string[]; label: string; danger?: boolean }[] = [
@@ -277,6 +279,11 @@ export function Palette() {
                 </span>
               </Command.Item>
             ))}
+            {project && (
+              <Command.Item value={'close project ' + project.name} onSelect={act(() => askCloseProject(project))}>
+                <X /> Close {project.name}
+              </Command.Item>
+            )}
             <Command.Item value="open add project folder" onSelect={act(addProject)}>
               <FolderOpen /> Open a project folder…
             </Command.Item>

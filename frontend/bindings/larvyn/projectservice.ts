@@ -24,6 +24,14 @@ export function Add(path: string): $CancellablePromise<$models.Project> {
 }
 
 /**
+ * Close stops a project's terminals and dev services and leaves it, so the
+ * window goes back to the welcome screen. The project stays in Larvyn.
+ */
+export function Close(id: string): $CancellablePromise<void> {
+    return $Call.ByID(1649113468, id);
+}
+
+/**
  * EnsureSQLite creates the SQLite database file a project's .env points at
  * when it is missing, so a fresh app does not fail with "Database file at
  * path [...] does not exist". It reports whether a file was created.
