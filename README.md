@@ -47,6 +47,9 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
   `LARVYN_RUN=<command>` opens a terminal running it, `LARVYN_AGENT=<id>`
   starts an agent (claude, codex, …) in the last opened project, and
   `LARVYN_PALETTE=<text>` opens the command palette with that text typed.
+- `create.php`: embedded stand-in for `laravel new`, used when the Laravel
+  installer is missing. It applies the New app choices (starter kit,
+  database, git, Pest, npm) the same way the installer does.
 - Composer: when it is not on PATH, Larvyn installs its own verified
   `composer.phar` on first use (Settings → Toolchain, or any composer action).
 - Errors in the window (and a crashed view) are written to `larvyn.log` in

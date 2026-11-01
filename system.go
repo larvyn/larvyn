@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -202,8 +204,10 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 		if req.Starter != "" && req.Starter != "none" {
 			argv = append(argv, "--npm")
 		}
-	} else if composerArgv() != nil {
-		argv = []string{"composer", "create-project", "laravel/laravel", name, "--no-interaction"}
+	} else if composer := composerArgv(); composer != nil {
+		// Without the installer, create.php does what `laravel new` would:
+		// starter kit, database, git, Pest and npm.
+		argv = createFallbackArgv(req, name, composer)
 	} else {
 		return nil, errors.New("install Composer first (Settings → Toolchain)")
 	}
@@ -217,6 +221,14 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 		return nil, err
 	}
 	return map[string]any{"session": sess, "path": target}, nil
+}
+
+// createFallbackArgv runs the embedded create.php with the dialog's choices.
+func createFallbackArgv(req CreateRequest, name string, composer []string) []string {
+	opts, _ := json.Marshal(map[string]any{
+		"parent": req.Parent, "name": name, "starter": req.Starter, "testing": req.Testing, "db": req.DB, "composer": composer,
+	})
+	return []string{store.PHP(), createScript(), base64.StdEncoding.EncodeToString(opts)}
 }
 
 // Log appends a frontend error to larvyn.log in the state folder, so crashes
