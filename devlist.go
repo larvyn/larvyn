@@ -61,6 +61,13 @@ func devProcesses(p Project) ([]DevProcess, bool) {
 	}
 	var procs []DevProcess
 	ok := false
+	// Only ask apps whose framework ships dev:list: on older ones Artisan
+	// reports the unknown command to storage/logs/laravel.log, which shows up
+	// as a new error in the Logs view.
+	if !hasDevListCommand(p.Path) {
+		devListCache.Store(p.Path, devListEntry{sig: sig})
+		return nil, false
+	}
 	if res, err := artisan(p.Path, 30*time.Second, "dev:list", "--json"); err == nil && res.Code == 0 {
 		if raw := extractJSON(res.Stdout); raw != nil && json.Unmarshal(raw, &procs) == nil {
 			ok = true
@@ -68,6 +75,28 @@ func devProcesses(p Project) ([]DevProcess, bool) {
 	}
 	devListCache.Store(p.Path, devListEntry{sig: sig, procs: procs, ok: ok})
 	return procs, ok
+}
+
+// hasDevListCommand reports whether the installed laravel/framework defines
+// the dev:list command, by looking for its signature in the framework's
+// command classes instead of running Artisan.
+func hasDevListCommand(root string) bool {
+	dir := filepath.Join(root, "vendor", "laravel", "framework", "src", "Illuminate", "Foundation")
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || found {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), "Command.php") {
+			return nil
+		}
+		if b, err := os.ReadFile(path); err == nil && strings.Contains(string(b), "dev:list") {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 // splitCommand splits a dev:list command line into arguments, honouring
