@@ -25,6 +25,7 @@ export type {
     EnvFile,
     FileContent,
     FileEntry,
+    FileIndex,
     LaunchOptions,
     LaunchRequest,
     LogChunk,

@@ -121,6 +121,17 @@ export interface FileEntry {
 }
 
 /**
+ * FileIndex is every file of a project, for the quick-open finder.
+ */
+export interface FileIndex {
+    /**
+     * relative to the project, with forward slashes, sorted
+     */
+    "files": string[] | null;
+    "truncated": boolean;
+}
+
+/**
  * LaunchOptions come from the environment so scripts can open Larvyn on a
  * view, with a command running in a terminal, or with an agent started.
  */

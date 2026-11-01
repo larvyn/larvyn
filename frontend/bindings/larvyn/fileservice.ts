@@ -15,6 +15,18 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * AllFiles lists every file of a project in one call, for the finder. In a git
+ * repository it asks git, so .gitignore is honoured exactly (tracked and
+ * untracked files, minus the ignored ones); elsewhere it walks the tree and
+ * skips .git, dependencies and build output. Nothing outside the project is
+ * returned: entries that do not exist or resolve elsewhere (symlinks) are
+ * dropped.
+ */
+export function AllFiles(projectID: string): $CancellablePromise<$models.FileIndex> {
+    return $Call.ByID(48374817, projectID);
+}
+
+/**
  * List returns a folder's entries, folders first. rel "" is the project root.
  */
 export function List(projectID: string, rel: string): $CancellablePromise<$models.FileEntry[] | null> {
