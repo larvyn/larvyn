@@ -7,33 +7,37 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
  * Fanout starts the same prompt in several agents, each in its own worktree.
  */
-export function Fanout(req: $models.LaunchRequest, agents: string[] | null): $CancellablePromise<$models.SessionInfo[] | null> {
-    return $Call.ByID(488899699, req, agents);
+export function Fanout(req: $models.LaunchRequest, agents: string[] | null): $CancellablePromise<terminal$0.SessionInfo[] | null> {
+    return $Call.ByID(3125584797, req, agents);
 }
 
 /**
  * Kinds lists the known agents and whether each is on PATH.
  */
 export function Kinds(): $CancellablePromise<$models.AgentKind[] | null> {
-    return $Call.ByID(362581127);
+    return $Call.ByID(1319002389);
 }
 
 /**
  * Launch starts an agent session. With Worktree set the agent works on its
  * own branch, so several can attack one task in parallel.
  */
-export function Launch(req: $models.LaunchRequest): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(3389052743, req);
+export function Launch(req: $models.LaunchRequest): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(3776928677, req);
 }
 
 /**
  * Send types a follow-up message into an agent and presses enter.
  */
 export function Send(sessionID: string, text: string): $CancellablePromise<void> {
-    return $Call.ByID(4100824498, sessionID, text);
+    return $Call.ByID(1388024608, sessionID, text);
 }

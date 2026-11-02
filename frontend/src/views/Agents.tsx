@@ -25,12 +25,10 @@ import {
   Code2,
 } from 'lucide-react'
 import {
-  AgentService,
   SystemService,
-  type LaunchRequest,
-  type AgentKind,
   type SessionInfo,
 } from '../../bindings/larvyn'
+import { AgentService, type LaunchRequest, type AgentKind } from '../../bindings/larvyn/internal/agents'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { GitService } from '../../bindings/larvyn/internal/git'
 import { agentStatus, composerRun, fail, relaunch, runInConsole, toast, useActive, useStore } from '../lib/store'
