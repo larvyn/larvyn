@@ -34,30 +34,36 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
 
 ## How it works
 
-- `terminal.go`: PTY sessions, streamed to the UI as base64 chunks with
-  sequence numbers; a 1 MB scrollback per session lets a view re-attach
-  without losing output.
-- `bridge.php`: embedded PHP script that boots the project's Laravel app and
-  answers one JSON request (database, models, migrations, queues, schedule,
-  tinker). Answers follow a marker so boot noise never breaks parsing.
-- `stack.go`, `agents.go`, `laravel.go`, `projects.go`, `system.go` and
-  `internal/git`: the services the frontend calls through generated bindings
-  (a service in `internal/<pkg>` gets its bindings in
-  `frontend/bindings/larvyn/internal/<pkg>`).
-- `internal/store` (projects, settings, the state folder), `internal/proc`
-  (running PHP, artisan and git, finding programs, the login-shell PATH),
-  `internal/dotenv` (.env parsing) and `internal/updater` (self-update): the
-  base packages the services build on.
-  They never import the services. `aliases.go` keeps their types' names in
-  `main`, so the bindings and the frontend imports don't change.
+- `main.go` only wires the app: it registers the services with Wails,
+  connects them through hooks and opens the window. Services don't import
+  each other; the one exception is `terminal`, which the others use to open
+  terminals. `integration_test.go` checks that wiring against a real
+  Laravel app (`LARVYN_TEST_PROJECT=/path/to/app go test -run Bridge .`).
+- Services, the Go side of the frontend, each in `internal/<pkg>` with its
+  bindings generated into `frontend/bindings/larvyn/internal/<pkg>`:
+  `project` (projects, inspection, Doctor fixes), `terminal` (PTY sessions,
+  streamed as base64 chunks with sequence numbers and a 1 MB scrollback, plus
+  the workspace restore), `stack` (dev services), `agents`, `laravel`
+  (artisan, routes, models, env, logs, tests and the PHP bridge), `git`,
+  `files` (the editor and fuzzy finder) and `system` (toolchain, settings,
+  New app, updates, feedback, open in editor).
+- Base packages the services build on, which never import a service:
+  `store` (projects, settings, the state folder), `proc` (running PHP, artisan
+  and git, finding programs, the login-shell PATH, killing process trees),
+  `composer` (Composer from PATH or Larvyn's own phar), `dotenv`, `updater`
+  (self-update) and `platform` (OS start-up tweaks).
+- `internal/laravel/bridge.php`: embedded PHP script that boots the project's
+  Laravel app and answers one JSON request (database, models, migrations,
+  queues, schedule, tinker). Answers follow a marker so boot noise never
+  breaks parsing.
 - State lives in `%APPDATA%\larvyn` (`~/.config/larvyn`); set `LARVYN_HOME`
   to use another folder. For scripts: `LARVYN_VIEW=<view>` opens a view,
   `LARVYN_RUN=<command>` opens a terminal running it, `LARVYN_AGENT=<id>`
   starts an agent (claude, codex, …) in the last opened project, and
   `LARVYN_PALETTE=<text>` opens the command palette with that text typed, and
   `LARVYN_FILE=<path>` opens a project file in the Files editor.
-- `create.php`: embedded stand-in for `laravel new`, used when the Laravel
-  installer is missing. It applies the New app choices (starter kit,
+- `internal/system/create.php`: embedded stand-in for `laravel new`, used
+  when the Laravel installer is missing or too old. It applies the New app choices (starter kit,
   database, git, Pest, npm) the same way the installer does.
 - Composer: when it is not on PATH, Larvyn installs its own verified
   `composer.phar` on first use (Settings → Toolchain, or any composer action).
