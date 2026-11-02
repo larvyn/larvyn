@@ -179,6 +179,10 @@ function onExit(id: string, code: number, stopped = false) {
         .then(async (p) => {
           toast('success', 'Project created', p.name)
           selectProject(p.id)
+          // Old Laravel installers write APP_URL=http://localhost:8000:8000,
+          // which breaks every artisan command.
+          if (await ProjectService.RepairEnv(p.id).catch(() => false))
+            toast('info', 'Fixed APP_URL in .env', 'Your Laravel installer wrote the port twice. Update it in Settings → Toolchain.')
           // When asked for in the New app dialog: the installer does not always
           // leave the SQLite file behind (or migrate it), and every request
           // then fails with "Database file at path [...] does not exist".
@@ -215,6 +219,17 @@ export function selectProject(id: string) {
   set({ activeId: id })
   ProjectService.Touch(id)
   refreshInfo(id)
+}
+
+/** Updates the global laravel/installer in a console tab. */
+export async function updateLaravelInstaller() {
+  try {
+    const sess = await SystemService.UpdateLaravelInstaller()
+    set((s) => ({ sessions: [...s.sessions, sess], drawer: { ...s.drawer, open: true, active: sess.id } }))
+    toast('info', 'Updating the Laravel installer', 'composer global update laravel/installer')
+  } catch (e) {
+    toast('error', 'Could not update the Laravel installer', errMsg(e))
+  }
 }
 
 export function setView(view: View) {

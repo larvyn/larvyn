@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Bot, Database, FlaskConical, FolderOpen, Plus, ScrollText, Server, SquareTerminal, Waypoints, Zap } from 'lucide-react'
-import { ProjectService, SystemService } from '../../bindings/larvyn'
-import { addProject, showConsole, toast, useStore } from '../lib/store'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Bot, Database, Download, FlaskConical, FolderOpen, Plus, RefreshCw, ScrollText, Server, SquareTerminal, Waypoints, Zap } from 'lucide-react'
+import { ProjectService, SystemService, type Tool } from '../../bindings/larvyn'
+import { addProject, showConsole, toast, updateLaravelInstaller, useStore } from '../lib/store'
 import { cx, errMsg } from '../lib/util'
 import { Logo, Modal } from '../components/ui'
 
@@ -70,6 +70,11 @@ export function NewProject() {
   const [db, setDb] = useState('sqlite')
   const [createSqlite, setCreateSqlite] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [installer, setInstaller] = useState<Tool | null>(null)
+  const checkInstaller = () => SystemService.LaravelInstaller().then(setInstaller).catch(() => setInstaller(null))
+  useEffect(() => {
+    if (open) checkInstaller()
+  }, [open])
   if (!open) return null
   const close = () => useStore.setState({ newProjectOpen: false })
   const create = async () => {
@@ -101,6 +106,23 @@ export function NewProject() {
         </>
       }
     >
+      {installer?.outdated && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <AlertTriangle />
+          <div className="grow">
+            <b>Your Laravel installer is out of date ({installer.version})</b>
+            <div>It writes a broken APP_URL in new Laravel 13 apps, so Larvyn creates this one with Composer instead. Update it to use the installer again.</div>
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="btn sm primary" onClick={updateLaravelInstaller}>
+                <Download /> Update installer
+              </button>
+              <button className="btn sm ghost" onClick={checkInstaller}>
+                <RefreshCw /> Check again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="field">
         <label>Name</label>
         <input className="input" autoFocus placeholder="acme-crm" value={name} onChange={(e) => setName(e.target.value)} />

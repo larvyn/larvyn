@@ -56,6 +56,13 @@ func (s *SystemService) InstallComposer() (SessionInfo, error) {
 		Argv: []string{store.PHP(), script}})
 }
 
+// UpdateLaravelInstaller updates the global laravel/installer in a terminal.
+func (s *SystemService) UpdateLaravelInstaller() (SessionInfo, error) {
+	home, _ := os.UserHomeDir()
+	return terminals.Start(SessionSpec{Kind: "run", Key: "installer-update", Title: "Update the Laravel installer", Cwd: home,
+		Argv: []string{"composer", "global", "update", "laravel/installer", "--with-all-dependencies"}})
+}
+
 const composerSetup = `<?php
 echo 'Downloading the Composer installer...', PHP_EOL;
 $sig = trim(file_get_contents('https://composer.github.io/installer.sig'));

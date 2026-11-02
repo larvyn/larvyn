@@ -270,6 +270,47 @@ func (s *ProjectService) EnsureSQLite(id string) (bool, error) {
 	return true, f.Close()
 }
 
+// doubledPortRe matches an APP_URL whose port was appended twice, as old
+// laravel/installer versions write it for Laravel 13 (http://localhost:8000:8000).
+var doubledPortRe = regexp.MustCompile(`(?m)^(APP_URL=["']?https?://[^\s:/"']+:(\d+)):(\d+)(["']?)[ \t]*$`)
+
+// RepairEnv fixes known mistakes that scaffolding tools leave in .env and
+// reports whether it changed anything. Today that is a doubled APP_URL port,
+// which makes every artisan command fail with "Host is malformed".
+func (s *ProjectService) RepairEnv(id string) (bool, error) {
+	p, ok := store.FindProject(id)
+	if !ok {
+		return false, errors.New("project not found")
+	}
+	path := filepath.Join(p.Path, ".env")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	fixed, changed := repairAppURL(string(b))
+	if !changed {
+		return false, nil
+	}
+	return true, os.WriteFile(path, []byte(fixed), 0o644)
+}
+
+// repairAppURL turns APP_URL=http://host:8000:8000 back into http://host:8000.
+func repairAppURL(env string) (string, bool) {
+	changed := false
+	out := doubledPortRe.ReplaceAllStringFunc(env, func(line string) string {
+		m := doubledPortRe.FindStringSubmatch(line)
+		if m[2] != m[3] {
+			return line
+		}
+		changed = true
+		return m[1] + m[4]
+	})
+	return out, changed
+}
+
 // sqlitePath returns the database file of a project that uses SQLite, or ""
 // when it uses another driver or an in-memory database. An empty
 // DB_DATABASE means Laravel's default, database/database.sqlite.

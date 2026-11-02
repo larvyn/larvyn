@@ -62,6 +62,14 @@ export function InstallUpdate(tag: string): $CancellablePromise<void> {
 }
 
 /**
+ * LaravelInstaller reports the global laravel/installer for the New app
+ * dialog: where it is, its version and whether it must be updated.
+ */
+export function LaravelInstaller(): $CancellablePromise<$models.Tool> {
+    return $Call.ByID(4155408087);
+}
+
+/**
  * Launch returns the launch options for the active project.
  */
 export function Launch(): $CancellablePromise<$models.LaunchOptions> {
@@ -146,4 +154,11 @@ export function Settings(): $CancellablePromise<$models.Settings> {
  */
 export function Tools(): $CancellablePromise<$models.Tool[] | null> {
     return $Call.ByID(2271793499);
+}
+
+/**
+ * UpdateLaravelInstaller updates the global laravel/installer in a terminal.
+ */
+export function UpdateLaravelInstaller(): $CancellablePromise<$models.SessionInfo> {
+    return $Call.ByID(4268058414);
 }
