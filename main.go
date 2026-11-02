@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"larvyn/internal/files"
 	"larvyn/internal/git"
 	"larvyn/internal/proc"
 	"larvyn/internal/terminal"
@@ -54,7 +55,7 @@ func main() {
 			application.NewService(&git.GitService{}),
 			application.NewService(&AgentService{}),
 			application.NewService(&SystemService{}),
-			application.NewService(&FileService{}),
+			application.NewService(&files.FileService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

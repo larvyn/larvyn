@@ -23,21 +23,21 @@ import * as $models from "./models.js";
  * dropped.
  */
 export function AllFiles(projectID: string): $CancellablePromise<$models.FileIndex> {
-    return $Call.ByID(48374817, projectID);
+    return $Call.ByID(1519226320, projectID);
 }
 
 /**
  * List returns a folder's entries, folders first. rel "" is the project root.
  */
 export function List(projectID: string, rel: string): $CancellablePromise<$models.FileEntry[] | null> {
-    return $Call.ByID(3183709331, projectID, rel);
+    return $Call.ByID(1144245554, projectID, rel);
 }
 
 /**
  * Read opens a file for the editor.
  */
 export function Read(projectID: string, rel: string): $CancellablePromise<$models.FileContent> {
-    return $Call.ByID(2646571071, projectID, rel);
+    return $Call.ByID(2980344798, projectID, rel);
 }
 
 /**
@@ -46,5 +46,5 @@ export function Read(projectID: string, rel: string): $CancellablePromise<$model
  * version.
  */
 export function Write(projectID: string, rel: string, content: string, version: string): $CancellablePromise<string> {
-    return $Call.ByID(485235902, projectID, rel, content, version);
+    return $Call.ByID(2488584449, projectID, rel, content, version);
 }

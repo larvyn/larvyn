@@ -1,4 +1,4 @@
-package main
+package files
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // maxEditableSize is the largest file the editor opens.
@@ -147,7 +148,7 @@ func fileVersion(info os.FileInfo) string {
 // refuses anything that ends up outside the project, through ".." or a
 // symlink.
 func resolveProjectFile(projectID, rel string) (root, abs string, err error) {
-	root, err = projectPath(projectID)
+	root, err = store.ProjectPath(projectID)
 	if err != nil {
 		return "", "", err
 	}
@@ -207,7 +208,7 @@ var skippedDirPaths = map[string]bool{"storage/framework": true, "bootstrap/cach
 // returned: entries that do not exist or resolve elsewhere (symlinks) are
 // dropped.
 func (s *FileService) AllFiles(projectID string) (FileIndex, error) {
-	root, err := projectPath(projectID)
+	root, err := store.ProjectPath(projectID)
 	if err != nil {
 		return FileIndex{}, err
 	}

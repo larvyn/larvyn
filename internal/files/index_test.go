@@ -1,4 +1,4 @@
-package main
+package files
 
 import (
 	"os"
@@ -26,11 +26,11 @@ func writeFiles(t *testing.T, root string, files ...string) {
 
 func indexFor(t *testing.T, root string) FileIndex {
 	t.Helper()
-	p, err := (&ProjectService{}).Add(root)
+	p, err := addProject(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer (&ProjectService{}).Remove(p.ID)
+	defer removeProject(p.ID)
 	idx, err := (&FileService{}).AllFiles(p.ID)
 	if err != nil {
 		t.Fatal(err)

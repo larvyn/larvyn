@@ -111,7 +111,7 @@ func (l *LaravelService) TestResults(projectID string) (TestReport, error) {
 	}
 	r.Exists = true
 	r.Modified = fi.ModTime().UnixMilli()
-	dir, _ := projectPath(projectID)
+	dir, _ := store.ProjectPath(projectID)
 	var walk func(s junitSuite)
 	walk = func(s junitSuite) {
 		for _, c := range s.Cases {

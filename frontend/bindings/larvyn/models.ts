@@ -90,51 +90,6 @@ export interface EnvFile {
 }
 
 /**
- * FileContent is a file opened in the editor. Binary and TooLarge files come
- * without Content.
- */
-export interface FileContent {
-    "path": string;
-    "abs": string;
-    "content": string;
-    "size": number;
-
-    /**
-     * Version identifies what is on disk (modification time and size). It is
-     * sent back on save to detect outside changes. A string, because unix
-     * nanoseconds do not fit a JavaScript number exactly.
-     */
-    "version": string;
-    "binary": boolean;
-    "tooLarge": boolean;
-}
-
-/**
- * FileEntry is one item of a folder listing.
- */
-export interface FileEntry {
-    "name": string;
-
-    /**
-     * relative to the project, with forward slashes
-     */
-    "path": string;
-    "dir": boolean;
-    "size": number;
-}
-
-/**
- * FileIndex is every file of a project, for the quick-open finder.
- */
-export interface FileIndex {
-    /**
-     * relative to the project, with forward slashes, sorted
-     */
-    "files": string[] | null;
-    "truncated": boolean;
-}
-
-/**
  * LaunchOptions come from the environment so scripts can open Larvyn on a
  * view, with a command running in a terminal, or with an agent started.
  */

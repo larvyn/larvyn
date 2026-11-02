@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // composerJSON runs a Composer command that prints JSON and returns it.
 func composerJSON(projectID string, args ...string) (json.RawMessage, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
