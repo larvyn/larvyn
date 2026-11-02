@@ -77,66 +77,6 @@ export interface LaunchOptions {
 }
 
 /**
- * Package is a notable Composer package found in a project.
- */
-export interface Package {
-    "name": string;
-    "label": string;
-    "version": string;
-    "dev": boolean;
-    "kind": string;
-}
-
-/**
- * Project is a folder Larvyn manages, usually a Laravel application.
- */
-export type Project = store$0.Project;
-
-/**
- * ProjectInfo is a project plus everything Larvyn can learn from its files.
- */
-export interface ProjectInfo {
-    "id": string;
-    "name": string;
-    "path": string;
-    "color": string;
-    "port": number;
-    "pinned": boolean;
-    "addedAt": number;
-    "lastOpenedAt": number;
-    "exists": boolean;
-    "isLaravel": boolean;
-    "laravelVersion": string;
-    "phpConstraint": string;
-    "appName": string;
-    "appUrl": string;
-    "appEnv": string;
-    "appDebug": boolean;
-    "dbConnection": string;
-    "dbDatabase": string;
-    "queueConnection": string;
-    "cacheStore": string;
-    "sessionDriver": string;
-    "mailMailer": string;
-    "branch": string;
-    "dirty": number;
-    "packages": Package[] | null;
-    "frontend": string[] | null;
-    "hasVendor": boolean;
-    "hasNodeModules": boolean;
-    "hasEnv": boolean;
-    "hasEnvExample": boolean;
-    "hasAppKey": boolean;
-    "sqliteFile": string;
-    "sqliteMissing": boolean;
-    "testRunner": string;
-    "composerScripts": { [_ in string]?: string } | null;
-    "npmScripts": { [_ in string]?: string } | null;
-    "counts": { [_ in string]?: number } | null;
-    "herdUrl": string;
-}
-
-/**
  * SessionInfo is what the UI knows about a terminal.
  */
 export type SessionInfo = terminal$0.SessionInfo;

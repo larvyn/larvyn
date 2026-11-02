@@ -1,4 +1,4 @@
-import type { Project } from '../../bindings/larvyn'
+import type { Project } from '../../bindings/larvyn/internal/store'
 import { closeProject, useStore } from '../lib/store'
 import { confirmDialog } from './ui'
 

@@ -30,7 +30,8 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { ProjectService, SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn'
+import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { GitService, type Commit } from '../../bindings/larvyn/internal/git'

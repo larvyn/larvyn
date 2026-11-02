@@ -7,7 +7,7 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as main$0 from "../../../../../larvyn/models.js";
+import type * as store$0 from "../../../../../larvyn/internal/store/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as terminal$0 from "../../../../../larvyn/internal/terminal/models.js";
@@ -15,7 +15,7 @@ import type * as terminal$0 from "../../../../../larvyn/internal/terminal/models
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
-            "projects:changed": main$0.Project[] | null;
+            "projects:changed": store$0.Project[] | null;
             "sessions:changed": terminal$0.SessionInfo[] | null;
             "term:data": terminal$0.TermData;
             "term:exit": terminal$0.TermExit;

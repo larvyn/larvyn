@@ -1,4 +1,4 @@
-package main
+package project
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 func TestCloseProjectStopsItsTerminalsAndKeepsIt(t *testing.T) {
@@ -25,26 +26,26 @@ func TestCloseProjectStopsItsTerminalsAndKeepsIt(t *testing.T) {
 	defer ps.Remove(other.ID)
 	ps.Touch(p.ID)
 
-	mine, err := terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "service", Key: "serve", Argv: []string{"sleep", "30"}, Cwd: os.TempDir()})
+	mine, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "service", Key: "serve", Argv: []string{"sleep", "30"}, Cwd: os.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := terminals.Start(SessionSpec{ProjectID: other.ID, Kind: "service", Key: "serve", Argv: []string{"sleep", "30"}, Cwd: os.TempDir()})
+	theirs, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: other.ID, Kind: "service", Key: "serve", Argv: []string{"sleep", "30"}, Cwd: os.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer terminals.Close(theirs.ID)
+	defer terminal.Sessions.Close(theirs.ID)
 
 	if err := ps.Close(p.ID); err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range terminals.List() {
+	for _, s := range terminal.Sessions.List() {
 		if s.ID == mine.ID {
 			t.Fatalf("the closed project's terminal is still listed: %+v", s)
 		}
 	}
 	found := false
-	for _, s := range terminals.List() {
+	for _, s := range terminal.Sessions.List() {
 		found = found || (s.ID == theirs.ID && s.Running)
 	}
 	if !found {

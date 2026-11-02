@@ -1,4 +1,4 @@
-package main
+package project
 
 import (
 	"encoding/json"
@@ -13,13 +13,14 @@ import (
 	"larvyn/internal/dotenv"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // ProjectInfo is a project plus everything Larvyn can learn from its files.
 type ProjectInfo struct {
-	Project
+	store.Project
 	Exists          bool              `json:"exists"`
 	IsLaravel       bool              `json:"isLaravel"`
 	LaravelVersion  string            `json:"laravelVersion"`
@@ -112,7 +113,7 @@ var palette = []string{"#FF2D20", "#F97316", "#EAB308", "#22C55E", "#14B8A6", "#
 type ProjectService struct{}
 
 func init() {
-	application.RegisterEvent[[]Project]("projects:changed")
+	application.RegisterEvent[[]store.Project]("projects:changed")
 }
 
 func (s *ProjectService) changed() {
@@ -120,7 +121,7 @@ func (s *ProjectService) changed() {
 }
 
 // List returns the saved projects, pinned and recently opened first.
-func (s *ProjectService) List() []Project {
+func (s *ProjectService) List() []store.Project {
 	ps := store.Projects()
 	sort.SliceStable(ps, func(i, j int) bool {
 		if ps[i].Pinned != ps[j].Pinned {
@@ -132,11 +133,11 @@ func (s *ProjectService) List() []Project {
 }
 
 // Add registers a folder as a project.
-func (s *ProjectService) Add(path string) (Project, error) {
+func (s *ProjectService) Add(path string) (store.Project, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
 	st, err := os.Stat(path)
 	if err != nil || !st.IsDir() {
-		return Project{}, errors.New("folder not found: " + path)
+		return store.Project{}, errors.New("folder not found: " + path)
 	}
 	for _, p := range store.Projects() {
 		if strings.EqualFold(filepath.Clean(p.Path), path) {
@@ -144,7 +145,7 @@ func (s *ProjectService) Add(path string) (Project, error) {
 		}
 	}
 	n := len(store.Projects())
-	p := Project{
+	p := store.Project{
 		ID:           store.NewID(),
 		Name:         prettyName(path),
 		Path:         path,
@@ -162,7 +163,7 @@ func (s *ProjectService) Add(path string) (Project, error) {
 }
 
 // Pick asks for a folder and adds it.
-func (s *ProjectService) Pick() (*Project, error) {
+func (s *ProjectService) Pick() (*store.Project, error) {
 	path, err := application.Get().Dialog.OpenFile().
 		CanChooseDirectories(true).CanChooseFiles(false).CanCreateDirectories(true).
 		SetTitle("Open a Laravel project").PromptForSingleSelection()
@@ -182,9 +183,9 @@ func (s *ProjectService) PickFolder(title string) (string, error) {
 
 // closeSessions stops and closes every terminal of a project.
 func closeSessions(id string) {
-	for _, sess := range terminals.List() {
+	for _, sess := range terminal.Sessions.List() {
 		if sess.ProjectID == id {
-			_ = terminals.Close(sess.ID)
+			_ = terminal.Sessions.Close(sess.ID)
 		}
 	}
 }
@@ -217,7 +218,7 @@ func (s *ProjectService) Remove(id string) error {
 }
 
 // Update saves the editable fields of a project.
-func (s *ProjectService) Update(p Project) error {
+func (s *ProjectService) Update(p store.Project) error {
 	err := store.Update(func(d *store.State) {
 		for i := range d.Projects {
 			if d.Projects[i].ID == p.ID {
@@ -255,7 +256,7 @@ func (s *ProjectService) Info(id string) (ProjectInfo, error) {
 	if !ok {
 		return ProjectInfo{}, errors.New("project not found")
 	}
-	return inspect(p), nil
+	return Inspect(p), nil
 }
 
 // EnsureSQLite creates the SQLite database file a project's .env points at
@@ -347,7 +348,7 @@ func sqlitePath(root string, env map[string]string) string {
 	}
 }
 
-func inspect(p Project) ProjectInfo {
+func Inspect(p store.Project) ProjectInfo {
 	info := ProjectInfo{Project: p, ComposerScripts: map[string]string{}, NpmScripts: map[string]string{}, Counts: map[string]int{}}
 	if _, err := os.Stat(p.Path); err != nil {
 		return info

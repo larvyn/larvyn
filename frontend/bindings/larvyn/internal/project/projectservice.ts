@@ -7,20 +7,24 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as store$0 from "../store/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
  * Active returns the project that was open last.
  */
 export function Active(): $CancellablePromise<string> {
-    return $Call.ByID(2788099970);
+    return $Call.ByID(2057054183);
 }
 
 /**
  * Add registers a folder as a project.
  */
-export function Add(path: string): $CancellablePromise<$models.Project> {
-    return $Call.ByID(2688136219, path);
+export function Add(path: string): $CancellablePromise<store$0.Project> {
+    return $Call.ByID(1320836556, path);
 }
 
 /**
@@ -28,7 +32,7 @@ export function Add(path: string): $CancellablePromise<$models.Project> {
  * window goes back to the welcome screen. The project stays in Larvyn.
  */
 export function Close(id: string): $CancellablePromise<void> {
-    return $Call.ByID(1649113468, id);
+    return $Call.ByID(616109339, id);
 }
 
 /**
@@ -37,42 +41,42 @@ export function Close(id: string): $CancellablePromise<void> {
  * path [...] does not exist". It reports whether a file was created.
  */
 export function EnsureSQLite(id: string): $CancellablePromise<boolean> {
-    return $Call.ByID(96052822, id);
+    return $Call.ByID(4225355739, id);
 }
 
 /**
  * Info inspects a project's files.
  */
 export function Info(id: string): $CancellablePromise<$models.ProjectInfo> {
-    return $Call.ByID(3184603252, id);
+    return $Call.ByID(1831613757, id);
 }
 
 /**
  * List returns the saved projects, pinned and recently opened first.
  */
-export function List(): $CancellablePromise<$models.Project[] | null> {
-    return $Call.ByID(165469264);
+export function List(): $CancellablePromise<store$0.Project[] | null> {
+    return $Call.ByID(299064233);
 }
 
 /**
  * Pick asks for a folder and adds it.
  */
-export function Pick(): $CancellablePromise<$models.Project | null> {
-    return $Call.ByID(2872850977);
+export function Pick(): $CancellablePromise<store$0.Project | null> {
+    return $Call.ByID(231037440);
 }
 
 /**
  * PickFolder asks for a folder and returns its path.
  */
 export function PickFolder(title: string): $CancellablePromise<string> {
-    return $Call.ByID(2105207105, title);
+    return $Call.ByID(3964201508, title);
 }
 
 /**
  * Remove forgets a project; its files stay.
  */
 export function Remove(id: string): $CancellablePromise<void> {
-    return $Call.ByID(3488627824, id);
+    return $Call.ByID(687455845, id);
 }
 
 /**
@@ -81,19 +85,19 @@ export function Remove(id: string): $CancellablePromise<void> {
  * which makes every artisan command fail with "Host is malformed".
  */
 export function RepairEnv(id: string): $CancellablePromise<boolean> {
-    return $Call.ByID(2543927612, id);
+    return $Call.ByID(3661583115, id);
 }
 
 /**
  * Touch marks a project as just opened.
  */
 export function Touch(id: string): $CancellablePromise<void> {
-    return $Call.ByID(1523655263, id);
+    return $Call.ByID(1097865808, id);
 }
 
 /**
  * Update saves the editable fields of a project.
  */
-export function Update(p: $models.Project): $CancellablePromise<void> {
-    return $Call.ByID(2713121225, p);
+export function Update(p: store$0.Project): $CancellablePromise<void> {
+    return $Call.ByID(2967200092, p);
 }

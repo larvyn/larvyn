@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Bot, Database, Download, FlaskConical, FolderOpen, Plus, RefreshCw, ScrollText, Server, SquareTerminal, Waypoints, Zap } from 'lucide-react'
-import { ProjectService, SystemService, type Tool } from '../../bindings/larvyn'
+import { SystemService, type Tool } from '../../bindings/larvyn'
+import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { addProject, selectProject, showConsole, toast, updateLaravelInstaller, useStore } from '../lib/store'
 import { cx, errMsg, initials } from '../lib/util'
 import { Logo, Modal } from '../components/ui'

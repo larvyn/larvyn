@@ -11,6 +11,7 @@ import (
 
 	"larvyn/internal/laravel"
 	"larvyn/internal/proc"
+	"larvyn/internal/project"
 	"larvyn/internal/stack"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -62,11 +63,11 @@ func TestBridgeAgainstRealProject(t *testing.T) {
 	if dir == "" {
 		t.Skip("LARVYN_TEST_PROJECT not set")
 	}
-	p, err := (&ProjectService{}).Add(dir)
+	p, err := (&project.ProjectService{}).Add(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := inspect(p)
+	info := project.Inspect(p)
 	t.Logf("laravel=%s php=%s db=%s packages=%d branch=%s", info.LaravelVersion, info.PHPConstraint, info.DBConnection, len(info.Packages), info.Branch)
 	if !info.IsLaravel {
 		t.Fatal("not detected as Laravel")

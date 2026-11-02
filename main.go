@@ -11,6 +11,7 @@ import (
 	"larvyn/internal/git"
 	"larvyn/internal/laravel"
 	"larvyn/internal/proc"
+	"larvyn/internal/project"
 	"larvyn/internal/stack"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -53,7 +54,7 @@ func init() {
 	agents.HasComposer = func() bool { return composerArgv() != nil }
 	laravel.ComposerArgv = composerArgv
 	stack.Inspect = func(p store.Project) stack.Facts {
-		info := inspect(p)
+		info := project.Inspect(p)
 		f := stack.Facts{IsLaravel: info.IsLaravel, HasVendor: info.HasVendor, HasNodeModules: info.HasNodeModules, NpmScripts: info.NpmScripts}
 		for _, pkg := range info.Packages {
 			f.Packages = append(f.Packages, pkg.Name)
@@ -71,7 +72,7 @@ func main() {
 		Description: "The Laravel workbench: projects, services, terminals, agents and data in one window",
 		Icon:        appIcon,
 		Services: []application.Service{
-			application.NewService(&ProjectService{}),
+			application.NewService(&project.ProjectService{}),
 			application.NewService(terminals),
 			application.NewService(&stack.StackService{}),
 			application.NewService(&laravel.LaravelService{}),
