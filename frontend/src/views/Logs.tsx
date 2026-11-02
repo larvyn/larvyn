@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, ChevronDown, ChevronRight, Copy, Pause, Play, ScrollText, Trash2 } from 'lucide-react'
-import { LaravelService, SystemService, type LogEntry, type LogFile } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn'
+import { LaravelService, type LogEntry, type LogFile } from '../../bindings/larvyn/internal/laravel'
 import { fail, handoff, toast, useActive, useStore } from '../lib/store'
 import { bytes, copy, cx } from '../lib/util'
 import { Empty, SearchInput, confirmDialog } from '../components/ui'

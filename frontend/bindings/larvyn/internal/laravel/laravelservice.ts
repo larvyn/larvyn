@@ -7,7 +7,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as json$0 from "../encoding/json/models.js";
+import * as json$0 from "../../../encoding/json/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as proc$0 from "../proc/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -17,14 +23,14 @@ import * as $models from "./models.js";
  * About returns `artisan about --json`.
  */
 export function About(projectID: string): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(2253586893, projectID);
+    return $Call.ByID(1410778418, projectID);
 }
 
 /**
  * Artisan runs a short artisan command and captures its output.
  */
-export function Artisan(projectID: string, args: string[] | null): $CancellablePromise<$models.RunResult> {
-    return $Call.ByID(3074854398, projectID, args);
+export function Artisan(projectID: string, args: string[] | null): $CancellablePromise<proc$0.RunResult> {
+    return $Call.ByID(4287211493, projectID, args);
 }
 
 /**
@@ -32,70 +38,70 @@ export function Artisan(projectID: string, args: string[] | null): $CancellableP
  * exits non-zero when it finds advisories, which is not a failure here.
  */
 export function Audit(projectID: string): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(3183010903, projectID);
+    return $Call.ByID(2963051836, projectID);
 }
 
 /**
  * Bridge runs a bridge action and returns its JSON answer.
  */
 export function Bridge(projectID: string, action: string, payload: { [_ in string]?: any } | null): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(788935981, projectID, action, payload);
+    return $Call.ByID(1100226380, projectID, action, payload);
 }
 
 /**
  * ClearLog empties a log file.
  */
 export function ClearLog(projectID: string, file: string): $CancellablePromise<void> {
-    return $Call.ByID(1910604785, projectID, file);
+    return $Call.ByID(3116416948, projectID, file);
 }
 
 /**
  * Commands lists the project's artisan commands (cached until refresh).
  */
 export function Commands(projectID: string, refresh: boolean): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(2811904006, projectID, refresh);
+    return $Call.ByID(4180650063, projectID, refresh);
 }
 
 /**
  * Env reads .env (or another .env.* file) and compares it with .env.example.
  */
 export function Env(projectID: string, name: string): $CancellablePromise<$models.EnvFile> {
-    return $Call.ByID(2727052455, projectID, name);
+    return $Call.ByID(599824984, projectID, name);
 }
 
 /**
  * LogFiles lists storage/logs.
  */
 export function LogFiles(projectID: string): $CancellablePromise<$models.LogFile[] | null> {
-    return $Call.ByID(4248711949, projectID);
+    return $Call.ByID(2580014272, projectID);
 }
 
 /**
  * ModelDetail returns `artisan model:show <class> --json`.
  */
 export function ModelDetail(projectID: string, $class: string): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(1822669332, projectID, $class);
+    return $Call.ByID(3096330975, projectID, $class);
 }
 
 /**
  * Outdated returns `composer outdated --direct` as JSON.
  */
 export function Outdated(projectID: string): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(3196863124, projectID);
+    return $Call.ByID(3879282121, projectID);
 }
 
 /**
  * PathExists reports whether a project-relative path exists.
  */
 export function PathExists(projectID: string, rel: string): $CancellablePromise<boolean> {
-    return $Call.ByID(1076561199, projectID, rel);
+    return $Call.ByID(1109886170, projectID, rel);
 }
 
 /**
  * ReadFile returns a project file's text (used for previews).
  */
 export function ReadFile(projectID: string, rel: string): $CancellablePromise<string> {
-    return $Call.ByID(1800822042, projectID, rel);
+    return $Call.ByID(2388276815, projectID, rel);
 }
 
 /**
@@ -103,48 +109,48 @@ export function ReadFile(projectID: string, rel: string): $CancellablePromise<st
  * tail of the file.
  */
 export function ReadLog(projectID: string, file: string, offset: number): $CancellablePromise<$models.LogChunk> {
-    return $Call.ByID(3568313262, projectID, file, offset);
+    return $Call.ByID(1432047797, projectID, file, offset);
 }
 
 /**
  * ResolveClass maps an App\ class to its file and, if given, a method line.
  */
 export function ResolveClass(projectID: string, $class: string, method: string): $CancellablePromise<{ [_ in string]?: any } | null> {
-    return $Call.ByID(3477266044, projectID, $class, method);
+    return $Call.ByID(2752204105, projectID, $class, method);
 }
 
 /**
  * Routes returns `artisan route:list --json`.
  */
 export function Routes(projectID: string): $CancellablePromise<json$0.RawMessage> {
-    return $Call.ByID(2634138338, projectID);
+    return $Call.ByID(374794987, projectID);
 }
 
 /**
  * RunTests runs `artisan test` in the console, writing a JUnit report Larvyn
  * reads afterwards. filter narrows it to matching tests.
  */
-export function RunTests(projectID: string, filter: string, parallel: boolean): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(3433512410, projectID, filter, parallel);
+export function RunTests(projectID: string, filter: string, parallel: boolean): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(756161367, projectID, filter, parallel);
 }
 
 /**
  * SaveEnv writes an env file, keeping a backup of the previous one.
  */
 export function SaveEnv(projectID: string, name: string, raw: string): $CancellablePromise<void> {
-    return $Call.ByID(3154006372, projectID, name, raw);
+    return $Call.ByID(2954800059, projectID, name, raw);
 }
 
 /**
  * SetEnv sets one key in .env, appending it when absent.
  */
 export function SetEnv(projectID: string, key: string, value: string): $CancellablePromise<void> {
-    return $Call.ByID(3485099271, projectID, key, value);
+    return $Call.ByID(1776048354, projectID, key, value);
 }
 
 /**
  * TestResults reads the report of the last run.
  */
 export function TestResults(projectID: string): $CancellablePromise<$models.TestReport> {
-    return $Call.ByID(1254474946, projectID);
+    return $Call.ByID(1401173113, projectID);
 }

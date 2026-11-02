@@ -1,4 +1,4 @@
-package main
+package laravel
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ func composerJSON(projectID string, args ...string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := composerArgv()
+	c := ComposerArgv()
 	if c == nil {
 		return nil, errors.New("Composer is not installed: install it from Settings → Toolchain")
 	}

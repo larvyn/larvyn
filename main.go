@@ -9,6 +9,7 @@ import (
 	"larvyn/internal/agents"
 	"larvyn/internal/files"
 	"larvyn/internal/git"
+	"larvyn/internal/laravel"
 	"larvyn/internal/proc"
 	"larvyn/internal/stack"
 	"larvyn/internal/store"
@@ -50,6 +51,7 @@ func init() {
 		return wt.Path, wt.Branch, err
 	}
 	agents.HasComposer = func() bool { return composerArgv() != nil }
+	laravel.ComposerArgv = composerArgv
 	stack.Inspect = func(p store.Project) stack.Facts {
 		info := inspect(p)
 		f := stack.Facts{IsLaravel: info.IsLaravel, HasVendor: info.HasVendor, HasNodeModules: info.HasNodeModules, NpmScripts: info.NpmScripts}
@@ -72,7 +74,7 @@ func main() {
 			application.NewService(&ProjectService{}),
 			application.NewService(terminals),
 			application.NewService(&stack.StackService{}),
-			application.NewService(&LaravelService{}),
+			application.NewService(&laravel.LaravelService{}),
 			application.NewService(&git.GitService{}),
 			application.NewService(&agents.AgentService{}),
 			application.NewService(&SystemService{}),

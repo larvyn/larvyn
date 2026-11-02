@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AlertOctagon, CalendarClock, ChevronDown, ChevronRight, Inbox, Play, RefreshCw, RotateCcw, Timer, Trash2, Workflow } from 'lucide-react'
-import { LaravelService } from '../../bindings/larvyn'
+import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { artisanRun, setView, useActive, useStore } from '../lib/store'
 import { cronText, num } from '../lib/util'
 import { Empty, Loading, confirmDialog, useAsync } from '../components/ui'
