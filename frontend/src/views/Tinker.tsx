@@ -71,7 +71,7 @@ export function Tinker() {
     }
   }
 
-  useRunShortcut(() => !busy && run(), { enabled: !!info?.isLaravel, editor: taRef })
+  useRunShortcut(() => !busy && run(), { enabled: !!info?.isLaravel, within: taRef })
   // Picking a snippet or a recent entry puts the cursor back in the editor, so
   // typing and the shortcut carry on from there.
   const pick = (src: string) => {

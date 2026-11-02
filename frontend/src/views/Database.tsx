@@ -422,7 +422,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
       setBusy(false)
     }
   }
-  useRunShortcut(() => !busy && run(), { editor: taRef })
+  useRunShortcut(() => !busy && run(), { within: taRef })
   return (
     <>
       <div className="toolbar">

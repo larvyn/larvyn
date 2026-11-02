@@ -120,7 +120,7 @@ export function Agents() {
   const multi = picked.length > 1
 
   // launch is declared below the early return; the shortcut is off without a project.
-  useRunShortcut(() => !busy && installed.length > 0 && launch(), { enabled: !!project && !focused, editor: taRef })
+  useRunShortcut(() => !busy && installed.length > 0 && launch(), { enabled: !!project && !focused, within: taRef })
 
   if (!project) return null
 

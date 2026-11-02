@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Play, RefreshCw, Star, Terminal, Zap, Box, FileCode2, Database, Workflow, Mail, Shield, TestTube2, Layers, Radio, Bell, Sprout, Factory, Route, Puzzle } from 'lucide-react'
 import { LaravelService } from '../../bindings/larvyn'
 import { artisanRun, toast, useActive, useStore } from '../lib/store'
 import { copy, cx, load, mod, save } from '../lib/util'
+import { useRunShortcut } from '../lib/shortcuts'
 import { Empty, Loading, SearchInput, useAsync } from '../components/ui'
 
 interface Arg {
@@ -197,9 +198,11 @@ function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; o
   const missing = args.some((a) => a.is_required && !vals['arg:' + a.name]?.trim())
   const line = `${php} artisan ${argv.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`
   const run = () => artisanRun(projectId, argv)
+  const formRef = useRef<HTMLDivElement>(null)
+  useRunShortcut(() => !missing && run(), { within: formRef })
 
   return (
-    <div className="view pad" onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !missing && run()}>
+    <div className="view pad" ref={formRef}>
       <div className="page-head">
         <div className="grow">
           <h1 className="mono" style={{ fontSize: 18 }}>
