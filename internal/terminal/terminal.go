@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,21 +36,24 @@ type SessionSpec struct {
 
 // SessionInfo is what the UI knows about a terminal.
 type SessionInfo struct {
-	ID           string            `json:"id"`
-	ProjectID    string            `json:"projectId"`
-	Kind         string            `json:"kind"`
-	Key          string            `json:"key"`
-	Title        string            `json:"title"`
-	Cwd          string            `json:"cwd"`
-	Command      string            `json:"command"`
-	Running      bool              `json:"running"`
-	ExitCode     int               `json:"exitCode"`
-	Stopped      bool              `json:"stopped"`
-	StartedAt    int64             `json:"startedAt"`
-	EndedAt      int64             `json:"endedAt"`
-	LastActivity int64             `json:"lastActivity"`
-	Bell         bool              `json:"bell"`
-	Meta         map[string]string `json:"meta"`
+	ID           string `json:"id"`
+	ProjectID    string `json:"projectId"`
+	Kind         string `json:"kind"`
+	Key          string `json:"key"`
+	Title        string `json:"title"`
+	Cwd          string `json:"cwd"`
+	Command      string `json:"command"`
+	Running      bool   `json:"running"`
+	ExitCode     int    `json:"exitCode"`
+	Stopped      bool   `json:"stopped"`
+	StartedAt    int64  `json:"startedAt"`
+	EndedAt      int64  `json:"endedAt"`
+	LastActivity int64  `json:"lastActivity"`
+	Bell         bool   `json:"bell"`
+	// Restored is set on a session brought back from the previous run that
+	// has not been started again.
+	Restored bool              `json:"restored"`
+	Meta     map[string]string `json:"meta"`
 }
 
 type TermData struct {
@@ -74,10 +76,17 @@ type Snapshot struct {
 type session struct {
 	mu   sync.Mutex
 	info SessionInfo
+	// spec is what the session was started with; Relaunch runs it again.
+	spec SessionSpec
+	argv []string
 	pty  pty.Pty
 	cmd  *pty.Cmd
 	buf  []byte
 	seq  uint64
+	// starting is set while Relaunch prepares a new process.
+	starting bool
+	// resolvedAt is when the agent's conversation id was last looked for.
+	resolvedAt time.Time
 	// interruptAt is when Ctrl+C was last typed; an exit right after it is a stop, not a crash.
 	interruptAt time.Time
 }
@@ -86,11 +95,15 @@ type TerminalService struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 	order    []string
+	// persist saves the workspace to disk for the next start (see restore.go);
+	// off for the throwaway services tests make.
+	persist bool
+	ws      workspaceState
 }
 
 // Sessions is the app's terminal service; main registers it with Wails and
 // the other services start their terminals through it.
-var Sessions = &TerminalService{sessions: map[string]*session{}}
+var Sessions = &TerminalService{sessions: map[string]*session{}, persist: true}
 
 // ResolveProgram rewrites a program's argv before it starts. main sets it so a
 // bare "composer" runs Larvyn's own phar when Composer is not on PATH.
@@ -129,8 +142,36 @@ func emit(name string, data any) {
 // Start launches a new terminal session.
 func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 	proc.WaitShellEnv()
-	argv := spec.Argv
-	display := spec.Command
+	argv, display := resolveArgv(spec)
+	if spec.Cwd == "" {
+		if p, ok := store.FindProject(spec.ProjectID); ok {
+			spec.Cwd = p.Path
+		}
+	}
+	if spec.Kind == "" {
+		spec.Kind = "shell"
+	}
+	now := time.Now().UnixMilli()
+	s := &session{spec: spec, info: SessionInfo{
+		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
+		Title: spec.Title, Cwd: spec.Cwd, Command: display,
+		StartedAt: now, LastActivity: now, Meta: spec.Meta,
+	}}
+	if s.info.Title == "" {
+		s.info.Title = proc.FirstNonEmpty(display, "Terminal")
+	}
+	if err := t.spawn(s, argv, spec.Cols, spec.Rows); err != nil {
+		return SessionInfo{}, err
+	}
+	t.add(s)
+	return s.snapshotInfo(), nil
+}
+
+// resolveArgv turns a spec into the program to run and the command line to
+// show for it.
+func resolveArgv(spec SessionSpec) (argv []string, display string) {
+	argv = spec.Argv
+	display = spec.Command
 	switch {
 	case len(argv) > 0:
 		argv = ResolveProgram(argv)
@@ -151,28 +192,44 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 	if p, err := exec.LookPath(argv[0]); err == nil {
 		argv = append([]string{proc.UnwrapShim(p)}, argv[1:]...)
 	}
-	if spec.Cwd == "" {
-		if p, ok := store.FindProject(spec.ProjectID); ok {
-			spec.Cwd = p.Path
-		}
-	}
-	if spec.Cols <= 0 {
-		spec.Cols = 120
-	}
-	if spec.Rows <= 0 {
-		spec.Rows = 32
-	}
-	if spec.Kind == "" {
-		spec.Kind = "shell"
-	}
+	return argv, display
+}
 
+// add registers a session and tells the UI.
+func (t *TerminalService) add(s *session) {
+	t.mu.Lock()
+	t.sessions[s.info.ID] = s
+	t.order = append(t.order, s.info.ID)
+	t.mu.Unlock()
+	t.broadcast()
+}
+
+func (s *session) snapshotInfo() SessionInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.info
+}
+
+// spawn runs argv in a new pseudo terminal attached to s, which must not be
+// running. The scrollback is kept, so a relaunched session continues below
+// its previous output.
+func (t *TerminalService) spawn(s *session, argv []string, cols, rows int) error {
+	if cols <= 0 {
+		cols = 120
+	}
+	if rows <= 0 {
+		rows = 32
+	}
 	p, err := pty.New()
 	if err != nil {
-		return SessionInfo{}, err
+		return err
 	}
-	_ = p.Resize(spec.Cols, spec.Rows)
+	_ = p.Resize(cols, rows)
 	cmd := p.Command(argv[0], argv[1:]...)
-	cmd.Dir = spec.Cwd
+	s.mu.Lock()
+	cmd.Dir = s.info.Cwd
+	extra := s.spec.Env
+	s.mu.Unlock()
 	// A terminal can show colour even if Larvyn itself was started with
 	// NO_COLOR or TERM=dumb.
 	var env []string
@@ -183,67 +240,46 @@ func (t *TerminalService) Start(spec SessionSpec) (SessionInfo, error) {
 		}
 	}
 	env = append(env, "TERM=xterm-256color", "COLORTERM=truecolor", "LARVYN=1")
-	for k, v := range spec.Env {
+	for k, v := range extra {
 		env = append(env, k+"="+v)
 	}
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		p.Close()
-		return SessionInfo{}, err
+		return err
 	}
-
 	now := time.Now().UnixMilli()
-	s := &session{pty: p, cmd: cmd, info: SessionInfo{
-		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
-		Title: spec.Title, Cwd: spec.Cwd, Command: display, Running: true,
-		StartedAt: now, LastActivity: now, Meta: spec.Meta,
-	}}
-	if s.info.Title == "" {
-		s.info.Title = proc.FirstNonEmpty(display, "Terminal")
-	}
-	t.mu.Lock()
-	t.sessions[s.info.ID] = s
-	t.order = append(t.order, s.info.ID)
-	t.mu.Unlock()
-
-	go t.pump(s)
-	t.broadcast()
-	return s.info, nil
+	s.mu.Lock()
+	s.pty, s.cmd = p, cmd
+	s.argv = argv
+	s.interruptAt = time.Time{}
+	s.info.Running = true
+	s.info.Restored = false
+	s.info.Stopped = false
+	s.info.ExitCode = 0
+	s.info.EndedAt = 0
+	s.info.StartedAt = now
+	s.info.LastActivity = now
+	s.mu.Unlock()
+	go t.pump(s, p, cmd)
+	return nil
 }
 
-func (t *TerminalService) pump(s *session) {
+func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	// ConPTY keeps its output pipe open after the child exits, so the read
 	// loop below only ends once the pseudo console is closed.
 	exited := make(chan error, 1)
 	go func() {
-		err := s.cmd.Wait()
+		err := cmd.Wait()
 		exited <- err
 		time.Sleep(300 * time.Millisecond) // let the last output drain
-		s.pty.Close()
+		p.Close()
 	}()
 	buf := make([]byte, 32*1024)
 	for {
-		n, err := s.pty.Read(buf)
+		n, err := p.Read(buf)
 		if n > 0 {
-			chunk := append([]byte(nil), buf[:n]...)
-			s.mu.Lock()
-			s.seq++
-			seq := s.seq
-			s.buf = append(s.buf, chunk...)
-			if len(s.buf) > scrollbackBytes {
-				s.buf = append([]byte(nil), s.buf[len(s.buf)-scrollbackBytes:]...)
-			}
-			s.info.LastActivity = time.Now().UnixMilli()
-			bell := !s.info.Bell && containsBell(chunk)
-			if bell {
-				s.info.Bell = true
-			}
-			id := s.info.ID
-			s.mu.Unlock()
-			emit("term:data", TermData{ID: id, Seq: seq, Data: base64.StdEncoding.EncodeToString(chunk)})
-			if bell {
-				t.broadcast()
-			}
+			t.output(s, buf[:n])
 		}
 		if err != nil {
 			break
@@ -258,8 +294,8 @@ func (t *TerminalService) pump(s *session) {
 			code = -1
 		}
 	}
-	if s.cmd.ProcessState != nil {
-		code = s.cmd.ProcessState.ExitCode()
+	if cmd.ProcessState != nil {
+		code = cmd.ProcessState.ExitCode()
 	}
 	s.mu.Lock()
 	s.info.Running = false
@@ -270,8 +306,33 @@ func (t *TerminalService) pump(s *session) {
 	}
 	id, stopped := s.info.ID, s.info.Stopped
 	s.mu.Unlock()
+	t.touch()
 	emit("term:exit", TermExit{ID: id, Code: code, Stopped: stopped})
 	t.broadcast()
+}
+
+// output appends bytes to a session's scrollback and sends them to the UI.
+func (t *TerminalService) output(s *session, b []byte) {
+	chunk := append([]byte(nil), b...)
+	s.mu.Lock()
+	s.seq++
+	seq := s.seq
+	s.buf = append(s.buf, chunk...)
+	if len(s.buf) > scrollbackBytes {
+		s.buf = append([]byte(nil), s.buf[len(s.buf)-scrollbackBytes:]...)
+	}
+	s.info.LastActivity = time.Now().UnixMilli()
+	bell := !s.info.Bell && containsBell(chunk)
+	if bell {
+		s.info.Bell = true
+	}
+	id := s.info.ID
+	s.mu.Unlock()
+	t.touchOutput()
+	emit("term:data", TermData{ID: id, Seq: seq, Data: base64.StdEncoding.EncodeToString(chunk)})
+	if bell {
+		t.broadcast()
+	}
 }
 
 // containsBell finds a BEL that is not the terminator of an OSC sequence
@@ -312,7 +373,7 @@ func (t *TerminalService) Write(id, data string) error {
 	}
 	// xterm answers terminal queries on its own, even after the program ended.
 	s.mu.Lock()
-	running := s.info.Running
+	running, p := s.info.Running, s.pty
 	if running && strings.ContainsRune(data, 3) {
 		s.interruptAt = time.Now()
 	}
@@ -320,7 +381,7 @@ func (t *TerminalService) Write(id, data string) error {
 	if !running {
 		return nil
 	}
-	_, err = s.pty.Write([]byte(data))
+	_, err = p.Write([]byte(data))
 	return err
 }
 
@@ -331,12 +392,13 @@ func (t *TerminalService) Resize(id string, cols, rows int) error {
 		return err
 	}
 	s.mu.Lock()
-	running := s.info.Running
+	running, p := s.info.Running, s.pty
+	s.spec.Cols, s.spec.Rows = cols, rows
 	s.mu.Unlock()
 	if !running {
 		return nil
 	}
-	return s.pty.Resize(cols, rows)
+	return p.Resize(cols, rows)
 }
 
 // Snapshot returns the scrollback so a freshly mounted view can catch up.
@@ -380,6 +442,7 @@ func (t *TerminalService) Rename(id, title string) {
 		s.mu.Lock()
 		s.info.Title = title
 		s.mu.Unlock()
+		t.touch()
 		t.broadcast()
 	}
 }
@@ -401,21 +464,21 @@ func (t *TerminalService) kill(id string) (done <-chan struct{}, err error) {
 	}
 	ch := make(chan struct{})
 	s.mu.Lock()
-	running := s.info.Running
+	running, p, cmd := s.info.Running, s.pty, s.cmd
 	if running {
 		// A program we kill exits non-zero; Stopped tells it apart from a crash.
 		s.info.Stopped = true
 	}
 	s.mu.Unlock()
-	if !running || s.cmd.Process == nil {
+	if !running || cmd == nil || cmd.Process == nil {
 		close(ch)
 		return ch, nil
 	}
-	pid := s.cmd.Process.Pid
+	pid := cmd.Process.Pid
 	// The program leads its own process group (see proc.KillTree); a command
 	// typed into an interactive shell runs in the terminal's foreground group.
 	groups := []int{pid}
-	if up, ok := s.pty.(pty.UnixPty); ok {
+	if up, ok := p.(pty.UnixPty); ok {
 		_ = up.Control(func(fd uintptr) {
 			if fg := proc.ForegroundGroup(fd); fg != 0 && fg != pid {
 				groups = append(groups, fg)
@@ -433,7 +496,7 @@ func (t *TerminalService) kill(id string) (done <-chan struct{}, err error) {
 			}()
 		}
 		wg.Wait()
-		_ = s.cmd.Process.Kill() // no-op once it exited
+		_ = cmd.Process.Kill() // no-op once it exited
 	}()
 	return ch, nil
 }
@@ -450,6 +513,7 @@ func (t *TerminalService) Close(id string) error {
 		}
 	}
 	t.mu.Unlock()
+	t.touch()
 	t.broadcast()
 	return nil
 }
@@ -468,7 +532,6 @@ func (t *TerminalService) List() []SessionInfo {
 		out = append(out, s.info)
 		s.mu.Unlock()
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].StartedAt < out[j].StartedAt })
 	return out
 }
 
@@ -489,6 +552,9 @@ func (t *TerminalService) broadcast() {
 // ServiceShutdown kills every child, with its descendants, when the app quits
 // and waits for them so none outlives Larvyn.
 func (t *TerminalService) ServiceShutdown() error {
+	// Save before killing: what ran is what comes back on the next start.
+	t.saveWorkspace()
+	t.ws.closed.Store(true)
 	var pending []<-chan struct{}
 	for _, s := range t.List() {
 		if done, err := t.kill(s.ID); err == nil {

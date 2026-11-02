@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -46,6 +50,184 @@ var yoloFlags = map[string][]string{
 	"antigravity":  {"--dangerously-skip-permissions"},
 	"cursor-agent": {"--yolo"},
 	"aider":        {"--yes-always"},
+}
+
+// resumeArgs are the arguments that make each agent continue its previous
+// conversation in the same folder. Agents missing here start afresh.
+var resumeArgs = map[string]func(meta map[string]string) []string{
+	"claude": func(meta map[string]string) []string {
+		id := meta["resumeId"]
+		switch {
+		case id == "":
+			return []string{"--continue"}
+		case claudeSessionExists(id):
+			return []string{"--resume", id}
+		default:
+			// Nothing was said yet, so there is nothing to resume: start the
+			// conversation under the same id.
+			return []string{"--session-id", id}
+		}
+	},
+	"codex": func(meta map[string]string) []string {
+		if id := meta["resumeId"]; id != "" {
+			return []string{"resume", id}
+		}
+		return nil // no conversation was recorded: start a new one
+	},
+	"opencode":    func(map[string]string) []string { return []string{"--continue"} },
+	"antigravity": func(map[string]string) []string { return []string{"--continue"} },
+	"aider":       func(map[string]string) []string { return []string{"--restore-chat-history"} },
+	"pi":          func(map[string]string) []string { return []string{"--continue"} },
+}
+
+// resumesByFolder are the agents that resume "the latest conversation in this
+// folder" rather than one by id: of several sessions sharing a folder, only
+// the one that talked last may resume, or they would all continue its
+// conversation.
+var resumesByFolder = map[string]bool{"opencode": true, "antigravity": true, "aider": true, "pi": true}
+
+// agentRelaunchArgv is the command that starts a stopped agent session again,
+// with its permission flags and without the first prompt. resumes tells
+// whether the agent can pick its conversation up.
+func agentRelaunchArgv(spec SessionSpec, shared bool) (argv []string, resumes bool, err error) {
+	var kind *AgentKind
+	for _, k := range agentKinds {
+		if k.ID == spec.Key {
+			k := k
+			kind = &k
+		}
+	}
+	if kind == nil {
+		return nil, false, errors.New("unknown agent " + spec.Key)
+	}
+	path := proc.Which(kind.Binary)
+	if path == "" {
+		return nil, false, errors.New(kind.Name + " is not installed: " + kind.Install)
+	}
+	argv = []string{path}
+	if spec.Meta["yolo"] == "1" {
+		argv = append(argv, yoloFlags[kind.ID]...)
+	}
+	if fn, ok := resumeArgs[kind.ID]; ok && !(shared && resumesByFolder[kind.ID]) {
+		resumes = true
+		argv = append(argv, fn(spec.Meta)...)
+	}
+	return argv, resumes, nil
+}
+
+// claudeConfigDir is where Claude Code keeps its conversations.
+func claudeConfigDir() string {
+	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+		return d
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude")
+}
+
+// claudeSessionExists tells whether Claude Code recorded a conversation
+// under id (in projects/<folder>/<id>.jsonl).
+func claudeSessionExists(id string) bool {
+	m, _ := filepath.Glob(filepath.Join(claudeConfigDir(), "projects", "*", id+".jsonl"))
+	return len(m) > 0
+}
+
+// codexHome is where Codex keeps its conversations.
+func codexHome() string {
+	if d := os.Getenv("CODEX_HOME"); d != "" {
+		return d
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".codex")
+}
+
+// isCodexRollout tells whether path is one of Codex's conversation files.
+func isCodexRollout(path string) bool {
+	base := filepath.Base(path)
+	return strings.HasPrefix(base, "rollout-") && strings.HasSuffix(base, ".jsonl")
+}
+
+// codexResumeID finds the conversation of a Codex session. While it runs,
+// the rollout file its processes have open names it exactly; otherwise (or
+// where open files cannot be listed) it is guessed by folder and time.
+func codexResumeID(cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
+	if pid > 0 {
+		if files, ok := proc.GroupOpenFiles(pid, isCodexRollout); ok {
+			for _, f := range files {
+				if id, _, _, ok := codexSessionMeta(f); ok {
+					return id, true
+				}
+			}
+		}
+	}
+	return codexSessionID(cwd, startedAt, claimed), false
+}
+
+// codexSessionID finds the Codex conversation started in cwd at or after
+// startedAt (Unix ms) that no other session claimed: Codex writes each one to
+// sessions/YYYY/MM/DD/rollout-*.jsonl, whose first line holds its id and cwd.
+func codexSessionID(cwd string, startedAt int64, claimed map[string]bool) string {
+	root := codexHome()
+	start := time.UnixMilli(startedAt)
+	// Folders and file names are in local time, like start.
+	from := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.Local)
+	best, bestAt := "", time.Time{}
+	for day := from; !day.After(time.Now()); day = day.AddDate(0, 0, 1) {
+		files, _ := filepath.Glob(filepath.Join(root, "sessions", day.Format("2006"), day.Format("01"), day.Format("02"), "rollout-*.jsonl"))
+		for _, f := range files {
+			// rollout-2006-01-02T15-04-05-<id>.jsonl: skip older ones unread.
+			if name := strings.TrimPrefix(filepath.Base(f), "rollout-"); len(name) >= 19 {
+				if at, err := time.ParseInLocation("2006-01-02T15-04-05", name[:19], time.Local); err == nil && at.Before(start.Add(-time.Minute)) {
+					continue
+				}
+			}
+			id, dir, at, ok := codexSessionMeta(f)
+			if !ok || claimed[id] || !proc.SamePath(dir, cwd) || at.UnixMilli() < startedAt-5000 {
+				continue
+			}
+			if best == "" || at.Before(bestAt) {
+				best, bestAt = id, at
+			}
+		}
+	}
+	return best
+}
+
+func codexSessionMeta(path string) (id, cwd string, at time.Time, ok bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	line, err := bufio.NewReaderSize(f, 64<<10).ReadBytes('\n')
+	if err != nil && len(line) == 0 {
+		return
+	}
+	var rec struct {
+		Type    string `json:"type"`
+		Payload struct {
+			ID        string `json:"id"`
+			Cwd       string `json:"cwd"`
+			Timestamp string `json:"timestamp"`
+		} `json:"payload"`
+	}
+	if json.Unmarshal(line, &rec) != nil || rec.Type != "session_meta" || rec.Payload.ID == "" {
+		return
+	}
+	at, err = time.Parse(time.RFC3339Nano, rec.Payload.Timestamp)
+	if err != nil {
+		return
+	}
+	return rec.Payload.ID, rec.Payload.Cwd, at, true
+}
+
+// newUUID returns a random (version 4) UUID.
+func newUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	h := hex.EncodeToString(b)
+	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
 }
 
 type AgentService struct{}
@@ -118,6 +300,13 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 	if f := yoloFlags[kind.ID]; len(f) > 0 && store.CurrentSettings().AgentPermissions != "manual" {
 		argv = append(argv, f...)
 		meta["yolo"] = "1"
+	}
+	// Claude Code takes the conversation id from us, so it can be resumed
+	// after Larvyn restarts.
+	if kind.ID == "claude" {
+		id := newUUID()
+		argv = append(argv, "--session-id", id)
+		meta["resumeId"] = id
 	}
 	// cmd.exe re-parses the arguments of .cmd shims, so a prompt with & or |
 	// in it would run as a command: type it into the agent instead.

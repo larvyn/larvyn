@@ -42,6 +42,9 @@ type Settings struct {
 	// AgentPermissions is "yolo" (agents start with their skip-approvals
 	// flag, as Orca does by default) or "manual" (they ask as usual).
 	AgentPermissions string `json:"agentPermissions"`
+	// NoRestore stops Larvyn from bringing back terminals, agents and
+	// services from the previous run.
+	NoRestore bool `json:"noRestore"`
 }
 
 // State is what state.json holds.

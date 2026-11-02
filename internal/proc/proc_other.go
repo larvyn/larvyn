@@ -3,10 +3,13 @@
 package proc
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -91,3 +94,77 @@ func ForegroundGroup(fd uintptr) int {
 
 // UnwrapShim resolves an npm .cmd shim to its .exe (Windows only).
 func UnwrapShim(path string) string { return path }
+
+// Cwd is the current folder of a running process, or "" when it cannot be
+// read.
+func Cwd(pid int) string {
+	if pid <= 1 {
+		return ""
+	}
+	if runtime.GOOS == "linux" {
+		p, _ := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
+		return p
+	}
+	for _, f := range lsofNames("-a", "-p", strconv.Itoa(pid), "-d", "cwd") {
+		return f
+	}
+	return ""
+}
+
+// GroupOpenFiles lists the files that the processes of group pgid have open
+// and match keeps. ok is false where open files cannot be listed.
+func GroupOpenFiles(pgid int, keep func(path string) bool) (files []string, ok bool) {
+	if pgid <= 1 {
+		return nil, false
+	}
+	var all []string
+	if runtime.GOOS == "linux" {
+		procs, err := os.ReadDir("/proc")
+		if err != nil {
+			return nil, false
+		}
+		for _, d := range procs {
+			pid, err := strconv.Atoi(d.Name())
+			if err != nil {
+				continue
+			}
+			if g, err := unix.Getpgid(pid); err != nil || g != pgid {
+				continue
+			}
+			fds, _ := os.ReadDir("/proc/" + d.Name() + "/fd")
+			for _, fd := range fds {
+				if p, err := os.Readlink("/proc/" + d.Name() + "/fd/" + fd.Name()); err == nil {
+					all = append(all, p)
+				}
+			}
+		}
+	} else {
+		if _, err := exec.LookPath("lsof"); err != nil {
+			return nil, false
+		}
+		all = lsofNames("-g", strconv.Itoa(pgid))
+	}
+	for _, p := range all {
+		if keep(p) {
+			files = append(files, p)
+		}
+	}
+	return files, true
+}
+
+// lsofNames runs lsof with args and returns the file names it reports.
+func lsofNames(args ...string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "lsof", append([]string{"-w", "-Fn"}, args...)...).Output()
+	if err != nil && len(out) == 0 {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "n") && len(line) > 1 {
+			names = append(names, line[1:])
+		}
+	}
+	return names
+}

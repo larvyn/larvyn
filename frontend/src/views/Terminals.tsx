@@ -6,6 +6,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RotateCcw,
   Rows2,
   Server,
   Square,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react'
 import { type SessionInfo } from '../../bindings/larvyn'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
-import { newTerminal, openInTab, useActive, useStore, type TermTab } from '../lib/store'
+import { newTerminal, openInTab, relaunch, useActive, useStore, type TermTab } from '../lib/store'
 import { clearTerm, focusTerm } from '../lib/terms'
 import { cx, duration } from '../lib/util'
 import { Empty, TermPane, promptDialog, useNow } from '../components/ui'
@@ -167,7 +168,7 @@ export function Terminals() {
                       if (s.bell) TerminalService.ClearBell(pid)
                     }}
                   >
-                    {tab.panes.length > 1 || s.kind !== 'shell' ? (
+                    {tab.panes.length > 1 || s.kind !== 'shell' || !s.running ? (
                       <PaneHeader s={s} focused={focusedPane === pid} onClose={() => removePane(pid)} />
                     ) : null}
                     <TermPane id={pid} focus />
@@ -196,7 +197,7 @@ function SessionRow({ s, now, active, onOpen }: { s: SessionInfo; now: number; a
           {s.title}
         </div>
         <div className="faint ellipsis mono" style={{ fontSize: 10.5 }}>
-          {s.running ? duration(now - s.startedAt) : s.stopped ? 'stopped' : `exited ${s.exitCode}`}
+          {s.running ? duration(now - s.startedAt) : s.restored ? 'restored' : s.stopped ? 'stopped' : `exited ${s.exitCode}`}
           {s.meta?.branch ? ` · ${s.meta.branch}` : ''}
         </div>
       </div>
@@ -240,6 +241,11 @@ function PaneHeader({ s, focused, onClose }: { s: SessionInfo; focused: boolean;
       {s.running && s.kind !== 'shell' && (
         <button className="icon-btn sm" title="Stop" onClick={() => TerminalService.Kill(s.id)}>
           <Square />
+        </button>
+      )}
+      {!s.running && s.key !== 'create' && (
+        <button className="btn sm" title={s.kind === 'agent' ? 'Start the agent again, resuming its conversation when it can' : 'Run it again'} onClick={() => relaunch(s.id)}>
+          <RotateCcw /> Relaunch
         </button>
       )}
       <button className="icon-btn sm" title="Close pane" onClick={onClose}>
