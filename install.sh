@@ -7,6 +7,7 @@
 #   LARVYN_VERSION=v0.1.0   install that release instead of the newest one
 #   LARVYN_REPO=owner/repo  download releases from another GitHub repository
 #   LARVYN_BIN_DIR=dir      where the `larvyn` command goes (default ~/.local/bin)
+#   DO_NOT_TRACK=1          do not count this install (see the end of the script)
 #
 # Uninstall:
 #   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh -s -- --uninstall
@@ -133,6 +134,14 @@ EOF
 			say "install GTK 4 and WebKitGTK 6.0 with your package manager"
 		fi
 	fi
+fi
+
+# Count the install: GitHub counts downloads of each release file, and only the
+# install scripts fetch installs.txt (the in-app updater does not), so its count
+# is the number of installs. Nothing about you or your machine is sent; older
+# releases have no such file, and a failure never matters.
+if [ -z "${DO_NOT_TRACK:-}" ]; then
+	curl -fsS --max-time 5 -o /dev/null "$base/installs.txt" 2>/dev/null || true
 fi
 
 case ":$PATH:" in

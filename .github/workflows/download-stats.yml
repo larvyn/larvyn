@@ -1,0 +1,69 @@
+# Saves the download counts of every release once a day, so there is a trend
+# (GitHub only keeps running totals). The data goes to the `stats` branch of
+# this private repo, not to master:
+#   downloads.csv  date,tag,asset,downloads (one row per file per day)
+#   README.md      the latest table from scripts/stats.sh
+name: download stats
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: download-stats
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    env:
+      RELEASES_REPO: larvyn/releases
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: source
+      - name: Check out the stats branch
+        run: |
+          git clone --quiet "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" stats
+          cd stats
+          if git ls-remote --exit-code --heads origin stats >/dev/null; then
+            git checkout --quiet stats
+          else
+            git checkout --quiet --orphan stats
+            git rm -rfq .
+          fi
+      - name: Snapshot
+        working-directory: stats
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day=$(date -u +%F)
+          gh api --paginate "repos/$RELEASES_REPO/releases" \
+            --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"' > ../now.csv
+          [ -s ../now.csv ] || { echo "no releases found"; exit 1; }
+          [ -f downloads.csv ] || echo 'date,tag,asset,downloads' > downloads.csv
+          # A second run on the same day replaces that day's rows.
+          awk -F, -v d="$day" '$1 != d' downloads.csv > ../kept.csv
+          { cat ../kept.csv; sed "s/^/$day,/" ../now.csv; } > downloads.csv
+          {
+            echo "# Larvyn downloads"
+            echo
+            echo "Updated $day. Daily rows are in downloads.csv; see scripts/stats.sh on master for what the columns mean."
+            echo
+            sh ../source/scripts/stats.sh ../now.csv
+          } > README.md
+          cat README.md
+      - name: Commit
+        working-directory: stats
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads.csv README.md
+          if git diff --cached --quiet; then
+            echo "no change"
+          else
+            git commit --quiet -m "chore: download stats for $(date -u +%F)"
+            git push --quiet origin stats
+          fi
