@@ -144,7 +144,8 @@ async function doBoot() {
   ])
   const projects = projectList ?? []
   const sessions = sessionList ?? []
-  const activeId = projects.find((p) => p.id === active)?.id ?? projects[0]?.id ?? null
+  // No saved project means the last one was closed: start on the welcome screen.
+  const activeId = active ? (projects.find((p) => p.id === active)?.id ?? projects[0]?.id ?? null) : null
   SystemService.Log('info', `boot loaded ${projects.length} projects, active ${activeId}, launch ${JSON.stringify(launch)}`)
   const ids = new Set(sessions.map((x) => x.id))
   const tabs: Record<string, TermTab[]> = {}
@@ -169,7 +170,7 @@ async function doBoot() {
     const list = (ev.data ?? []) as Project[]
     set((s) => ({
       projects: list,
-      activeId: list.some((p) => p.id === s.activeId) ? s.activeId : list[0]?.id ?? null,
+      activeId: s.activeId === null || list.some((p) => p.id === s.activeId) ? s.activeId : list[0]?.id ?? null,
     }))
   })
   Events.On('sessions:changed', (ev: any) => onSessions((ev.data ?? []) as SessionInfo[]))
@@ -280,6 +281,17 @@ export async function updateLaravelInstaller() {
     toast('info', 'Updating the Laravel installer', 'composer global update laravel/installer')
   } catch (e) {
     toast('error', 'Could not update the Laravel installer', errMsg(e))
+  }
+}
+
+/** Stops a project's terminals and services and goes back to the welcome
+ * screen. The project stays in the rail. */
+export async function closeProject(id: string) {
+  try {
+    await ProjectService.Close(id)
+    set((s) => (s.activeId === id ? { activeId: null } : {}))
+  } catch (e) {
+    toast('error', 'Could not close the project', errMsg(e))
   }
 }
 

@@ -595,6 +595,11 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .welcome h1 { font-size: 40px; margin: 0; font-weight: 760; letter-spacing: -0.045em; line-height: 1.05; }
 .welcome h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2) 60%, #ffb36b); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .welcome .lead { color: var(--text-2); font-size: 15px; margin: 14px 0 28px; max-width: 560px; line-height: 1.6; }
+.welcome-projects { margin-top: 26px; border: 1px solid var(--line); border-radius: 13px; padding: 6px; background: rgba(255, 255, 255, 0.015); }
+.welcome-projects-head { font-size: 11px; font-weight: 620; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px 4px; }
+.welcome-project { display: flex; align-items: center; gap: 10px; width: 100%; }
+.welcome-project-badge { width: 22px; height: 22px; border-radius: 6px; color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.welcome-project-path { font-size: 11px; max-width: 55%; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 34px; }
 .feature { padding: 14px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.015); }
 .feature svg { width: 17px; height: 17px; color: var(--accent); }

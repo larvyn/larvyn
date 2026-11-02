@@ -28,9 +28,11 @@ import {
   Trash2,
   Workflow,
   Wrench,
+  X,
 } from 'lucide-react'
 import { LaravelService, ProjectService, StackService, SystemService, type StackItem } from '../../bindings/larvyn'
 import { GitService, type Commit } from '../../bindings/larvyn/internal/git'
+import { askCloseProject } from '../components/closeProject'
 import { askRemoveProject } from '../components/removeProject'
 import {
   artisanRun,
@@ -190,6 +192,9 @@ export function Overview() {
           <div className="row">
             <button className="icon-btn" title="Project settings" onClick={() => editProject(project)}>
               <Cog />
+            </button>
+            <button className="icon-btn" title="Close project (stops its terminals and services)" onClick={() => askCloseProject(project)}>
+              <X />
             </button>
             <button
               className="icon-btn danger"
