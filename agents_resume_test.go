@@ -83,11 +83,8 @@ func fakeBinary(t *testing.T, name string) string {
 // conversation here" resumes only in the one that talked last; Claude and
 // Codex resume by id and do not care.
 func TestSharedFolderStopsResumeByFolder(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"opencode", "claude"} {
-		_ = os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755)
-	}
-	t.Setenv("PATH", dir)
+	oc, cl := fakeBinary(t, "opencode"), fakeBinary(t, "claude")
+	t.Setenv("PATH", filepath.Dir(oc)+string(os.PathListSeparator)+filepath.Dir(cl))
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	argv, resumes, err := agentRelaunchArgv(SessionSpec{Key: "opencode"}, true)
 	if err != nil || resumes || len(argv) != 1 {
