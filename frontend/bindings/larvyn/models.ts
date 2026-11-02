@@ -288,25 +288,6 @@ export type SessionInfo = terminal$0.SessionInfo;
 export type Settings = store$0.Settings;
 
 /**
- * StackItem is one dev process a Laravel project usually runs.
- */
-export interface StackItem {
-    "key": string;
-    "label": string;
-    "description": string;
-    "argv": string[] | null;
-    "available": boolean;
-    "reason": string;
-    "url": string;
-    "session": SessionInfo | null;
-
-    /**
-     * Dev is set for the processes `php artisan dev` would start (from dev:list).
-     */
-    "dev": boolean;
-}
-
-/**
  * TestCase is one test from a JUnit report written by `artisan test`.
  */
 export interface TestCase {

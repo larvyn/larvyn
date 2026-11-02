@@ -8,6 +8,8 @@ import (
 
 	"larvyn/internal/git"
 	"larvyn/internal/proc"
+	"larvyn/internal/stack"
+	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 	"larvyn/internal/updater"
 
@@ -22,8 +24,9 @@ var assets embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
-func main() {
-	updater.Version = version
+// init connects the services through hooks, so internal packages never import
+// each other. Tests in this package get the same wiring.
+func init() {
 	// Removing a worktree stops the terminals running in it.
 	git.CloseSessionsIn = func(dir string) {
 		for _, s := range terminals.List() {
@@ -40,6 +43,18 @@ func main() {
 		}
 		return "", false
 	}
+	stack.Inspect = func(p store.Project) stack.Facts {
+		info := inspect(p)
+		f := stack.Facts{IsLaravel: info.IsLaravel, HasVendor: info.HasVendor, HasNodeModules: info.HasNodeModules, NpmScripts: info.NpmScripts}
+		for _, pkg := range info.Packages {
+			f.Packages = append(f.Packages, pkg.Name)
+		}
+		return f
+	}
+}
+
+func main() {
+	updater.Version = version
 	updater.Cleanup()
 	proc.StartShellEnvImport()
 	app := application.New(application.Options{
@@ -49,7 +64,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(&ProjectService{}),
 			application.NewService(terminals),
-			application.NewService(&StackService{}),
+			application.NewService(&stack.StackService{}),
 			application.NewService(&LaravelService{}),
 			application.NewService(&git.GitService{}),
 			application.NewService(&AgentService{}),

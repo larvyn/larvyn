@@ -1,4 +1,4 @@
-package main
+package stack
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"larvyn/internal/proc"
+	"larvyn/internal/store"
 )
 
 // DevProcess is one entry of `php artisan dev:list --json` (Laravel 13+): the
@@ -54,7 +55,7 @@ func devListSignature(root string) string {
 
 // devProcesses returns the app's dev processes, or ok=false when the app has
 // no dev:list command (Laravel 12 and older) or it failed.
-func devProcesses(p Project) ([]DevProcess, bool) {
+func devProcesses(p store.Project) ([]DevProcess, bool) {
 	sig := devListSignature(p.Path)
 	if v, found := devListCache.Load(p.Path); found {
 		if e := v.(devListEntry); e.sig == sig {
@@ -71,7 +72,7 @@ func devProcesses(p Project) ([]DevProcess, bool) {
 		return nil, false
 	}
 	if res, err := proc.Artisan(p.Path, 30*time.Second, "dev:list", "--json"); err == nil && res.Code == 0 {
-		if raw := extractJSON(res.Stdout); raw != nil && json.Unmarshal(raw, &procs) == nil {
+		if raw := proc.ExtractJSON(res.Stdout); raw != nil && json.Unmarshal(raw, &procs) == nil {
 			ok = true
 		}
 	}

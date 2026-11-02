@@ -24,7 +24,8 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react'
-import { StackService, SystemService, type StackItem } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn'
+import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import {
   addProject,
   artisanRun,

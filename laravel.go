@@ -121,7 +121,7 @@ func (l *LaravelService) Commands(projectID string, refresh bool) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	out := extractJSON(res.Stdout)
+	out := proc.ExtractJSON(res.Stdout)
 	if out == nil {
 		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "artisan list failed")))
 	}
@@ -141,7 +141,7 @@ func (l *LaravelService) Routes(projectID string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := extractJSON(res.Stdout)
+	out := proc.ExtractJSON(res.Stdout)
 	if out == nil {
 		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "route:list failed")))
 	}
@@ -158,7 +158,7 @@ func (l *LaravelService) About(projectID string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := extractJSON(res.Stdout)
+	out := proc.ExtractJSON(res.Stdout)
 	if out == nil {
 		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "about failed")))
 	}
@@ -175,7 +175,7 @@ func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, 
 	if err != nil {
 		return nil, err
 	}
-	out := extractJSON(res.Stdout)
+	out := proc.ExtractJSON(res.Stdout)
 	if out == nil {
 		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "model:show failed")))
 	}
@@ -192,18 +192,6 @@ func (l *LaravelService) Artisan(projectID string, args []string) (RunResult, er
 	res.Stdout = proc.StripANSI(res.Stdout)
 	res.Stderr = proc.StripANSI(res.Stderr)
 	return res, err
-}
-
-func extractJSON(s string) json.RawMessage {
-	start := strings.IndexAny(s, "[{")
-	if start < 0 {
-		return nil
-	}
-	s = strings.TrimSpace(s[start:])
-	if !json.Valid([]byte(s)) {
-		return nil
-	}
-	return json.RawMessage(s)
 }
 
 // ---- .env -----------------------------------------------------------------

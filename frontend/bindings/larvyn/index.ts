@@ -5,14 +5,12 @@ import * as AgentService from "./agentservice.js";
 import * as FileService from "./fileservice.js";
 import * as LaravelService from "./laravelservice.js";
 import * as ProjectService from "./projectservice.js";
-import * as StackService from "./stackservice.js";
 import * as SystemService from "./systemservice.js";
 export {
     AgentService,
     FileService,
     LaravelService,
     ProjectService,
-    StackService,
     SystemService
 };
 
@@ -35,7 +33,6 @@ export type {
     RunResult,
     SessionInfo,
     Settings,
-    StackItem,
     TestCase,
     TestReport,
     Tool,
