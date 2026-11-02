@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -108,6 +109,15 @@ func NewID() string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// ProjectPath returns the folder of the project with this id.
+func ProjectPath(id string) (string, error) {
+	p, ok := FindProject(id)
+	if !ok {
+		return "", errors.New("project not found")
+	}
+	return p.Path, nil
 }
 
 // HomeDir is where Larvyn keeps its state. LARVYN_HOME points it elsewhere,

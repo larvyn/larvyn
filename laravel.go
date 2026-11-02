@@ -85,14 +85,6 @@ type LaravelService struct {
 	commands map[string]json.RawMessage
 }
 
-func projectPath(id string) (string, error) {
-	p, ok := store.FindProject(id)
-	if !ok {
-		return "", errors.New("project not found")
-	}
-	return p.Path, nil
-}
-
 // Bridge runs a bridge action and returns its JSON answer.
 func (l *LaravelService) Bridge(projectID, action string, payload map[string]any) (json.RawMessage, error) {
 	timeout := 60 * time.Second
@@ -113,7 +105,7 @@ func (l *LaravelService) Commands(projectID string, refresh bool) (json.RawMessa
 	if ok && !refresh {
 		return cached, nil
 	}
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +125,7 @@ func (l *LaravelService) Commands(projectID string, refresh bool) (json.RawMessa
 
 // Routes returns `artisan route:list --json`.
 func (l *LaravelService) Routes(projectID string) (json.RawMessage, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +142,7 @@ func (l *LaravelService) Routes(projectID string) (json.RawMessage, error) {
 
 // About returns `artisan about --json`.
 func (l *LaravelService) About(projectID string) (json.RawMessage, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +159,7 @@ func (l *LaravelService) About(projectID string) (json.RawMessage, error) {
 
 // ModelDetail returns `artisan model:show <class> --json`.
 func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +176,7 @@ func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, 
 
 // Artisan runs a short artisan command and captures its output.
 func (l *LaravelService) Artisan(projectID string, args []string) (RunResult, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -209,7 +201,7 @@ type EnvFile struct {
 
 // Env reads .env (or another .env.* file) and compares it with .env.example.
 func (l *LaravelService) Env(projectID, name string) (EnvFile, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return EnvFile{}, err
 	}
@@ -248,7 +240,7 @@ func (l *LaravelService) Env(projectID, name string) (EnvFile, error) {
 
 // SaveEnv writes an env file, keeping a backup of the previous one.
 func (l *LaravelService) SaveEnv(projectID, name, raw string) error {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return err
 	}
@@ -328,7 +320,7 @@ var logExc = regexp.MustCompile(`\(([A-Za-z0-9_\\]+)(?:\(code: [^)]*\))?: (.*) a
 
 // LogFiles lists storage/logs.
 func (l *LaravelService) LogFiles(projectID string) ([]LogFile, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +341,7 @@ func (l *LaravelService) LogFiles(projectID string) ([]LogFile, error) {
 // ReadLog returns entries added after offset; a negative offset reads the
 // tail of the file.
 func (l *LaravelService) ReadLog(projectID, file string, offset int64) (LogChunk, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return LogChunk{}, err
 	}
@@ -456,7 +448,7 @@ func unescapeJSON(s string) string {
 
 // ClearLog empties a log file.
 func (l *LaravelService) ClearLog(projectID, file string) error {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return err
 	}
@@ -470,7 +462,7 @@ func (l *LaravelService) ClearLog(projectID, file string) error {
 
 // ReadFile returns a project file's text (used for previews).
 func (l *LaravelService) ReadFile(projectID, rel string) (string, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return "", err
 	}
@@ -491,7 +483,7 @@ func (l *LaravelService) ReadFile(projectID, rel string) (string, error) {
 
 // ResolveClass maps an App\ class to its file and, if given, a method line.
 func (l *LaravelService) ResolveClass(projectID, class, method string) (map[string]any, error) {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +508,7 @@ func (l *LaravelService) ResolveClass(projectID, class, method string) (map[stri
 
 // PathExists reports whether a project-relative path exists.
 func (l *LaravelService) PathExists(projectID, rel string) bool {
-	dir, err := projectPath(projectID)
+	dir, err := store.ProjectPath(projectID)
 	if err != nil {
 		return false
 	}

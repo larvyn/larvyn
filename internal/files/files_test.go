@@ -1,4 +1,4 @@
-package main
+package files
 
 import (
 	"encoding/json"
@@ -23,9 +23,9 @@ func TestFileServiceListReadWrite(t *testing.T) {
 	must(os.WriteFile(filepath.Join(root, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0, 1}, 0o644))
 
 	svc := &FileService{}
-	p, err := (&ProjectService{}).Add(root)
+	p, err := addProject(root)
 	must(err)
-	defer (&ProjectService{}).Remove(p.ID)
+	defer removeProject(p.ID)
 
 	list, err := svc.List(p.ID, "")
 	must(err)
@@ -110,11 +110,11 @@ func TestFileVersionSurvivesJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &FileService{}
-	p, err := (&ProjectService{}).Add(root)
+	p, err := addProject(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer (&ProjectService{}).Remove(p.ID)
+	defer removeProject(p.ID)
 	fc, err := svc.Read(p.ID, "a.php")
 	if err != nil {
 		t.Fatal(err)
