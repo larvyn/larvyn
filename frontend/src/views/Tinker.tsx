@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Clock, Cpu, Database, FlaskConical, History, Play, Sparkles, Trash2 } from 'lucide-react'
-import { LaravelService } from '../../bindings/larvyn'
+import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { useActive, useStore } from '../lib/store'
 import { bytes, cx, errMsg, load, mod, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'

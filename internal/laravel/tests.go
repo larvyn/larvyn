@@ -1,4 +1,4 @@
-package main
+package laravel
 
 import (
 	"encoding/xml"
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 // TestCase is one test from a JUnit report written by `artisan test`.
@@ -67,10 +68,10 @@ func junitPath(projectID string) string {
 
 // RunTests runs `artisan test` in the console, writing a JUnit report Larvyn
 // reads afterwards. filter narrows it to matching tests.
-func (l *LaravelService) RunTests(projectID, filter string, parallel bool) (SessionInfo, error) {
+func (l *LaravelService) RunTests(projectID, filter string, parallel bool) (terminal.SessionInfo, error) {
 	p, ok := store.FindProject(projectID)
 	if !ok {
-		return SessionInfo{}, errors.New("project not found")
+		return terminal.SessionInfo{}, errors.New("project not found")
 	}
 	_ = os.MkdirAll(filepath.Dir(junitPath(projectID)), 0o755)
 	argv := []string{store.PHP(), "artisan", "test", "--log-junit=" + junitPath(projectID)}
@@ -83,7 +84,7 @@ func (l *LaravelService) RunTests(projectID, filter string, parallel bool) (Sess
 		argv = append(argv, "--parallel")
 		title += " --parallel"
 	}
-	return terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "run", Key: "tests", Title: title, Cwd: p.Path, Argv: argv})
+	return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "tests", Title: title, Cwd: p.Path, Argv: argv})
 }
 
 var failAt = regexp.MustCompile(`(?m)^\s*(?:at\s+)?((?:[A-Za-z]:)?[^\s:]+\.php):(\d+)\s*$`)

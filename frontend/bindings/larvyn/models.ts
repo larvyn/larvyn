@@ -3,9 +3,6 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as proc$0 from "./internal/proc/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as store$0 from "./internal/store/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -49,27 +46,6 @@ export interface CreateRequest {
 }
 
 /**
- * EnvFile is a dotenv file with its parsed keys.
- */
-export interface EnvFile {
-    "path": string;
-    "exists": boolean;
-    "raw": string;
-    "values": { [_ in string]?: string } | null;
-
-    /**
-     * in .env.example but not here
-     */
-    "missing": string[] | null;
-
-    /**
-     * here but not in .env.example
-     */
-    "extra": string[] | null;
-    "files": string[] | null;
-}
-
-/**
  * LaunchOptions come from the environment so scripts can open Larvyn on a
  * view, with a command running in a terminal, or with an agent started.
  */
@@ -98,39 +74,6 @@ export interface LaunchOptions {
      * LARVYN_FILE opens this project-relative file in the Files editor.
      */
     "file": string;
-}
-
-/**
- * LogChunk is what changed in a log file since an offset.
- */
-export interface LogChunk {
-    "file": string;
-    "entries": LogEntry[] | null;
-    "offset": number;
-    "size": number;
-    "reset": boolean;
-}
-
-/**
- * LogEntry is one record from a Laravel log file.
- */
-export interface LogEntry {
-    "time": string;
-    "env": string;
-    "level": string;
-    "message": string;
-    "exception": string;
-    "file": string;
-    "line": number;
-    "context": string;
-    "stack": string;
-    "offset": number;
-}
-
-export interface LogFile {
-    "name": string;
-    "size": number;
-    "modified": number;
 }
 
 /**
@@ -194,11 +137,6 @@ export interface ProjectInfo {
 }
 
 /**
- * RunResult is the captured outcome of a short, non-interactive command.
- */
-export type RunResult = proc$0.RunResult;
-
-/**
  * SessionInfo is what the UI knows about a terminal.
  */
 export type SessionInfo = terminal$0.SessionInfo;
@@ -207,44 +145,6 @@ export type SessionInfo = terminal$0.SessionInfo;
  * Settings are the user's global preferences.
  */
 export type Settings = store$0.Settings;
-
-/**
- * TestCase is one test from a JUnit report written by `artisan test`.
- */
-export interface TestCase {
-    "name": string;
-    "class": string;
-    "file": string;
-    "line": number;
-    "time": number;
-
-    /**
-     * passed, failed, error, skipped
-     */
-    "status": string;
-    "message": string;
-    "details": string;
-}
-
-/**
- * TestReport is the result of the last test run.
- */
-export interface TestReport {
-    "exists": boolean;
-
-    /**
-     * Incomplete is set when the last run left an empty or cut-off report,
-     * usually because it stopped before PHPUnit/Pest wrote it.
-     */
-    "incomplete": boolean;
-    "modified": number;
-    "tests": number;
-    "passed": number;
-    "failed": number;
-    "skipped": number;
-    "time": number;
-    "cases": TestCase[] | null;
-}
 
 /**
  * Tool is an external program Larvyn uses.

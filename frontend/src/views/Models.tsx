@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Box, Code2, EyeOff, FlaskConical, Lock, Plus, RefreshCw, Rows3, Shapes, Sparkles } from 'lucide-react'
-import { LaravelService, SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn'
+import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { fail, handoff, useActive } from '../lib/store'
 import { cx, num } from '../lib/util'
 import { Empty, Loading, SearchInput, useAsync } from '../components/ui'

@@ -22,7 +22,8 @@ import {
   Check,
   CircleDashed,
 } from 'lucide-react'
-import { LaravelService, SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn'
+import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { artisanRun, fail, toast, useActive, useStore } from '../lib/store'
 import { bytes, cx, errMsg, load, mod, num, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'

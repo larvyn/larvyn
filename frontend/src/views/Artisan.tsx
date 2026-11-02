@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Play, RefreshCw, Star, Terminal, Zap, Box, FileCode2, Database, Workflow, Mail, Shield, TestTube2, Layers, Radio, Bell, Sprout, Factory, Route, Puzzle } from 'lucide-react'
-import { LaravelService } from '../../bindings/larvyn'
+import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { artisanRun, toast, useActive, useStore } from '../lib/store'
 import { copy, cx, load, mod, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'

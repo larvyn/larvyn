@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Braces, Eye, EyeOff, FileText, Plus, RotateCcw, Save, Rows3 } from 'lucide-react'
-import { LaravelService, type EnvFile } from '../../bindings/larvyn'
+import { LaravelService, type EnvFile } from '../../bindings/larvyn/internal/laravel'
 import { refreshInfo, toast, useActive } from '../lib/store'
 import { cx, errMsg } from '../lib/util'
 import { Empty, Loading, SearchInput, promptDialog } from '../components/ui'

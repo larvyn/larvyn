@@ -1,4 +1,4 @@
-package main
+package laravel
 
 import (
 	"bufio"
@@ -23,20 +23,6 @@ import (
 
 //go:embed bridge.php
 var bridgeSource []byte
-
-//go:embed create.php
-var createSource []byte
-
-// createScript returns the path of create.php, Larvyn's stand-in for
-// `laravel new` when the installer is missing, written next to the app state.
-func createScript() string {
-	path := filepath.Join(store.HomeDir(), "create.php")
-	_ = os.MkdirAll(store.HomeDir(), 0o755)
-	if b, err := os.ReadFile(path); err != nil || !bytes.Equal(b, createSource) {
-		_ = os.WriteFile(path, createSource, 0o644)
-	}
-	return path
-}
 
 var bridgeOnce sync.Once
 var bridgePath string
@@ -78,6 +64,15 @@ func callBridge(projectID, action string, payload any, timeout time.Duration) (j
 		return nil, errors.New(proc.StripANSI(msg))
 	}
 	return json.RawMessage(res.Stdout[i+len(mark):]), nil
+}
+
+// ComposerArgv is the command that runs Composer (from PATH or Larvyn's own
+// phar), or nil when there is none. main wires it; the default only looks on PATH.
+var ComposerArgv = func() []string {
+	if p := proc.Which("composer"); p != "" {
+		return []string{p}
+	}
+	return nil
 }
 
 type LaravelService struct {
@@ -175,10 +170,10 @@ func (l *LaravelService) ModelDetail(projectID, class string) (json.RawMessage, 
 }
 
 // Artisan runs a short artisan command and captures its output.
-func (l *LaravelService) Artisan(projectID string, args []string) (RunResult, error) {
+func (l *LaravelService) Artisan(projectID string, args []string) (proc.RunResult, error) {
 	dir, err := store.ProjectPath(projectID)
 	if err != nil {
-		return RunResult{}, err
+		return proc.RunResult{}, err
 	}
 	res, err := proc.Artisan(dir, 5*time.Minute, args...)
 	res.Stdout = proc.StripANSI(res.Stdout)
@@ -514,4 +509,9 @@ func (l *LaravelService) PathExists(projectID, rel string) bool {
 	}
 	_, err = os.Stat(filepath.Join(dir, rel))
 	return err == nil
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
