@@ -6,6 +6,7 @@
 #   $env:LARVYN_VERSION = "v0.1.0"      install that release instead of the newest one
 #   $env:LARVYN_REPO = "owner/repo"     download releases from another GitHub repository
 #   $env:LARVYN_UNINSTALL = "1"         remove Larvyn instead of installing it
+#   $env:DO_NOT_TRACK = "1"             do not count this install (see the end of the script)
 #
 # Running it again updates Larvyn. Nothing needs administrator rights.
 
@@ -76,6 +77,14 @@ foreach ($path in @($startMenu) + $(if ($firstInstall) { @($desktop) } else { @(
     $link.IconLocation = "$exe,0"
     $link.Description = 'The Laravel workbench'
     $link.Save()
+}
+
+# Count the install: GitHub counts downloads of each release file, and only the
+# install scripts fetch installs.txt (the in-app updater does not), so its count
+# is the number of installs. Nothing about you or your machine is sent; older
+# releases have no such file, and a failure never matters.
+if (-not $env:DO_NOT_TRACK) {
+    try { Invoke-WebRequest "$base/installs.txt" -UseBasicParsing -TimeoutSec 5 | Out-Null } catch { }
 }
 
 Say "installed $version to $exe"

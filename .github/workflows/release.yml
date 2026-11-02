@@ -145,6 +145,12 @@ jobs:
             git commit -m "chore: install scripts from $GITHUB_REF_NAME"
             git push
           fi
+      - name: Install counter
+        working-directory: assets
+        # install.sh and install.ps1 download this file after a successful
+        # install, so its download count is the number of installs (the app's
+        # updater downloads only the platform file). See scripts/stats.sh.
+        run: echo "Counts installs of Larvyn $GITHUB_REF_NAME. See install.sh." > installs.txt
       - name: Publish
         working-directory: assets
         env:
@@ -154,4 +160,4 @@ jobs:
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" --repo "$RELEASES_REPO" \
             --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags \
-            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt
+            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt
