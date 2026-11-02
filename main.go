@@ -1,3 +1,7 @@
+// Package main only wires Larvyn together: it registers the services from
+// internal/ with Wails, connects them through their hooks (services don't
+// import each other, except terminal, which they use to open terminals) and
+// opens the window.
 package main
 
 import (
@@ -19,6 +23,9 @@ import (
 	"larvyn/internal/updater"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	// Linux: runs WebKitGTK without its sandbox where AppArmor blocks it.
+	_ "larvyn/internal/platform"
 )
 
 //go:embed all:frontend/dist
@@ -29,14 +36,14 @@ var assets embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
-// init connects the services through hooks, so internal packages never import
-// each other. Tests in this package get the same wiring.
+// init connects the services through hooks. Tests in this package get the
+// same wiring.
 func init() {
 	// Removing a worktree stops the terminals running in it.
 	git.CloseSessionsIn = func(dir string) {
-		for _, s := range terminals.List() {
+		for _, s := range terminal.Sessions.List() {
 			if strings.EqualFold(filepath.Clean(s.Cwd), filepath.Clean(dir)) {
-				_ = terminals.Close(s.ID)
+				_ = terminal.Sessions.Close(s.ID)
 			}
 		}
 	}
@@ -71,7 +78,7 @@ func main() {
 		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(&project.ProjectService{}),
-			application.NewService(terminals),
+			application.NewService(terminal.Sessions),
 			application.NewService(&stack.StackService{}),
 			application.NewService(&laravel.LaravelService{}),
 			application.NewService(&git.GitService{}),
