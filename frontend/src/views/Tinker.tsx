@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Clock, Cpu, Database, FlaskConical, History, Play, Sparkles, Trash2 } from 'lucide-react'
 import { LaravelService } from '../../bindings/larvyn'
 import { useActive, useStore } from '../lib/store'
-import { bytes, cx, errMsg, load, save } from '../lib/util'
+import { bytes, cx, errMsg, load, mod, save } from '../lib/util'
+import { useRunShortcut } from '../lib/shortcuts'
 import { Empty } from '../components/ui'
 
 const SNIPPETS = [
@@ -70,6 +71,14 @@ export function Tinker() {
     }
   }
 
+  useRunShortcut(() => !busy && run(), { enabled: !!info?.isLaravel, within: taRef })
+  // Picking a snippet or a recent entry puts the cursor back in the editor, so
+  // typing and the shortcut carry on from there.
+  const pick = (src: string) => {
+    setCode(src)
+    requestAnimationFrame(() => taRef.current?.focus())
+  }
+
   if (!info?.isLaravel) return <Empty icon={<FlaskConical />} title="Not a Laravel project" />
   const lines = code.split('\n').length
 
@@ -84,7 +93,7 @@ export function Tinker() {
         </span>
         <span className="spacer" />
         <button className="btn sm primary" disabled={busy} onClick={() => run()}>
-          {busy ? <div className="spinner" /> : <Play />} Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>Ctrl ↵</kbd>
+          {busy ? <div className="spinner" /> : <Play />} Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>{mod} ↵</kbd>
         </button>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -101,10 +110,7 @@ export function Tinker() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  run()
-                } else if (e.key === 'Tab') {
+                if (e.key === 'Tab') {
                   e.preventDefault()
                   const t = e.currentTarget
                   const s = t.selectionStart
@@ -124,7 +130,7 @@ export function Tinker() {
             </div>
             <div className="row wrap" style={{ gap: 6 }}>
               {SNIPPETS.map((s) => (
-                <button key={s.label} className="chip" onClick={() => setCode(s.code)}>
+                <button key={s.label} className="chip" onClick={() => pick(s.code)}>
                   {s.label}
                 </button>
               ))}
@@ -138,7 +144,7 @@ export function Tinker() {
                   </button>
                 </div>
                 {hist.slice(0, 8).map((h, i) => (
-                  <button key={i} className="list-item mono" style={{ fontSize: 11, minHeight: 26, padding: '4px 8px' }} onClick={() => setCode(h)}>
+                  <button key={i} className="list-item mono" style={{ fontSize: 11, minHeight: 26, padding: '4px 8px' }} onClick={() => pick(h)}>
                     <span className="ellipsis">{h.replace(/\n/g, ' ⏎ ')}</span>
                   </button>
                 ))}

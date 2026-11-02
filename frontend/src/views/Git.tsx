@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Code2, FolderGit2, GitBranch, GitCommitHorizontal, 
 import { SystemService } from '../../bindings/larvyn'
 import { GitService, type GitStatus, type WorktreeRequest } from '../../bindings/larvyn/internal/git'
 import { fail, newTerminal, refreshInfo, toast, useActive } from '../lib/store'
-import { ago, cx, errMsg } from '../lib/util'
+import { ago, cx, errMsg, mod } from '../lib/util'
 import { Diff, Empty, Loading, confirmDialog, promptDialog, useAsync } from '../components/ui'
 
 const STATUS_COLOR: Record<string, string> = { M: 'var(--orange)', A: 'var(--green)', D: 'var(--red)', R: 'var(--blue)', '?': 'var(--green)', U: 'var(--red)' }
@@ -109,7 +109,7 @@ export function Git() {
               <textarea
                 className="textarea"
                 rows={3}
-                placeholder="Commit message (Ctrl+Enter)"
+                placeholder={`Commit message (${mod}↵)`}
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && msg.trim() && commit()}
