@@ -66,15 +66,6 @@ func callBridge(projectID, action string, payload any, timeout time.Duration) (j
 	return json.RawMessage(res.Stdout[i+len(mark):]), nil
 }
 
-// ComposerArgv is the command that runs Composer (from PATH or Larvyn's own
-// phar), or nil when there is none. main wires it; the default only looks on PATH.
-var ComposerArgv = func() []string {
-	if p := proc.Which("composer"); p != "" {
-		return []string{p}
-	}
-	return nil
-}
-
 type LaravelService struct {
 	mu       sync.Mutex
 	commands map[string]json.RawMessage

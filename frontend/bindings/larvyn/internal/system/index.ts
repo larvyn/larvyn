@@ -10,8 +10,5 @@ export type {
     AppInfo,
     CreateRequest,
     LaunchOptions,
-    SessionInfo,
-    Settings,
-    Tool,
-    UpdateInfo
+    Tool
 } from "./models.js";

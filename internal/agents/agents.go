@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/composer"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -238,10 +239,6 @@ var CreateWorktree = func(projectID, name, base string) (path, branch string, er
 	return "", "", errors.New("worktrees are not available")
 }
 
-// HasComposer reports whether Composer can run (from PATH or Larvyn's own
-// phar). main wires it; the default only looks on PATH.
-var HasComposer = func() bool { return proc.Which("composer") != "" }
-
 // Kinds lists the known agents and whether each is on PATH.
 func (a *AgentService) Kinds() []AgentKind {
 	out := make([]AgentKind, len(agentKinds))
@@ -347,7 +344,7 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 }
 
 func (a *AgentService) installDeps(p store.Project, dir string) {
-	if _, err := os.Stat(filepath.Join(dir, "composer.json")); err == nil && HasComposer() {
+	if _, err := os.Stat(filepath.Join(dir, "composer.json")); err == nil && composer.Available() {
 		_, _ = terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: "composer install · " + filepath.Base(dir),
 			Cwd: dir, Argv: []string{"composer", "install", "--no-interaction"}})
 	}

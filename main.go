@@ -14,6 +14,7 @@ import (
 	"larvyn/internal/project"
 	"larvyn/internal/stack"
 	"larvyn/internal/store"
+	"larvyn/internal/system"
 	"larvyn/internal/terminal"
 	"larvyn/internal/updater"
 
@@ -39,7 +40,6 @@ func init() {
 			}
 		}
 	}
-	terminal.ResolveProgram = resolveProgram
 	terminal.AgentRelaunch = agents.RelaunchArgv
 	terminal.ResolveResumeID = func(key, cwd string, pid int, startedAt int64, claimed map[string]bool) (string, bool) {
 		if key == "codex" {
@@ -51,8 +51,6 @@ func init() {
 		wt, err := (&git.GitService{}).CreateWorktree(git.WorktreeRequest{ProjectID: projectID, Name: name, Base: base, CopyEnv: true})
 		return wt.Path, wt.Branch, err
 	}
-	agents.HasComposer = func() bool { return composerArgv() != nil }
-	laravel.ComposerArgv = composerArgv
 	stack.Inspect = func(p store.Project) stack.Facts {
 		info := project.Inspect(p)
 		f := stack.Facts{IsLaravel: info.IsLaravel, HasVendor: info.HasVendor, HasNodeModules: info.HasNodeModules, NpmScripts: info.NpmScripts}
@@ -78,7 +76,7 @@ func main() {
 			application.NewService(&laravel.LaravelService{}),
 			application.NewService(&git.GitService{}),
 			application.NewService(&agents.AgentService{}),
-			application.NewService(&SystemService{}),
+			application.NewService(&system.SystemService{}),
 			application.NewService(&files.FileService{}),
 		},
 		Assets: application.AssetOptions{

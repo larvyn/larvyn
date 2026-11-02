@@ -1,4 +1,4 @@
-package main
+package system
 
 import (
 	"bufio"
@@ -11,6 +11,7 @@ import (
 
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/updater"
 )
 
 // Public repository where users report bugs and ask for features; the source
@@ -26,7 +27,7 @@ type AppInfo struct {
 
 // Info returns the version, a readable OS description and where larvyn.log is.
 func (s *SystemService) Info() AppInfo {
-	return AppInfo{Version: version, OS: osDescription(), LogPath: filepath.Join(store.HomeDir(), "larvyn.log")}
+	return AppInfo{Version: updater.Version, OS: osDescription(), LogPath: filepath.Join(store.HomeDir(), "larvyn.log")}
 }
 
 // ReportBug opens a new bug report in the browser with the version and OS
@@ -41,7 +42,7 @@ func (s *SystemService) ReportBug(details string) error {
 func bugReportURL(details string) string {
 	q := url.Values{}
 	q.Set("template", "bug_report.yml")
-	q.Set("version", version)
+	q.Set("version", updater.Version)
 	q.Set("os", osDescription())
 	if details = strings.TrimSpace(details); details != "" {
 		// Keep the whole URL well under browser and GitHub limits.

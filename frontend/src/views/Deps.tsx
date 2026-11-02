@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ArrowUpCircle, ExternalLink, Package, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { composerRun, useActive } from '../lib/store'
 import { cx } from '../lib/util'

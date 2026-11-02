@@ -1,9 +1,11 @@
-package main
+package system
 
 import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"larvyn/internal/updater"
 )
 
 func TestBugReportURL(t *testing.T) {
@@ -15,7 +17,7 @@ func TestBugReportURL(t *testing.T) {
 		t.Fatalf("base = %s", got)
 	}
 	q := u.Query()
-	if q.Get("template") != "bug_report.yml" || q.Get("version") != version || q.Get("os") == "" {
+	if q.Get("template") != "bug_report.yml" || q.Get("version") != updater.Version || q.Get("os") == "" {
 		t.Fatalf("missing prefilled fields: %v", q)
 	}
 	if wh := q.Get("what-happened"); !strings.HasPrefix(wh, "```\nboom") || len(wh) > 1600 {

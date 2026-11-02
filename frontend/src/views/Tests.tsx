@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Check, ChevronDown, ChevronRight, CircleSlash, Code2, FlaskConical, Play, RotateCcw, TestTube2, X, Zap } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { LaravelService, type TestCase, type TestReport } from '../../bindings/larvyn/internal/laravel'
 import { fail, handoff, showConsole, useActive, useStore } from '../lib/store'
 import { ago, cx } from '../lib/util'

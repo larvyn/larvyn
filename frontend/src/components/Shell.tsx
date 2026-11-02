@@ -34,7 +34,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import {

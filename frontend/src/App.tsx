@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { SystemService } from '../bindings/larvyn'
+import { SystemService } from '../bindings/larvyn/internal/system'
 import { boot, newTerminal, openPalette, selectProject, setView, showConsole, useStore } from './lib/store'
 import { Drawer, NAV_ITEMS, Rail, Sidebar, StatusBar, TitleBar } from './components/Shell'
 import { Palette } from './components/Palette'

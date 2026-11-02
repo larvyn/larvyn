@@ -1,5 +1,5 @@
 import { ArrowUpCircle, ExternalLink, X } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { dismissUpdate, installUpdate, useUpdate } from '../lib/update'
 
 /** Top-right card shown when a newer release is out. */

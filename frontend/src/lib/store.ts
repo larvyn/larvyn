@@ -1,10 +1,8 @@
 import { create } from 'zustand'
 import { Events } from '@wailsio/runtime'
-import {
-  SystemService,
-  type SessionInfo,
-  type Settings,
-} from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
+import { type SessionInfo } from '../../bindings/larvyn/internal/terminal'
+import { type Settings } from '../../bindings/larvyn/internal/store'
 import { ProjectService, type ProjectInfo } from '../../bindings/larvyn/internal/project'
 import { type Project } from '../../bindings/larvyn/internal/store'
 import { AgentService } from '../../bindings/larvyn/internal/agents'
