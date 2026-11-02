@@ -7,27 +7,31 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
  * Items lists the project's stack with what is running.
  */
 export function Items(projectID: string): $CancellablePromise<$models.StackItem[] | null> {
-    return $Call.ByID(2542684367, projectID);
+    return $Call.ByID(1093241071, projectID);
 }
 
 /**
  * Restart stops and starts a stack item.
  */
-export function Restart(projectID: string, key: string): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(3468374828, projectID, key);
+export function Restart(projectID: string, key: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(2941890636, projectID, key);
 }
 
 /**
  * Start runs a stack item (no-op when it already runs).
  */
-export function Start(projectID: string, key: string): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(2092192799, projectID, key);
+export function Start(projectID: string, key: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(601172799, projectID, key);
 }
 
 /**
@@ -35,19 +39,19 @@ export function Start(projectID: string, key: string): $CancellablePromise<$mode
  * would run (server, vite and queue on apps without dev:list).
  */
 export function StartAll(projectID: string, keys: string[] | null): $CancellablePromise<void> {
-    return $Call.ByID(2202985930, projectID, keys);
+    return $Call.ByID(934824746, projectID, keys);
 }
 
 /**
  * Stop stops a stack item.
  */
 export function Stop(projectID: string, key: string): $CancellablePromise<void> {
-    return $Call.ByID(260356389, projectID, key);
+    return $Call.ByID(2970319301, projectID, key);
 }
 
 /**
  * StopAll stops every service of a project.
  */
 export function StopAll(projectID: string): $CancellablePromise<void> {
-    return $Call.ByID(2219852292, projectID);
+    return $Call.ByID(746477412, projectID);
 }

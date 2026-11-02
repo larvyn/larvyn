@@ -342,7 +342,7 @@ func (a *AgentService) installDeps(p Project, dir string) {
 			Cwd: dir, Argv: []string{"composer", "install", "--no-interaction"}})
 	}
 	if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
-		pm := packageManager(dir)
+		pm := proc.PackageManager(dir)
 		_, _ = terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: pm + " install · " + filepath.Base(dir),
 			Cwd: dir, Argv: []string{pm, "install"}})
 	}

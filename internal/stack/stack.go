@@ -1,9 +1,8 @@
-package main
+package stack
 
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,14 +14,14 @@ import (
 
 // StackItem is one dev process a Laravel project usually runs.
 type StackItem struct {
-	Key         string       `json:"key"`
-	Label       string       `json:"label"`
-	Description string       `json:"description"`
-	Argv        []string     `json:"argv"`
-	Available   bool         `json:"available"`
-	Reason      string       `json:"reason"`
-	URL         string       `json:"url"`
-	Session     *SessionInfo `json:"session"`
+	Key         string                `json:"key"`
+	Label       string                `json:"label"`
+	Description string                `json:"description"`
+	Argv        []string              `json:"argv"`
+	Available   bool                  `json:"available"`
+	Reason      string                `json:"reason"`
+	URL         string                `json:"url"`
+	Session     *terminal.SessionInfo `json:"session"`
 	// Dev is set for the processes `php artisan dev` would start (from dev:list).
 	Dev bool `json:"dev"`
 }
@@ -100,20 +99,25 @@ func titleCase(s string) string {
 
 type StackService struct{}
 
-func packageManager(root string) string {
-	for file, pm := range map[string]string{"pnpm-lock.yaml": "pnpm", "yarn.lock": "yarn", "bun.lockb": "bun", "bun.lock": "bun"} {
-		if _, err := os.Stat(filepath.Join(root, file)); err == nil {
-			return pm
-		}
-	}
-	return "npm"
+// Facts is what the stack needs to know about a project's files.
+type Facts struct {
+	IsLaravel      bool
+	HasVendor      bool
+	HasNodeModules bool
+	NpmScripts     map[string]string
+	// Packages are the Composer package names, e.g. laravel/horizon.
+	Packages []string
 }
 
-func stackItems(p Project) []StackItem {
-	info := inspect(p)
+// Inspect reads a project's Facts. main sets it from the project service's
+// inspection, so this package does not depend on it.
+var Inspect = func(p store.Project) Facts { return Facts{} }
+
+func stackItems(p store.Project) []StackItem {
+	info := Inspect(p)
 	has := func(name string) bool {
 		for _, pkg := range info.Packages {
-			if pkg.Name == name {
+			if pkg == name {
 				return true
 			}
 		}
@@ -123,7 +127,7 @@ func stackItems(p Project) []StackItem {
 	if port == 0 {
 		port = 8000
 	}
-	pm := packageManager(p.Path)
+	pm := proc.PackageManager(p.Path)
 	_, hasDev := info.NpmScripts["dev"]
 	serve := StackItem{Key: "serve", Label: "HTTP server", Description: fmt.Sprintf("php artisan serve on :%d", port),
 		Argv:      []string{store.PHP(), "artisan", "serve", "--host=127.0.0.1", fmt.Sprintf("--port=%d", port)},
@@ -204,10 +208,10 @@ func (s *StackService) Items(projectID string) ([]StackItem, error) {
 }
 
 // Start runs a stack item (no-op when it already runs).
-func (s *StackService) Start(projectID, key string) (SessionInfo, error) {
+func (s *StackService) Start(projectID, key string) (terminal.SessionInfo, error) {
 	p, ok := store.FindProject(projectID)
 	if !ok {
-		return SessionInfo{}, errors.New("project not found")
+		return terminal.SessionInfo{}, errors.New("project not found")
 	}
 	for _, it := range stackItems(p) {
 		if it.Key != key {
@@ -217,29 +221,29 @@ func (s *StackService) Start(projectID, key string) (SessionInfo, error) {
 			if it.Session.Running {
 				return *it.Session, nil
 			}
-			_ = terminals.Close(it.Session.ID)
+			_ = terminal.Sessions.Close(it.Session.ID)
 		}
 		if !it.Available {
-			return SessionInfo{}, errors.New(proc.FirstNonEmpty(it.Reason, it.Label+" is not available here"))
+			return terminal.SessionInfo{}, errors.New(proc.FirstNonEmpty(it.Reason, it.Label+" is not available here"))
 		}
-		return terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
+		return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
 			Cwd: p.Path, Argv: it.Argv, Meta: map[string]string{"url": it.URL}})
 	}
-	return SessionInfo{}, errors.New("unknown stack item " + key)
+	return terminal.SessionInfo{}, errors.New("unknown stack item " + key)
 }
 
 // Stop stops a stack item.
 func (s *StackService) Stop(projectID, key string) error {
 	if sess := terminal.Find(projectID, "service", key); sess != nil {
-		return terminals.Kill(sess.ID)
+		return terminal.Sessions.Kill(sess.ID)
 	}
 	return nil
 }
 
 // Restart stops and starts a stack item.
-func (s *StackService) Restart(projectID, key string) (SessionInfo, error) {
+func (s *StackService) Restart(projectID, key string) (terminal.SessionInfo, error) {
 	if sess := terminal.Find(projectID, "service", key); sess != nil {
-		_ = terminals.Kill(sess.ID)
+		_ = terminal.Sessions.Kill(sess.ID)
 		// A program that ignores SIGTERM is killed after about 3 s.
 		for i := 0; i < 80; i++ {
 			if cur := terminal.Find(projectID, "service", key); cur == nil || !cur.Running {
@@ -279,9 +283,9 @@ func (s *StackService) StartAll(projectID string, keys []string) error {
 
 // StopAll stops every service of a project.
 func (s *StackService) StopAll(projectID string) {
-	for _, sess := range terminals.List() {
+	for _, sess := range terminal.Sessions.List() {
 		if sess.ProjectID == projectID && sess.Kind == "service" && sess.Running {
-			_ = terminals.Kill(sess.ID)
+			_ = terminal.Sessions.Kill(sess.ID)
 		}
 	}
 }

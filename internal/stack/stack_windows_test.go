@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package stack
 
 import (
 	"os"
@@ -70,27 +70,27 @@ func TestStackStopKillsEveryProcess(t *testing.T) {
 	if dir == "" {
 		t.Skip("set LARVYN_TEST_PROJECT to a Laravel app")
 	}
-	p := Project{ID: "stacktest", Name: "stack test", Path: dir, Port: 8765}
+	p := store.Project{ID: "stacktest", Name: "stack test", Path: dir, Port: 8765}
 	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
 	defer store.Update(func(d *store.State) { d.Projects = d.Projects[:len(d.Projects)-1] })
 
 	for _, it := range stackItems(p) {
 		t.Logf("item %-8s dev=%v avail=%v %q", it.Key, it.Dev, it.Available, strings.Join(it.Argv, " "))
 	}
-	stack := &StackService{}
+	svc := &StackService{}
 	keys := []string{"serve", "vite", "queue", "schedule"}
 	if k := os.Getenv("LARVYN_TEST_KEYS"); k != "" {
 		keys = strings.Split(k, ",")
 	}
 	for _, key := range keys {
-		if _, err := stack.Start(p.ID, key); err != nil {
+		if _, err := svc.Start(p.ID, key); err != nil {
 			t.Fatalf("%s: %v", key, err)
 		}
 	}
 	time.Sleep(10 * time.Second)
 	for _, it := range stackItems(p) {
 		if it.Session != nil {
-			snap, _ := terminals.Output(it.Session.ID)
+			snap, _ := terminal.Sessions.Output(it.Session.ID)
 			if len(snap) > 600 {
 				snap = snap[len(snap)-600:]
 			}
@@ -106,7 +106,7 @@ func TestStackStopKillsEveryProcess(t *testing.T) {
 			t.Logf("%s: %d processes", it.Key, len(trees[it.Key]))
 		}
 	}
-	stack.StopAll(p.ID)
+	svc.StopAll(p.ID)
 	time.Sleep(3 * time.Second)
 	for key, tree := range trees {
 		if left := alive(t, tree); len(left) > 0 {
@@ -121,24 +121,24 @@ func TestCtrlCStopsServe(t *testing.T) {
 	if dir == "" {
 		t.Skip("set LARVYN_TEST_PROJECT to a Laravel app")
 	}
-	p := Project{ID: "ctrlc", Name: "ctrl c", Path: dir, Port: 8767}
+	p := store.Project{ID: "ctrlc", Name: "ctrl c", Path: dir, Port: 8767}
 	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
 	defer store.Update(func(d *store.State) { d.Projects = d.Projects[:len(d.Projects)-1] })
 	s, err := (&StackService{}).Start(p.ID, "serve")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer terminals.Close(s.ID)
+	defer terminal.Sessions.Close(s.ID)
 	time.Sleep(4 * time.Second)
-	terminals.Write(s.ID, "\x03")
-	var info *SessionInfo
+	terminal.Sessions.Write(s.ID, "\x03")
+	var info *terminal.SessionInfo
 	for i := 0; i < 100; i++ {
 		if info = terminal.Find(p.ID, "service", "serve"); info != nil && !info.Running {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	out, _ := terminals.Output(s.ID)
+	out, _ := terminal.Sessions.Output(s.ID)
 	if info == nil || info.Running {
 		t.Fatalf("serve still runs after Ctrl+C:\n%s", proc.StripANSI(out))
 	}

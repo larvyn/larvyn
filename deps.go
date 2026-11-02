@@ -22,7 +22,7 @@ func composerJSON(projectID string, args ...string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := extractJSON(res.Stdout)
+	out := proc.ExtractJSON(res.Stdout)
 	if out == nil {
 		return nil, errors.New(proc.StripANSI(proc.FirstNonEmpty(res.Stderr, res.Stdout, "composer printed no JSON")))
 	}
