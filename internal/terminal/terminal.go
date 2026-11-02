@@ -83,6 +83,10 @@ type session struct {
 	cmd  *pty.Cmd
 	buf  []byte
 	seq  uint64
+	// starting is set while Relaunch prepares a new process.
+	starting bool
+	// resolvedAt is when the agent's conversation id was last looked for.
+	resolvedAt time.Time
 	// interruptAt is when Ctrl+C was last typed; an exit right after it is a stop, not a crash.
 	interruptAt time.Time
 }
@@ -324,7 +328,7 @@ func (t *TerminalService) output(s *session, b []byte) {
 	}
 	id := s.info.ID
 	s.mu.Unlock()
-	t.touch()
+	t.touchOutput()
 	emit("term:data", TermData{ID: id, Seq: seq, Data: base64.StdEncoding.EncodeToString(chunk)})
 	if bell {
 		t.broadcast()

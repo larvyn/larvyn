@@ -85,3 +85,9 @@ func init() {
 	proc := syscall.NewLazyDLL("kernel32.dll").NewProc("SetConsoleCtrlHandler")
 	_, _, _ = proc.Call(0, 0)
 }
+
+// Cwd is the current folder of a running process; Windows does not tell.
+func Cwd(pid int) string { return "" }
+
+// GroupOpenFiles lists a process group's open files; not on Windows.
+func GroupOpenFiles(pgid int, keep func(path string) bool) ([]string, bool) { return nil, false }

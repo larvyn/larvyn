@@ -34,11 +34,11 @@ func main() {
 	}
 	terminal.ResolveProgram = resolveProgram
 	terminal.AgentRelaunch = agentRelaunchArgv
-	terminal.ResolveResumeID = func(key, cwd string, startedAt int64, claimed map[string]bool) string {
+	terminal.ResolveResumeID = func(key, cwd string, pid int, startedAt int64, claimed map[string]bool) (string, bool) {
 		if key == "codex" {
-			return codexSessionID(cwd, startedAt, claimed)
+			return codexResumeID(cwd, pid, startedAt, claimed)
 		}
-		return ""
+		return "", false
 	}
 	updater.Cleanup()
 	proc.StartShellEnvImport()

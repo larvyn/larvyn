@@ -180,6 +180,9 @@ async function doBoot() {
  * back after a restart. */
 function syncLayout() {
   let timer: ReturnType<typeof setTimeout> | undefined
+  // onSessions rebuilds the tabs on every session event, so compare what
+  // would be sent instead of the objects.
+  let sent = ''
   useStore.subscribe((s, prev) => {
     if (s.tabs === prev.tabs && s.activeTab === prev.activeTab) return
     clearTimeout(timer)
@@ -189,6 +192,9 @@ function syncLayout() {
       for (const [pid, ts] of Object.entries(tabs)) {
         if (ts.length) layout[pid] = { tabs: ts.map((t) => ({ id: t.id, panes: t.panes, dir: t.dir })), active: activeTab[pid] ?? '' }
       }
+      const json = JSON.stringify(layout)
+      if (json === sent) return
+      sent = json
       TerminalService.SetLayout(layout).catch(() => {})
     }, 250)
   })

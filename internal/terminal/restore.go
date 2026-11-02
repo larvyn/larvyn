@@ -1,15 +1,19 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
+	"larvyn/internal/proc"
 	"larvyn/internal/store"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -28,7 +32,13 @@ const (
 	// restoreTailBytes is how much scrollback each terminal keeps across a
 	// restart.
 	restoreTailBytes = 200 << 10
-	autosaveEvery    = 15 * time.Second
+	// autosaveEvery is how often a change to the sessions or the layout is
+	// saved; new output alone is saved at most every scrollbackSaveEvery,
+	// since busy services print all the time.
+	autosaveEvery       = 15 * time.Second
+	scrollbackSaveEvery = 2 * time.Minute
+	// resolveEvery spaces out the searches for an agent's conversation id.
+	resolveEvery = time.Minute
 )
 
 // TabLayout is one terminal tab: its panes (session ids) and split direction.
@@ -45,22 +55,24 @@ type ProjectLayout struct {
 }
 
 type savedSession struct {
-	ID         string            `json:"id"`
-	ProjectID  string            `json:"projectId"`
-	Kind       string            `json:"kind"`
-	Key        string            `json:"key"`
-	Title      string            `json:"title"`
-	Cwd        string            `json:"cwd"`
-	Argv       []string          `json:"argv,omitempty"`
-	Command    string            `json:"command,omitempty"`
-	Env        map[string]string `json:"env,omitempty"`
-	Meta       map[string]string `json:"meta,omitempty"`
-	Cols       int               `json:"cols,omitempty"`
-	Rows       int               `json:"rows,omitempty"`
-	Running    bool              `json:"running"`
-	ExitCode   int               `json:"exitCode"`
-	Stopped    bool              `json:"stopped"`
-	Scrollback []byte            `json:"scrollback,omitempty"`
+	ID        string            `json:"id"`
+	ProjectID string            `json:"projectId"`
+	Kind      string            `json:"kind"`
+	Key       string            `json:"key"`
+	Title     string            `json:"title"`
+	Cwd       string            `json:"cwd"`
+	Argv      []string          `json:"argv,omitempty"`
+	Command   string            `json:"command,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	Meta      map[string]string `json:"meta,omitempty"`
+	Cols      int               `json:"cols,omitempty"`
+	Rows      int               `json:"rows,omitempty"`
+	Running   bool              `json:"running"`
+	ExitCode  int               `json:"exitCode"`
+	Stopped   bool              `json:"stopped"`
+	// LastActivity tells which of the agents sharing a folder talked last.
+	LastActivity int64  `json:"lastActivity,omitempty"`
+	Scrollback   []byte `json:"scrollback,omitempty"`
 }
 
 type savedWorkspace struct {
@@ -80,22 +92,38 @@ type workspaceState struct {
 	// closed is set once the save on quit is written: what the dying
 	// processes do afterwards must not overwrite it.
 	closed atomic.Bool
-	dirty  atomic.Bool
-	once   sync.Once
-	saveMu sync.Mutex
+	// dirty: sessions or layout changed; outDirty: only new output.
+	dirty    atomic.Bool
+	outDirty atomic.Bool
+	once     sync.Once
+	saveMu   sync.Mutex
+	lastSave time.Time // under saveMu
 }
 
 // AgentRelaunch builds the command that starts a stopped agent session
-// again, and tells whether it resumes the agent's conversation. main sets it:
-// the agents are defined there.
-var AgentRelaunch = func(spec SessionSpec) (argv []string, resumes bool, err error) {
+// again, and tells whether it resumes the agent's conversation. shared is set
+// when another session of the same agent in the same folder talked more
+// recently: an agent that resumes "the latest conversation here" would pick
+// that one up, so it must start afresh. main sets it: the agents live there.
+var AgentRelaunch = func(spec SessionSpec, shared bool) (argv []string, resumes bool, err error) {
 	return nil, false, errors.New("agents cannot be relaunched")
 }
 
 // ResolveResumeID finds the conversation id of an agent that does not let
-// Larvyn pick it (Codex), for a session of agent key started in cwd at
-// startedAt (Unix ms), skipping the ids in claimed. main sets it.
-var ResolveResumeID = func(key, cwd string, startedAt int64, claimed map[string]bool) string { return "" }
+// Larvyn pick it (Codex), for a session of agent key in cwd whose process
+// group is pid (0 once it stopped), started at startedAt (Unix ms), skipping
+// the ids in claimed. exact is set when the id comes from the file the
+// agent has open rather than a guess by folder and time. main sets it.
+var ResolveResumeID = func(key, cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
+	return "", false
+}
+
+func firstNonZero(a, b int64) int64 {
+	if a != 0 {
+		return a
+	}
+	return b
+}
 
 func isDir(path string) bool {
 	if path == "" {
@@ -107,8 +135,22 @@ func isDir(path string) bool {
 
 func workspacePath() string { return filepath.Join(store.HomeDir(), workspaceFile) }
 
-// touch marks the workspace as changed since the last save.
+// touch marks the sessions or the layout as changed since the last save.
 func (t *TerminalService) touch() { t.ws.dirty.Store(true) }
+
+// touchOutput marks new output since the last save.
+func (t *TerminalService) touchOutput() { t.ws.outDirty.Store(true) }
+
+// autosave saves when the sessions changed, or when only output did and the
+// last save is a while ago.
+func (t *TerminalService) autosave() {
+	t.ws.saveMu.Lock()
+	stale := time.Since(t.ws.lastSave) >= scrollbackSaveEvery
+	t.ws.saveMu.Unlock()
+	if t.ws.dirty.Swap(false) || (stale && t.ws.outDirty.Load()) {
+		t.saveWorkspace()
+	}
+}
 
 // ServiceStartup saves the workspace now and then, so a crash loses little.
 func (t *TerminalService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
@@ -123,9 +165,7 @@ func (t *TerminalService) ServiceStartup(ctx context.Context, _ application.Serv
 			case <-ctx.Done():
 				return
 			case <-tick.C:
-				if t.ws.dirty.Swap(false) {
-					t.saveWorkspace()
-				}
+				t.autosave()
 			}
 		}
 	}()
@@ -136,9 +176,12 @@ func (t *TerminalService) ServiceStartup(ctx context.Context, _ application.Serv
 // back after a restart.
 func (t *TerminalService) SetLayout(layout map[string]ProjectLayout) {
 	t.ws.mu.Lock()
+	same := reflect.DeepEqual(t.ws.layout, layout)
 	t.ws.layout = layout
 	t.ws.mu.Unlock()
-	t.touch()
+	if !same {
+		t.touch()
+	}
 }
 
 // Restore brings back the workspace saved when Larvyn last quit; it does so
@@ -226,18 +269,38 @@ func remapLayout(in map[string]ProjectLayout, fn func(string) (string, bool)) ma
 // with their new ids.
 func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]ProjectLayout {
 	ids := map[string]string{}
+	var all []*session
+	runs := map[*session]bool{}
 	for _, saved := range ws.Sessions {
 		s, run := t.restoreSession(saved, ws.SavedAt)
 		if s == nil {
 			continue
 		}
 		ids[saved.ID] = s.info.ID
+		all = append(all, s)
+		runs[s] = run
 		t.add(s)
-		if run {
-			if err := t.relaunch(s); err != nil {
-				t.output(s, []byte("\x1b[31mCould not restart: "+err.Error()+"\x1b[0m\r\n"))
-				store.AppendLog("warn", "restore "+saved.Title+": "+err.Error())
+	}
+	// Decide who shares a folder before anything starts: starting refreshes
+	// the activity that decision is based on.
+	shared := map[*session]bool{}
+	for _, s := range all {
+		shared[s] = sharesFolder(s, all)
+	}
+	for _, s := range all {
+		if !runs[s] {
+			continue
+		}
+		if s.spec.Kind == "agent" {
+			// Only an agent that picks its conversation up comes back on its
+			// own; the rest wait for Relaunch.
+			if _, resumes, err := AgentRelaunch(s.spec, shared[s]); err != nil || !resumes {
+				continue
 			}
+		}
+		if err := t.relaunch(s, shared[s]); err != nil {
+			t.output(s, []byte("\x1b[31mCould not restart: "+err.Error()+"\x1b[0m\r\n"))
+			store.AppendLog("warn", "restore "+s.info.Title+": "+err.Error())
 		}
 	}
 	return remapLayout(ws.Layout, func(old string) (string, bool) {
@@ -278,7 +341,7 @@ func (t *TerminalService) restoreSession(saved savedSession, savedAt int64) (s *
 	s = &session{spec: spec, info: SessionInfo{
 		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key, Title: spec.Title, Cwd: cwd,
 		Command: command, ExitCode: saved.ExitCode, Stopped: saved.Stopped || saved.Running, Restored: true,
-		StartedAt: now, EndedAt: now, LastActivity: now, Meta: spec.Meta,
+		StartedAt: now, EndedAt: now, LastActivity: firstNonZero(saved.LastActivity, now), Meta: spec.Meta,
 	}}
 	s.buf = restoredScrollback(saved.Scrollback, savedAt)
 	s.seq = 1
@@ -293,10 +356,35 @@ func (t *TerminalService) restoreSession(saved savedSession, savedAt int64) (s *
 		// command from LARVYN_RUN) waits for Relaunch.
 		run = len(spec.Argv) == 0 && spec.Command == ""
 	case "agent":
-		_, resumes, err := AgentRelaunch(spec)
-		run = err == nil && resumes
+		run = true // if it resumes; see restoreWorkspace
 	}
 	return s, run
+}
+
+// sharesFolder tells whether another session of the same agent works in the
+// same folder and talked after s (or at the same time and started later).
+func sharesFolder(s *session, all []*session) bool {
+	s.mu.Lock()
+	kind, key, cwd, last := s.info.Kind, s.info.Key, s.info.Cwd, s.info.LastActivity
+	s.mu.Unlock()
+	if kind != "agent" {
+		return false
+	}
+	after := false
+	for _, o := range all {
+		if o == s {
+			after = true
+			continue
+		}
+		o.mu.Lock()
+		same := o.info.Kind == "agent" && o.info.Key == key && proc.SamePath(o.info.Cwd, cwd)
+		olast := o.info.LastActivity
+		o.mu.Unlock()
+		if same && (olast > last || (olast == last && after)) {
+			return true
+		}
+	}
+	return false
 }
 
 // restoredScrollback is the saved output to show again: cut at a line start,
@@ -307,13 +395,7 @@ func restoredScrollback(b []byte, savedAt int64) []byte {
 		return nil
 	}
 	if len(b) > restoreTailBytes {
-		b = b[len(b)-restoreTailBytes:]
-		for i, c := range b {
-			if c == '\n' {
-				b = b[i+1:]
-				break
-			}
-		}
+		b = cleanCut(b[len(b)-restoreTailBytes:])
 	}
 	when := ""
 	if savedAt > 0 {
@@ -327,6 +409,24 @@ func restoredScrollback(b []byte, savedAt int64) []byte {
 	return out
 }
 
+// cleanCut drops the start of a tail cut out of a longer output, so the
+// replay does not begin in the middle of a line, an escape sequence or a
+// UTF-8 character: it starts after the first newline, or else at the first
+// escape, or else at the first whole character. Full-screen programs redraw
+// with cursor moves and may print no newline for a long time.
+func cleanCut(b []byte) []byte {
+	if i := bytes.IndexByte(b, '\n'); i >= 0 {
+		return b[i+1:]
+	}
+	if i := bytes.IndexByte(b, 0x1b); i >= 0 {
+		return b[i:]
+	}
+	for len(b) > 0 && !utf8.RuneStart(b[0]) {
+		b = b[1:]
+	}
+	return b
+}
+
 // Relaunch starts a stopped terminal's program again in the same session:
 // an agent resumes its conversation when it can, anything else runs its
 // command again.
@@ -335,35 +435,57 @@ func (t *TerminalService) Relaunch(id string) (SessionInfo, error) {
 	if err != nil {
 		return SessionInfo{}, err
 	}
-	if err := t.relaunch(s); err != nil {
+	if err := t.relaunch(s, sharesFolder(s, t.all())); err != nil {
 		return SessionInfo{}, err
 	}
 	return s.snapshotInfo(), nil
 }
 
-func (t *TerminalService) relaunch(s *session) error {
-	s.mu.Lock()
-	running, spec := s.info.Running, s.spec
-	s.mu.Unlock()
-	if running {
-		return errors.New("the terminal is still running")
+// all returns every session, oldest first.
+func (t *TerminalService) all() []*session {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]*session, 0, len(t.order))
+	for _, id := range t.order {
+		out = append(out, t.sessions[id])
 	}
+	return out
+}
+
+func (t *TerminalService) relaunch(s *session, shared bool) error {
+	s.mu.Lock()
+	if s.info.Running || s.starting {
+		s.mu.Unlock()
+		return errors.New("the terminal is already running")
+	}
+	// starting keeps a second click from spawning a second process while
+	// this one looks up its program; spawn sets Running before it clears.
+	s.starting = true
+	spec := s.spec
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.starting = false
+		s.mu.Unlock()
+	}()
 	if spec.Key == "create" {
 		return errors.New("start the installer again from New app")
 	}
 	if !isDir(spec.Cwd) {
 		return errors.New("folder not found: " + spec.Cwd)
 	}
-	var argv []string
+	// At boot the PATH from the login shell may still be loading.
+	proc.WaitShellEnv()
 	if spec.Kind == "agent" {
-		a, _, err := AgentRelaunch(spec)
+		a, _, err := AgentRelaunch(spec, shared)
 		if err != nil {
 			return err
 		}
-		argv = a
-	} else {
-		argv, _ = resolveArgv(spec)
+		spec.Argv = a
 	}
+	// Through resolveArgv like any start, so a Windows .cmd shim is
+	// unwrapped instead of running under cmd.exe.
+	argv, _ := resolveArgv(spec)
 	if err := t.spawn(s, argv, spec.Cols, spec.Rows); err != nil {
 		return err
 	}
@@ -387,13 +509,7 @@ func (t *TerminalService) saveWorkspace() {
 		_ = os.Remove(workspacePath())
 		return
 	}
-	t.mu.Lock()
-	all := make([]*session, 0, len(t.order))
-	for _, id := range t.order {
-		all = append(all, t.sessions[id])
-	}
-	t.mu.Unlock()
-
+	all := t.all()
 	ws := savedWorkspace{Version: workspaceVersion, SavedAt: time.Now().UnixMilli(), Sessions: []savedSession{}}
 	claimed := map[string]bool{}
 	for _, s := range all {
@@ -403,10 +519,14 @@ func (t *TerminalService) saveWorkspace() {
 	}
 	for _, s := range all {
 		s.resolveResumeID(claimed)
+		cwd := s.shellCwd()
 		s.mu.Lock()
 		if s.info.ProjectID == "" || s.info.Key == "create" {
 			s.mu.Unlock()
 			continue
+		}
+		if cwd == "" {
+			cwd = s.info.Cwd
 		}
 		buf := s.buf
 		if len(buf) > restoreTailBytes {
@@ -414,9 +534,9 @@ func (t *TerminalService) saveWorkspace() {
 		}
 		ws.Sessions = append(ws.Sessions, savedSession{
 			ID: s.info.ID, ProjectID: s.info.ProjectID, Kind: s.info.Kind, Key: s.info.Key, Title: s.info.Title,
-			Cwd: s.info.Cwd, Argv: s.spec.Argv, Command: s.spec.Command, Env: s.spec.Env, Meta: s.info.Meta,
+			Cwd: cwd, Argv: s.spec.Argv, Command: s.spec.Command, Env: s.spec.Env, Meta: s.info.Meta,
 			Cols: s.spec.Cols, Rows: s.spec.Rows, Running: s.info.Running, ExitCode: s.info.ExitCode, Stopped: s.info.Stopped,
-			Scrollback: append([]byte(nil), buf...),
+			LastActivity: s.info.LastActivity, Scrollback: append([]byte(nil), buf...),
 		})
 		s.mu.Unlock()
 	}
@@ -434,7 +554,29 @@ func (t *TerminalService) saveWorkspace() {
 	}
 	if err := writePrivate(workspacePath(), b); err != nil {
 		store.AppendLog("warn", "save workspace: "+err.Error())
+		return
 	}
+	t.ws.lastSave = time.Now()
+	t.ws.outDirty.Store(false)
+}
+
+// shellCwd is the folder an interactive shell is in now (after any cd), or
+// "" when it is not one, stopped, or the system does not tell.
+func (s *session) shellCwd() string {
+	s.mu.Lock()
+	interactive := s.info.Kind == "shell" && len(s.spec.Argv) == 0 && s.spec.Command == ""
+	pid := 0
+	if interactive && s.info.Running && s.cmd != nil && s.cmd.Process != nil {
+		pid = s.cmd.Process.Pid
+	}
+	s.mu.Unlock()
+	if pid == 0 {
+		return ""
+	}
+	if cwd := proc.Cwd(pid); isDir(cwd) {
+		return cwd
+	}
+	return ""
 }
 
 // writePrivate replaces a file atomically, readable only by the user: the
@@ -458,16 +600,35 @@ func (s *session) resumeID() string {
 
 // resolveResumeID finds the conversation of an agent that does not let
 // Larvyn pick its session id (Codex) and keeps it in the session's meta.
+//
+// A guess (by folder and time) is checked again while the agent runs, since
+// a codex started elsewhere in the same folder could have been taken for it.
+// Searches are spaced out by resolveEvery.
 func (s *session) resolveResumeID(claimed map[string]bool) {
 	s.mu.Lock()
 	kind, key, cwd, started := s.info.Kind, s.info.Key, s.info.Cwd, s.info.StartedAt
-	has := s.info.Meta["resumeId"] != ""
+	cur, guess := s.info.Meta["resumeId"], s.info.Meta["resumeGuess"] == "1"
+	pid := 0
+	if s.info.Running && s.cmd != nil && s.cmd.Process != nil {
+		pid = s.cmd.Process.Pid
+	}
+	due := time.Since(s.resolvedAt) >= resolveEvery
+	if kind == "agent" && (cur == "" || guess) && due {
+		s.resolvedAt = time.Now()
+	}
 	s.mu.Unlock()
-	if kind != "agent" || has {
+	if kind != "agent" || (cur != "" && !guess) || !due {
 		return
 	}
-	id := ResolveResumeID(key, cwd, started, claimed)
-	if id == "" {
+	if cur != "" && pid == 0 {
+		return // a guess can only be checked against a running agent
+	}
+	delete(claimed, cur)
+	id, exact := ResolveResumeID(key, cwd, pid, started, claimed)
+	if id == "" || (cur != "" && !exact) {
+		if cur != "" {
+			claimed[cur] = true
+		}
 		return
 	}
 	claimed[id] = true
@@ -478,6 +639,11 @@ func (s *session) resolveResumeID(claimed map[string]bool) {
 		meta[k] = v
 	}
 	meta["resumeId"] = id
+	if exact {
+		delete(meta, "resumeGuess")
+	} else {
+		meta["resumeGuess"] = "1"
+	}
 	s.info.Meta, s.spec.Meta = meta, meta
 	s.mu.Unlock()
 }

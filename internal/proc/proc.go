@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -122,4 +123,24 @@ func NonEmptyLines(s string) []string {
 		}
 	}
 	return out
+}
+
+// SamePath tells whether two paths name the same folder: symlinks are
+// resolved (a program records its getcwd, e.g. /private/var for /var), and
+// case is ignored only where file systems usually ignore it.
+func SamePath(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	resolve := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			p = r
+		}
+		return filepath.Clean(p)
+	}
+	a, b = resolve(a), resolve(b)
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }

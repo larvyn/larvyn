@@ -16,7 +16,7 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
 	spec := SessionSpec{Kind: "agent", Key: "claude", Meta: map[string]string{"resumeId": "abc", "yolo": "1"}}
 
-	argv, resumes, err := agentRelaunchArgv(spec)
+	argv, resumes, err := agentRelaunchArgv(spec, false)
 	if err != nil || !resumes {
 		t.Fatal(err, resumes)
 	}
@@ -28,7 +28,7 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 	dir := filepath.Join(cfg, "projects", "-tmp-app")
 	_ = os.MkdirAll(dir, 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "abc.jsonl"), []byte("{}\n"), 0o644)
-	argv, _, _ = agentRelaunchArgv(spec)
+	argv, _, _ = agentRelaunchArgv(spec, false)
 	if want := []string{"--dangerously-skip-permissions", "--resume", "abc"}; !reflect.DeepEqual(argv[1:], want) {
 		t.Fatalf("got %v, want %v", argv[1:], want)
 	}
@@ -37,7 +37,7 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 func TestAgentWithoutResumeStartsAfresh(t *testing.T) {
 	bin := fakeBinary(t, "cursor-agent")
 	t.Setenv("PATH", filepath.Dir(bin))
-	argv, resumes, err := agentRelaunchArgv(SessionSpec{Kind: "agent", Key: "cursor-agent", Meta: map[string]string{"prompt": "fix it"}})
+	argv, resumes, err := agentRelaunchArgv(SessionSpec{Kind: "agent", Key: "cursor-agent", Meta: map[string]string{"prompt": "fix it"}}, false)
 	if err != nil || resumes || len(argv) != 1 {
 		t.Fatalf("argv %v resumes %v err %v", argv, resumes, err)
 	}
@@ -77,4 +77,26 @@ func fakeBinary(t *testing.T, name string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+// Of several sessions in one folder, an agent that resumes "the latest
+// conversation here" resumes only in the one that talked last; Claude and
+// Codex resume by id and do not care.
+func TestSharedFolderStopsResumeByFolder(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"opencode", "claude"} {
+		_ = os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755)
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	argv, resumes, err := agentRelaunchArgv(SessionSpec{Key: "opencode"}, true)
+	if err != nil || resumes || len(argv) != 1 {
+		t.Fatalf("shared opencode: argv %v resumes %v err %v", argv, resumes, err)
+	}
+	if _, resumes, _ := agentRelaunchArgv(SessionSpec{Key: "opencode"}, false); !resumes {
+		t.Fatal("opencode alone in its folder resumes")
+	}
+	if _, resumes, _ := agentRelaunchArgv(SessionSpec{Key: "claude", Meta: map[string]string{"resumeId": "x"}}, true); !resumes {
+		t.Fatal("claude resumes by id, shared or not")
+	}
 }
