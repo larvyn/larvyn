@@ -1,9 +1,11 @@
-package main
+package project
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"larvyn/internal/store"
 )
 
 func TestSQLitePath(t *testing.T) {
@@ -58,13 +60,13 @@ func TestInspectReportsMissingSQLite(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("DB_CONNECTION=sqlite\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	info := inspect(Project{Path: root})
+	info := Inspect(store.Project{Path: root})
 	if info.SQLiteFile != filepath.Join(root, "database", "database.sqlite") || !info.SQLiteMissing {
 		t.Fatalf("got file=%q missing=%v, want the default file reported missing", info.SQLiteFile, info.SQLiteMissing)
 	}
 	_ = os.MkdirAll(filepath.Join(root, "database"), 0o755)
 	_ = os.WriteFile(info.SQLiteFile, nil, 0o644)
-	if inspect(Project{Path: root}).SQLiteMissing {
+	if Inspect(store.Project{Path: root}).SQLiteMissing {
 		t.Fatal("still reported missing after the file was created")
 	}
 }

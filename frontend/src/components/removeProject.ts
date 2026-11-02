@@ -1,5 +1,5 @@
-import type { Project } from '../../bindings/larvyn'
-import { ProjectService } from '../../bindings/larvyn'
+import type { Project } from '../../bindings/larvyn/internal/store'
+import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { fail } from '../lib/store'
 import { confirmDialog } from './ui'
 
