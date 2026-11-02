@@ -356,6 +356,9 @@ kbd {
 
 .error-box { border: 1px solid rgba(255, 90, 82, 0.25); background: var(--red-soft); color: #ffb3ae; border-radius: var(--r); padding: 12px 14px; font-size: 12.5px; user-select: text; white-space: pre-wrap; word-break: break-word; }
 .error-box b { color: var(--red); }
+.warn-box { display: flex; gap: 10px; align-items: flex-start; border: 1px solid rgba(245, 197, 66, 0.25); background: var(--yellow-soft); color: var(--text-2); border-radius: var(--r); padding: 12px 14px; font-size: 12.5px; line-height: 1.5; }
+.warn-box > svg { width: 16px; height: 16px; color: var(--yellow); flex: none; margin-top: 1px; }
+.warn-box b { color: var(--text); display: block; margin-bottom: 2px; }
 
 /* tables */
 .table-wrap { overflow: auto; min-height: 0; }

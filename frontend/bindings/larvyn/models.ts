@@ -353,6 +353,11 @@ export interface Tool {
     "path": string;
     "version": string;
     "hint": string;
+
+    /**
+     * Outdated explains why this version should be updated; empty when fine.
+     */
+    "outdated": string;
 }
 
 /**

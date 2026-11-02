@@ -31,6 +31,64 @@ type Tool struct {
 	Path    string `json:"path"`
 	Version string `json:"version"`
 	Hint    string `json:"hint"`
+	// Outdated explains why this version should be updated; empty when fine.
+	Outdated string `json:"outdated"`
+}
+
+// minLaravelInstaller is the first laravel/installer that writes a valid
+// APP_URL for Laravel 13: older ones turn the skeleton's
+// http://localhost:8000 into http://localhost:8000:8000, and every artisan
+// command then fails with "Invalid URI: Host is malformed".
+const minLaravelInstaller = "5.25.2"
+
+// installerOutdated returns why a laravel/installer version must be updated,
+// or "" when it is fine or unknown.
+func installerOutdated(version string) string {
+	if version == "" || !versionLess(version, minLaravelInstaller) {
+		return ""
+	}
+	return "Laravel installer " + version + " writes a broken APP_URL (http://localhost:8000:8000) in new Laravel 13 apps. Update to " + minLaravelInstaller + " or newer."
+}
+
+// laravelInstallerVersion runs `laravel --version`; "" when it is missing or
+// prints no version.
+func laravelInstallerVersion() string {
+	bin := proc.Which("laravel")
+	if bin == "" {
+		return ""
+	}
+	res, err := proc.Run("", 8*time.Second, nil, bin, "--version")
+	if err != nil {
+		return ""
+	}
+	return versionRe.FindString(res.Stdout + res.Stderr)
+}
+
+// LaravelInstaller reports the global laravel/installer for the New app
+// dialog: where it is, its version and whether it must be updated.
+func (s *SystemService) LaravelInstaller() Tool {
+	t := Tool{ID: "laravel", Name: "Laravel installer", Path: proc.Which("laravel"), Hint: "composer global require laravel/installer"}
+	t.Version = laravelInstallerVersion()
+	t.Outdated = installerOutdated(t.Version)
+	return t
+}
+
+// versionLess compares dotted numeric versions: 5.15.0 < 5.25.2 < 5.100.
+func versionLess(a, b string) bool {
+	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(pa) || i < len(pb); i++ {
+		var x, y int
+		if i < len(pa) {
+			fmt.Sscan(pa[i], &x)
+		}
+		if i < len(pb) {
+			fmt.Sscan(pb[i], &y)
+		}
+		if x != y {
+			return x < y
+		}
+	}
+	return false
 }
 
 var versionRe = regexp.MustCompile(`\d+\.\d+(\.\d+)?`)
@@ -72,6 +130,9 @@ func (s *SystemService) Tools() []Tool {
 				if res, err := proc.Run("", 8*time.Second, nil, cmd[0], append(cmd[1:], args...)...); err == nil {
 					t.Version = versionRe.FindString(res.Stdout + res.Stderr)
 				}
+			}
+			if id == "laravel" {
+				t.Outdated = installerOutdated(t.Version)
 			}
 			out[i] = t
 		}(i, sp.id, sp.name, sp.bin, sp.args, sp.hint)
@@ -267,7 +328,9 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 		return nil, errors.New(target + " already exists")
 	}
 	var argv []string
-	if proc.Which("laravel") != "" {
+	// An installer older than minLaravelInstaller breaks APP_URL, so the
+	// Composer route (which mirrors `laravel new`) is used instead.
+	if proc.Which("laravel") != "" && installerOutdated(laravelInstallerVersion()) == "" {
 		argv = []string{"laravel", "new", name, "--no-interaction", "--git"}
 		switch req.Starter {
 		case "react", "vue", "livewire":

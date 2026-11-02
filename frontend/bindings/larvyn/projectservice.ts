@@ -68,6 +68,15 @@ export function Remove(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * RepairEnv fixes known mistakes that scaffolding tools leave in .env and
+ * reports whether it changed anything. Today that is a doubled APP_URL port,
+ * which makes every artisan command fail with "Host is malformed".
+ */
+export function RepairEnv(id: string): $CancellablePromise<boolean> {
+    return $Call.ByID(2543927612, id);
+}
+
+/**
  * Touch marks a project as just opened.
  */
 export function Touch(id: string): $CancellablePromise<void> {

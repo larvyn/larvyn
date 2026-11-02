@@ -3,7 +3,7 @@ import { ArrowUpCircle, Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Inf
 import { checkForUpdate, installUpdate, useUpdate } from '../lib/update'
 import { Brand } from '../components/Brand'
 import { AgentService, ProjectService, SystemService, type AgentKind, type AppInfo, type Settings as S, type Tool } from '../../bindings/larvyn'
-import { toast, useStore } from '../lib/store'
+import { toast, updateLaravelInstaller, useStore } from '../lib/store'
 import { setFontSize } from '../lib/terms'
 import { errMsg } from '../lib/util'
 
@@ -149,7 +149,13 @@ export function Settings() {
                   {t.name} {t.version && <span className="badge mono" style={{ marginLeft: 6 }}>{t.version}</span>}
                 </b>
                 <span className="mono">{t.path || t.hint || 'not found'}</span>
+                {t.outdated && <span style={{ color: 'var(--yellow)', fontSize: 11.5 }}>{t.outdated}</span>}
               </div>
+              {t.outdated && t.id === 'laravel' && (
+                <button className="btn sm primary" onClick={updateLaravelInstaller}>
+                  Update
+                </button>
+              )}
               {!t.path && t.id === 'composer' && (
                 <button
                   className="btn sm primary"
