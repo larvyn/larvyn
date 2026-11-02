@@ -1,4 +1,4 @@
-package main
+package agents
 
 import (
 	"bufio"
@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"larvyn/internal/git"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 // AgentKind is a coding agent CLI Larvyn knows how to launch.
@@ -86,10 +86,10 @@ var resumeArgs = map[string]func(meta map[string]string) []string{
 // conversation.
 var resumesByFolder = map[string]bool{"opencode": true, "antigravity": true, "aider": true, "pi": true}
 
-// agentRelaunchArgv is the command that starts a stopped agent session again,
+// RelaunchArgv is the command that starts a stopped agent session again,
 // with its permission flags and without the first prompt. resumes tells
 // whether the agent can pick its conversation up.
-func agentRelaunchArgv(spec SessionSpec, shared bool) (argv []string, resumes bool, err error) {
+func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resumes bool, err error) {
 	var kind *AgentKind
 	for _, k := range agentKinds {
 		if k.ID == spec.Key {
@@ -146,10 +146,10 @@ func isCodexRollout(path string) bool {
 	return strings.HasPrefix(base, "rollout-") && strings.HasSuffix(base, ".jsonl")
 }
 
-// codexResumeID finds the conversation of a Codex session. While it runs,
+// CodexResumeID finds the conversation of a Codex session. While it runs,
 // the rollout file its processes have open names it exactly; otherwise (or
 // where open files cannot be listed) it is guessed by folder and time.
-func codexResumeID(cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
+func CodexResumeID(cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
 	if pid > 0 {
 		if files, ok := proc.GroupOpenFiles(pid, isCodexRollout); ok {
 			for _, f := range files {
@@ -232,6 +232,16 @@ func newUUID() string {
 
 type AgentService struct{}
 
+// CreateWorktree makes a git worktree for an agent and returns its folder and
+// branch. main wires it to the git service, so this package does not import it.
+var CreateWorktree = func(projectID, name, base string) (path, branch string, err error) {
+	return "", "", errors.New("worktrees are not available")
+}
+
+// HasComposer reports whether Composer can run (from PATH or Larvyn's own
+// phar). main wires it; the default only looks on PATH.
+var HasComposer = func() bool { return proc.Which("composer") != "" }
+
 // Kinds lists the known agents and whether each is on PATH.
 func (a *AgentService) Kinds() []AgentKind {
 	out := make([]AgentKind, len(agentKinds))
@@ -257,10 +267,10 @@ type LaunchRequest struct {
 
 // Launch starts an agent session. With Worktree set the agent works on its
 // own branch, so several can attack one task in parallel.
-func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
+func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 	p, ok := store.FindProject(req.ProjectID)
 	if !ok {
-		return SessionInfo{}, errors.New("project not found")
+		return terminal.SessionInfo{}, errors.New("project not found")
 	}
 	var kind *AgentKind
 	for _, k := range a.Kinds() {
@@ -270,10 +280,10 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		}
 	}
 	if kind == nil {
-		return SessionInfo{}, errors.New("unknown agent " + req.Agent)
+		return terminal.SessionInfo{}, errors.New("unknown agent " + req.Agent)
 	}
 	if !kind.Installed {
-		return SessionInfo{}, errors.New(kind.Name + " is not installed: " + kind.Install)
+		return terminal.SessionInfo{}, errors.New(kind.Name + " is not installed: " + kind.Install)
 	}
 	title := req.Title
 	if title == "" {
@@ -285,13 +295,13 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 	cwd := proc.FirstNonEmpty(req.Cwd, p.Path)
 	meta := map[string]string{"agent": kind.ID, "agentName": kind.Name, "color": kind.Color, "prompt": req.Prompt}
 	if req.Worktree {
-		wt, err := (&git.GitService{}).CreateWorktree(git.WorktreeRequest{ProjectID: p.ID, Name: kind.ID + "-" + title, Base: req.Base, CopyEnv: true})
+		path, branch, err := CreateWorktree(p.ID, kind.ID+"-"+title, req.Base)
 		if err != nil {
-			return SessionInfo{}, err
+			return terminal.SessionInfo{}, err
 		}
-		cwd = wt.Path
-		meta["worktree"] = wt.Path
-		meta["branch"] = wt.Branch
+		cwd = path
+		meta["worktree"] = path
+		meta["branch"] = branch
 		if req.InstallDeps {
 			a.installDeps(p, cwd)
 		}
@@ -320,7 +330,7 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		}
 		argv = append(argv, req.Prompt)
 	}
-	sess, err := terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Meta: meta})
+	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Meta: meta})
 	if err != nil {
 		return sess, err
 	}
@@ -328,29 +338,29 @@ func (a *AgentService) Launch(req LaunchRequest) (SessionInfo, error) {
 		go func(id, prompt string) {
 			// Give the TUI time to draw its input box before typing into it.
 			time.Sleep(2500 * time.Millisecond)
-			_ = terminals.Write(id, bracketedPaste(prompt))
+			_ = terminal.Sessions.Write(id, bracketedPaste(prompt))
 			time.Sleep(150 * time.Millisecond)
-			_ = terminals.Write(id, "\r")
+			_ = terminal.Sessions.Write(id, "\r")
 		}(sess.ID, req.Prompt)
 	}
 	return sess, nil
 }
 
-func (a *AgentService) installDeps(p Project, dir string) {
-	if _, err := os.Stat(filepath.Join(dir, "composer.json")); err == nil && composerArgv() != nil {
-		_, _ = terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: "composer install · " + filepath.Base(dir),
+func (a *AgentService) installDeps(p store.Project, dir string) {
+	if _, err := os.Stat(filepath.Join(dir, "composer.json")); err == nil && HasComposer() {
+		_, _ = terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: "composer install · " + filepath.Base(dir),
 			Cwd: dir, Argv: []string{"composer", "install", "--no-interaction"}})
 	}
 	if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
 		pm := proc.PackageManager(dir)
-		_, _ = terminals.Start(SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: pm + " install · " + filepath.Base(dir),
+		_, _ = terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: pm + " install · " + filepath.Base(dir),
 			Cwd: dir, Argv: []string{pm, "install"}})
 	}
 }
 
 // Fanout starts the same prompt in several agents, each in its own worktree.
-func (a *AgentService) Fanout(req LaunchRequest, agents []string) ([]SessionInfo, error) {
-	var out []SessionInfo
+func (a *AgentService) Fanout(req LaunchRequest, agents []string) ([]terminal.SessionInfo, error) {
+	var out []terminal.SessionInfo
 	var errs []error
 	for _, id := range agents {
 		r := req
@@ -368,11 +378,11 @@ func (a *AgentService) Fanout(req LaunchRequest, agents []string) ([]SessionInfo
 
 // Send types a follow-up message into an agent and presses enter.
 func (a *AgentService) Send(sessionID, text string) error {
-	if err := terminals.Write(sessionID, bracketedPaste(text)); err != nil {
+	if err := terminal.Sessions.Write(sessionID, bracketedPaste(text)); err != nil {
 		return err
 	}
 	time.Sleep(120 * time.Millisecond)
-	return terminals.Write(sessionID, "\r")
+	return terminal.Sessions.Write(sessionID, "\r")
 }
 
 func firstLine(s string, max int) string {

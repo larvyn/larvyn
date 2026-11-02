@@ -1,4 +1,4 @@
-package main
+package agents
 
 import (
 	"os"
@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"larvyn/internal/terminal"
 )
 
 func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
@@ -14,9 +16,9 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 	t.Setenv("PATH", filepath.Dir(bin))
 	cfg := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
-	spec := SessionSpec{Kind: "agent", Key: "claude", Meta: map[string]string{"resumeId": "abc", "yolo": "1"}}
+	spec := terminal.SessionSpec{Kind: "agent", Key: "claude", Meta: map[string]string{"resumeId": "abc", "yolo": "1"}}
 
-	argv, resumes, err := agentRelaunchArgv(spec, false)
+	argv, resumes, err := RelaunchArgv(spec, false)
 	if err != nil || !resumes {
 		t.Fatal(err, resumes)
 	}
@@ -28,7 +30,7 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 	dir := filepath.Join(cfg, "projects", "-tmp-app")
 	_ = os.MkdirAll(dir, 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "abc.jsonl"), []byte("{}\n"), 0o644)
-	argv, _, _ = agentRelaunchArgv(spec, false)
+	argv, _, _ = RelaunchArgv(spec, false)
 	if want := []string{"--dangerously-skip-permissions", "--resume", "abc"}; !reflect.DeepEqual(argv[1:], want) {
 		t.Fatalf("got %v, want %v", argv[1:], want)
 	}
@@ -37,7 +39,7 @@ func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
 func TestAgentWithoutResumeStartsAfresh(t *testing.T) {
 	bin := fakeBinary(t, "cursor-agent")
 	t.Setenv("PATH", filepath.Dir(bin))
-	argv, resumes, err := agentRelaunchArgv(SessionSpec{Kind: "agent", Key: "cursor-agent", Meta: map[string]string{"prompt": "fix it"}}, false)
+	argv, resumes, err := RelaunchArgv(terminal.SessionSpec{Kind: "agent", Key: "cursor-agent", Meta: map[string]string{"prompt": "fix it"}}, false)
 	if err != nil || resumes || len(argv) != 1 {
 		t.Fatalf("argv %v resumes %v err %v", argv, resumes, err)
 	}
@@ -86,14 +88,14 @@ func TestSharedFolderStopsResumeByFolder(t *testing.T) {
 	oc, cl := fakeBinary(t, "opencode"), fakeBinary(t, "claude")
 	t.Setenv("PATH", filepath.Dir(oc)+string(os.PathListSeparator)+filepath.Dir(cl))
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	argv, resumes, err := agentRelaunchArgv(SessionSpec{Key: "opencode"}, true)
+	argv, resumes, err := RelaunchArgv(terminal.SessionSpec{Key: "opencode"}, true)
 	if err != nil || resumes || len(argv) != 1 {
 		t.Fatalf("shared opencode: argv %v resumes %v err %v", argv, resumes, err)
 	}
-	if _, resumes, _ := agentRelaunchArgv(SessionSpec{Key: "opencode"}, false); !resumes {
+	if _, resumes, _ := RelaunchArgv(terminal.SessionSpec{Key: "opencode"}, false); !resumes {
 		t.Fatal("opencode alone in its folder resumes")
 	}
-	if _, resumes, _ := agentRelaunchArgv(SessionSpec{Key: "claude", Meta: map[string]string{"resumeId": "x"}}, true); !resumes {
+	if _, resumes, _ := RelaunchArgv(terminal.SessionSpec{Key: "claude", Meta: map[string]string{"resumeId": "x"}}, true); !resumes {
 		t.Fatal("claude resumes by id, shared or not")
 	}
 }

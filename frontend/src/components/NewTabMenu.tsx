@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Bot, Columns2, Play, Rows2, Search, Server, Settings2, SquareTerminal, Terminal as TermIcon, Zap } from 'lucide-react'
-import { AgentService, type AgentKind } from '../../bindings/larvyn'
+import { AgentService, type AgentKind } from '../../bindings/larvyn/internal/agents'
 import { type SessionSpec } from '../../bindings/larvyn/internal/terminal'
 import { newTerminal, openInTab, setView, toast, useStore } from '../lib/store'
 import { cx, errMsg } from '../lib/util'

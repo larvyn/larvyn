@@ -15,26 +15,6 @@ import * as terminal$0 from "./internal/terminal/models.js";
 import * as updater$0 from "./internal/updater/models.js";
 
 /**
- * AgentKind is a coding agent CLI Larvyn knows how to launch.
- */
-export interface AgentKind {
-    "id": string;
-    "name": string;
-    "binary": string;
-    "installed": boolean;
-    "path": string;
-    "install": string;
-    "promptAsArg": boolean;
-
-    /**
-     * PromptFlag goes before the prompt argument, for CLIs that take the
-     * first message through an option (agy -i "…").
-     */
-    "promptFlag": string;
-    "color": string;
-}
-
-/**
  * AppInfo describes this build for the About card and bug reports.
  */
 export interface AppInfo {
@@ -118,20 +98,6 @@ export interface LaunchOptions {
      * LARVYN_FILE opens this project-relative file in the Files editor.
      */
     "file": string;
-}
-
-/**
- * LaunchRequest starts one agent, optionally in a fresh worktree.
- */
-export interface LaunchRequest {
-    "projectId": string;
-    "agent": string;
-    "prompt": string;
-    "title": string;
-    "worktree": boolean;
-    "cwd": string;
-    "installDeps": boolean;
-    "base": string;
 }
 
 /**
