@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -24,7 +24,8 @@ import {
 } from 'lucide-react'
 import { LaravelService, SystemService } from '../../bindings/larvyn'
 import { artisanRun, fail, toast, useActive, useStore } from '../lib/store'
-import { bytes, cx, errMsg, load, num, save } from '../lib/util'
+import { bytes, cx, errMsg, load, mod, num, save } from '../lib/util'
+import { useRunShortcut } from '../lib/shortcuts'
 import { Empty, Loading, Modal, SearchInput, confirmDialog, useAsync } from '../components/ui'
 
 type Tab = 'data' | 'structure' | 'sql' | 'migrations'
@@ -400,6 +401,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
   const [res, setRes] = useState<any>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => save('sql:' + projectId, sql), [sql])
   const run = async () => {
     const text = sql.trim()
@@ -420,6 +422,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
       setBusy(false)
     }
   }
+  useRunShortcut(() => !busy && run(), { editor: taRef })
   return (
     <>
       <div className="toolbar">
@@ -431,7 +434,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
         </span>
         <span className="spacer" />
         <button className="btn sm primary" disabled={busy} onClick={run}>
-          {busy ? <div className="spinner" /> : <Play />} Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>Ctrl ↵</kbd>
+          {busy ? <div className="spinner" /> : <Play />} Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>{mod} ↵</kbd>
         </button>
       </div>
       <div style={{ display: 'flex', minHeight: 0, flex: 1 }}>
@@ -441,12 +444,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
               spellCheck={false}
               value={sql}
               onChange={(e) => setSql(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  run()
-                }
-              }}
+              ref={taRef}
               style={{ paddingLeft: 16 }}
             />
           </div>

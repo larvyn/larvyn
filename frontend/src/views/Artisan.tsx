@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Copy, Play, RefreshCw, Star, Terminal, Zap, Box, FileCode2, Database, Workflow, Mail, Shield, TestTube2, Layers, Radio, Bell, Sprout, Factory, Route, Puzzle } from 'lucide-react'
 import { LaravelService } from '../../bindings/larvyn'
 import { artisanRun, toast, useActive, useStore } from '../lib/store'
-import { copy, cx, load, save } from '../lib/util'
+import { copy, cx, load, mod, save } from '../lib/util'
 import { Empty, Loading, SearchInput, useAsync } from '../components/ui'
 
 interface Arg {
@@ -222,7 +222,7 @@ function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; o
             <Copy /> Copy
           </button>
           <button className="btn sm primary" disabled={missing} onClick={run}>
-            <Play /> Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>Ctrl ↵</kbd>
+            <Play /> Run <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>{mod} ↵</kbd>
           </button>
         </div>
       </div>

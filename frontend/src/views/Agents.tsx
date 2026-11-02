@@ -34,7 +34,8 @@ import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { GitService } from '../../bindings/larvyn/internal/git'
 import { agentStatus, composerRun, fail, runInConsole, toast, useActive, useStore } from '../lib/store'
 import { activity } from '../lib/terms'
-import { cx, duration, errMsg, initials, load, save } from '../lib/util'
+import { cx, duration, errMsg, initials, load, mod, save } from '../lib/util'
+import { useRunShortcut } from '../lib/shortcuts'
 import { Diff, Empty, Modal, TermPane, confirmDialog, useNow } from '../components/ui'
 import { Brand, brandUrl } from '../components/Brand'
 
@@ -118,6 +119,9 @@ export function Agents() {
   const installed = kinds.filter((k) => k.installed)
   const multi = picked.length > 1
 
+  // launch is declared below the early return; the shortcut is off without a project.
+  useRunShortcut(() => !busy && installed.length > 0 && launch(), { enabled: !!project && !focused, editor: taRef })
+
   if (!project) return null
 
   const launch = async () => {
@@ -172,9 +176,6 @@ export function Agents() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={`What should the agent${multi ? 's' : ''} build in ${project.name}?  e.g. “Add a Post model with comments, CRUD, policies and Pest tests”`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) launch()
-              }}
             />
             <div className="cbar">
               <div className="agents">
@@ -218,7 +219,7 @@ export function Agents() {
               <button className="btn primary" disabled={busy || !picked.length || installed.length === 0} onClick={launch}>
                 {busy ? <div className="spinner" style={{ borderTopColor: '#fff' }} /> : <Rocket />}
                 {multi ? `Launch ${picked.length} agents` : 'Launch'}
-                <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>Ctrl ↵</kbd>
+                <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>{mod} ↵</kbd>
               </button>
             </div>
           </div>

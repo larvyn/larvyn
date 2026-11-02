@@ -5,7 +5,7 @@ import { Brand } from '../components/Brand'
 import { AgentService, ProjectService, SystemService, type AgentKind, type AppInfo, type Settings as S, type Tool } from '../../bindings/larvyn'
 import { toast, useStore } from '../lib/store'
 import { setFontSize } from '../lib/terms'
-import { errMsg } from '../lib/util'
+import { errMsg, isMac, mod } from '../lib/util'
 
 const EDITORS = [
   { id: 'code', label: 'VS Code' },
@@ -261,7 +261,7 @@ export function Settings() {
             ].flatMap(([a, b]) => [
               <div key={a}>{a}</div>,
               <div key={a + 'k'}>
-                {b.split(' ').map((k, i) => (
+                {b.split(' ').map((k) => (k === 'Ctrl' ? mod : k === 'Alt' && isMac ? '⌥' : k === 'Shift' && isMac ? '⇧' : k)).map((k, i) => (
                   <kbd key={i} style={{ marginRight: 4 }}>
                     {k}
                   </kbd>
