@@ -1,9 +1,9 @@
 date,tag,asset,downloads
-2026-11-02,v0.1.0-beta.8,checksums.txt,0
-2026-11-02,v0.1.0-beta.8,installs.txt,0
-2026-11-02,v0.1.0-beta.8,larvyn-darwin-universal.tar.gz,0
-2026-11-02,v0.1.0-beta.8,larvyn-linux-amd64.tar.gz,0
-2026-11-02,v0.1.0-beta.8,larvyn-windows-amd64.exe,0
+2026-11-02,v0.1.0-beta.8,checksums.txt,6
+2026-11-02,v0.1.0-beta.8,installs.txt,3
+2026-11-02,v0.1.0-beta.8,larvyn-darwin-universal.tar.gz,4
+2026-11-02,v0.1.0-beta.8,larvyn-linux-amd64.tar.gz,2
+2026-11-02,v0.1.0-beta.8,larvyn-windows-amd64.exe,2
 2026-11-02,v0.1.0-beta.7,checksums.txt,4
 2026-11-02,v0.1.0-beta.7,larvyn-darwin-universal.tar.gz,2
 2026-11-02,v0.1.0-beta.7,larvyn-linux-amd64.tar.gz,2
