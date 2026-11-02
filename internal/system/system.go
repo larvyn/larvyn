@@ -1,4 +1,4 @@
-package main
+package system
 
 import (
 	"encoding/base64"
@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"larvyn/internal/git"
+	"larvyn/internal/composer"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 	"larvyn/internal/updater"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -122,7 +123,7 @@ func (s *SystemService) Tools() []Tool {
 			t := Tool{ID: id, Name: name, Hint: hint, Path: proc.Which(bin)}
 			cmd := []string{t.Path}
 			if id == "composer" && t.Path == "" {
-				if c := composerArgv(); c != nil {
+				if c := composer.Argv(); c != nil {
 					t.Path, cmd = c[len(c)-1], c
 				}
 			}
@@ -142,10 +143,10 @@ func (s *SystemService) Tools() []Tool {
 }
 
 // Settings returns the user's settings.
-func (s *SystemService) Settings() Settings { return store.CurrentSettings() }
+func (s *SystemService) Settings() store.Settings { return store.CurrentSettings() }
 
 // SaveSettings stores the user's settings.
-func (s *SystemService) SaveSettings(v Settings) error {
+func (s *SystemService) SaveSettings(v store.Settings) error {
 	return store.Update(func(d *store.State) { d.Settings = v })
 }
 
@@ -319,7 +320,7 @@ type CreateRequest struct {
 
 // CreateProject scaffolds a new Laravel app in a terminal and registers it.
 func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error) {
-	name := git.Slug(req.Name)
+	name := proc.Slug(req.Name)
 	if req.Parent == "" || name == "" {
 		return nil, errors.New("pick a folder and a name")
 	}
@@ -347,7 +348,7 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 		if req.Starter != "" && req.Starter != "none" {
 			argv = append(argv, "--npm")
 		}
-	} else if composer := composerArgv(); composer != nil {
+	} else if composer := composer.Argv(); composer != nil {
 		// Without the installer, create.php does what `laravel new` would:
 		// starter kit, database, git, Pest and npm.
 		argv = createFallbackArgv(req, name, composer)
@@ -358,7 +359,7 @@ func (s *SystemService) CreateProject(req CreateRequest) (map[string]any, error)
 	if req.CreateSQLite && (req.DB == "" || req.DB == "sqlite") {
 		meta["sqlite"] = "1"
 	}
-	sess, err := terminals.Start(SessionSpec{Kind: "run", Key: "create", Title: "laravel new " + name, Cwd: req.Parent, Argv: argv,
+	sess, err := terminal.Sessions.Start(terminal.SessionSpec{Kind: "run", Key: "create", Title: "laravel new " + name, Cwd: req.Parent, Argv: argv,
 		Meta: meta})
 	if err != nil {
 		return nil, err
@@ -382,7 +383,7 @@ func (s *SystemService) Log(level, message string) {
 
 // CheckForUpdate looks up the newest release (betas included) and compares it
 // with this build.
-func (s *SystemService) CheckForUpdate() (UpdateInfo, error) { return updater.Check() }
+func (s *SystemService) CheckForUpdate() (updater.Info, error) { return updater.Check() }
 
 // InstallUpdate downloads tag, verifies it against the release checksums,
 // replaces this installation and restarts Larvyn.

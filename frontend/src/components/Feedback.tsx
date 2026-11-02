@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bug, Lightbulb, MessageCircle, MessageSquareHeart } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { fail } from '../lib/store'
 
 export const DISCUSSIONS_URL = 'https://github.com/larvyn/releases/discussions'

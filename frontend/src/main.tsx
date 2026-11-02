@@ -4,7 +4,7 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './styles/app.css'
 import App from './App'
-import { SystemService } from '../bindings/larvyn'
+import { SystemService } from '../bindings/larvyn/internal/system'
 
 const report = (level: string, msg: string) => SystemService.Log(level, msg).catch(() => {})
 window.addEventListener('error', (e) => report('error', `${e.message} at ${e.filename}:${e.lineno}

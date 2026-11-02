@@ -7,50 +7,60 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as store$0 from "../store/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as updater$0 from "../updater/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
  * CheckForUpdate looks up the newest release (betas included) and compares it
  * with this build.
  */
-export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfo> {
-    return $Call.ByID(1437184838);
+export function CheckForUpdate(): $CancellablePromise<updater$0.Info> {
+    return $Call.ByID(1760738937);
 }
 
 /**
  * CreateProject scaffolds a new Laravel app in a terminal and registers it.
  */
 export function CreateProject(req: $models.CreateRequest): $CancellablePromise<{ [_ in string]?: any } | null> {
-    return $Call.ByID(2955356121, req);
+    return $Call.ByID(40888984, req);
 }
 
 /**
  * HasComposer reports whether Composer can run, from PATH or Larvyn's phar.
  */
 export function HasComposer(): $CancellablePromise<boolean> {
-    return $Call.ByID(887017906);
+    return $Call.ByID(204911311);
 }
 
 /**
  * Home returns Larvyn's state folder.
  */
 export function Home(): $CancellablePromise<string> {
-    return $Call.ByID(1415922759);
+    return $Call.ByID(3230519224);
 }
 
 /**
  * Info returns the version, a readable OS description and where larvyn.log is.
  */
 export function Info(): $CancellablePromise<$models.AppInfo> {
-    return $Call.ByID(3355000204);
+    return $Call.ByID(1497454207);
 }
 
 /**
  * InstallComposer downloads the official installer, verifies its signature
  * and installs composer.phar into Larvyn's folder.
  */
-export function InstallComposer(): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(3556025549);
+export function InstallComposer(): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(3334013584);
 }
 
 /**
@@ -58,7 +68,7 @@ export function InstallComposer(): $CancellablePromise<$models.SessionInfo> {
  * replaces this installation and restarts Larvyn.
  */
 export function InstallUpdate(tag: string): $CancellablePromise<void> {
-    return $Call.ByID(1022785778, tag);
+    return $Call.ByID(3367607187, tag);
 }
 
 /**
@@ -66,14 +76,14 @@ export function InstallUpdate(tag: string): $CancellablePromise<void> {
  * dialog: where it is, its version and whether it must be updated.
  */
 export function LaravelInstaller(): $CancellablePromise<$models.Tool> {
-    return $Call.ByID(4155408087);
+    return $Call.ByID(2324861172);
 }
 
 /**
  * Launch returns the launch options for the active project.
  */
 export function Launch(): $CancellablePromise<$models.LaunchOptions> {
-    return $Call.ByID(22623331);
+    return $Call.ByID(2353411796);
 }
 
 /**
@@ -81,42 +91,42 @@ export function Launch(): $CancellablePromise<$models.LaunchOptions> {
  * in the window leave a trace.
  */
 export function Log(level: string, message: string): $CancellablePromise<void> {
-    return $Call.ByID(4238595122, level, message);
+    return $Call.ByID(2241473067, level, message);
 }
 
 /**
  * OpenFolder reveals a folder in the file manager.
  */
 export function OpenFolder(path: string): $CancellablePromise<void> {
-    return $Call.ByID(2643916156, path);
+    return $Call.ByID(1786547475, path);
 }
 
 /**
  * OpenInEditor opens a file (or folder) at a line in the configured editor.
  */
 export function OpenInEditor(path: string, line: number): $CancellablePromise<void> {
-    return $Call.ByID(909815082, path, line);
+    return $Call.ByID(4090363877, path, line);
 }
 
 /**
  * OpenLogFolder shows the folder that holds larvyn.log.
  */
 export function OpenLogFolder(): $CancellablePromise<void> {
-    return $Call.ByID(1604773714);
+    return $Call.ByID(1765089299);
 }
 
 /**
  * OpenURL opens a link in the default browser.
  */
 export function OpenURL(url: string): $CancellablePromise<void> {
-    return $Call.ByID(494060137, url);
+    return $Call.ByID(3441282368, url);
 }
 
 /**
  * Platform reports the OS for keyboard hints.
  */
 export function Platform(): $CancellablePromise<string> {
-    return $Call.ByID(255306651);
+    return $Call.ByID(415765348);
 }
 
 /**
@@ -125,40 +135,40 @@ export function Platform(): $CancellablePromise<string> {
  * "What happened?".
  */
 export function ReportBug(details: string): $CancellablePromise<void> {
-    return $Call.ByID(1983626288, details);
+    return $Call.ByID(904608245, details);
 }
 
 /**
  * RequestFeature opens a new feature request in the browser.
  */
 export function RequestFeature(): $CancellablePromise<void> {
-    return $Call.ByID(3802714153);
+    return $Call.ByID(1470839042);
 }
 
 /**
  * SaveSettings stores the user's settings.
  */
-export function SaveSettings(v: $models.Settings): $CancellablePromise<void> {
-    return $Call.ByID(615151536, v);
+export function SaveSettings(v: store$0.Settings): $CancellablePromise<void> {
+    return $Call.ByID(1404855715, v);
 }
 
 /**
  * Settings returns the user's settings.
  */
-export function Settings(): $CancellablePromise<$models.Settings> {
-    return $Call.ByID(502330205);
+export function Settings(): $CancellablePromise<store$0.Settings> {
+    return $Call.ByID(3007080678);
 }
 
 /**
  * Tools detects PHP, Composer, Node and friends.
  */
 export function Tools(): $CancellablePromise<$models.Tool[] | null> {
-    return $Call.ByID(2271793499);
+    return $Call.ByID(2989380178);
 }
 
 /**
  * UpdateLaravelInstaller updates the global laravel/installer in a terminal.
  */
-export function UpdateLaravelInstaller(): $CancellablePromise<$models.SessionInfo> {
-    return $Call.ByID(4268058414);
+export function UpdateLaravelInstaller(): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(2372647277);
 }

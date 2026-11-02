@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowUpRight, Code2, Copy, RefreshCw, Waypoints, X } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { fail, toast, useActive, useStore } from '../lib/store'
 import { copy, cx } from '../lib/util'

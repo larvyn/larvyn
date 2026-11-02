@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { Bug } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 
 /** Keeps one broken view from blanking the whole window. */
 export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null }> {

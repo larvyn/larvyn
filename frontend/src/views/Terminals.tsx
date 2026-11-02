@@ -15,7 +15,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { type SessionInfo } from '../../bindings/larvyn'
+import { type SessionInfo } from '../../bindings/larvyn/internal/terminal'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { newTerminal, openInTab, relaunch, useActive, useStore, type TermTab } from '../lib/store'
 import { clearTerm, focusTerm } from '../lib/terms'

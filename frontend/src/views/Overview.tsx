@@ -30,7 +30,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'

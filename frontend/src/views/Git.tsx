@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Code2, FolderGit2, GitBranch, GitCommitHorizontal, GitMerge, Plus, RefreshCw, Trash2, Undo2 } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { GitService, type GitStatus, type WorktreeRequest } from '../../bindings/larvyn/internal/git'
 import { fail, newTerminal, refreshInfo, toast, useActive } from '../lib/store'
 import { ago, cx, errMsg, mod } from '../lib/util'

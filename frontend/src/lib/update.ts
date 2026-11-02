@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { SystemService, type UpdateInfo } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
+import { type Info as UpdateInfo } from '../../bindings/larvyn/internal/updater'
 import { toast, useStore } from './store'
 import { errMsg, load, save } from './util'
 

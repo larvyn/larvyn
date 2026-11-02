@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"larvyn/internal/composer"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 
@@ -105,10 +106,6 @@ type TerminalService struct {
 // the other services start their terminals through it.
 var Sessions = &TerminalService{sessions: map[string]*session{}, persist: true}
 
-// ResolveProgram rewrites a program's argv before it starts. main sets it so a
-// bare "composer" runs Larvyn's own phar when Composer is not on PATH.
-var ResolveProgram = func(argv []string) []string { return argv }
-
 // Find returns the newest session of a project with this kind and key, or nil.
 // It is a function rather than a method so Wails does not bind it.
 func Find(projectID, kind, key string) *SessionInfo { return Sessions.find(projectID, kind, key) }
@@ -174,7 +171,7 @@ func resolveArgv(spec SessionSpec) (argv []string, display string) {
 	display = spec.Command
 	switch {
 	case len(argv) > 0:
-		argv = ResolveProgram(argv)
+		argv = composer.Resolve(argv)
 		if display == "" {
 			display = joinArgs(spec.Argv)
 		}

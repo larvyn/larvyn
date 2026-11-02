@@ -24,10 +24,8 @@ import {
   ArrowUpCircle,
   Code2,
 } from 'lucide-react'
-import {
-  SystemService,
-  type SessionInfo,
-} from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
+import { type SessionInfo } from '../../bindings/larvyn/internal/terminal'
 import { AgentService, type LaunchRequest, type AgentKind } from '../../bindings/larvyn/internal/agents'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { GitService } from '../../bindings/larvyn/internal/git'

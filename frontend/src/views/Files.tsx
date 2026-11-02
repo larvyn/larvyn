@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Code2, File, FileCode2, Folder, FolderOpen, FolderTree, RefreshCw, RotateCcw, Save, Search } from 'lucide-react'
-import { SystemService } from '../../bindings/larvyn'
+import { SystemService } from '../../bindings/larvyn/internal/system'
 import { FileService, type FileContent, type FileEntry } from '../../bindings/larvyn/internal/files'
 import { fail, toast, useActive, useStore } from '../lib/store'
 import { cx, errMsg, isMac, load, mod, save } from '../lib/util'
