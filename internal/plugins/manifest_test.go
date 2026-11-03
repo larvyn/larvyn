@@ -80,9 +80,13 @@ func TestInvalidManifests(t *testing.T) {
 		{"duplicate permission", "listed twice", func(m map[string]any) { m["permissions"] = []string{"terminal.run", "terminal.run"} }},
 		{"network without domains", "go together", func(m map[string]any) { m["permissions"] = []string{"terminal.run", "network"} }},
 		{"domains without network", "go together", func(m map[string]any) { m["network"] = []string{"api.example.com"} }},
-		{"bad domain", "not a domain", func(m map[string]any) {
+		{"bad domain", "not a host", func(m map[string]any) {
 			m["permissions"] = []string{"terminal.run", "network"}
 			m["network"] = []string{"https://example.com/x"}
+		}},
+		{"domain with path", "not a host", func(m map[string]any) {
+			m["permissions"] = []string{"terminal.run", "network"}
+			m["network"] = []string{"localhost:8025/api"}
 		}},
 		{"nothing contributed", "adds nothing", func(m map[string]any) { m["contributes"] = map[string]any{} }},
 		{"command without terminal.run", "terminal.run", func(m map[string]any) { m["permissions"] = []string{"project.read"} }},
@@ -175,6 +179,19 @@ func TestCompatible(t *testing.T) {
 		}
 		if got := Compatible(c.r, c.v); got != c.want {
 			t.Errorf("Compatible(%q, %q) = %v, want %v", c.r, c.v, got, c.want)
+		}
+	}
+}
+
+func TestNetworkHosts(t *testing.T) {
+	for _, h := range []string{"api.example.com", "*.example.com", "localhost", "localhost:8025", "127.0.0.1:1025", "example.com:443"} {
+		if !domainPattern.MatchString(h) {
+			t.Errorf("%q should be accepted", h)
+		}
+	}
+	for _, h := range []string{"https://example.com", "example", "192.168.1.5", "localhost:", "*", "ex ample.com"} {
+		if domainPattern.MatchString(h) {
+			t.Errorf("%q should be refused", h)
 		}
 	}
 }
