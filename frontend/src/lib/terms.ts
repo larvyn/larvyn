@@ -128,8 +128,12 @@ function getEntry(id: string): Entry {
     }
     return true
   })
-  term.onData((data) => TerminalService.Write(id, data))
-  term.onBinary((data) => TerminalService.Write(id, data))
+  // While the saved output is replayed, xterm answers the queries in it
+  // (device attributes, cursor position…) as if they were new; those answers
+  // would be typed into the shell as ^[[?1;2c, so they are dropped.
+  let replaying = false
+  term.onData((data) => !replaying && TerminalService.Write(id, data))
+  term.onBinary((data) => !replaying && TerminalService.Write(id, data))
   term.onResize(({ cols, rows }) => TerminalService.Resize(id, cols, rows))
   const el = document.createElement('div')
   el.className = 'term-host'
@@ -138,8 +142,15 @@ function getEntry(id: string): Entry {
   const entry = e
   TerminalService.Snapshot(id)
     .then((snap) => {
-      if (snap.data) term.write(b64ToBytes(snap.data))
       entry.lastSeq = snap.seq
+      if (!snap.data) return
+      replaying = true
+      return new Promise<void>((done) =>
+        term.write(b64ToBytes(snap.data), () => {
+          replaying = false
+          done()
+        }),
+      )
     })
     .catch(() => {})
     .finally(() => {
