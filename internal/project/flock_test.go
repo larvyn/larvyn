@@ -55,3 +55,44 @@ func TestSiteName(t *testing.T) {
 		}
 	}
 }
+
+func TestRestoreAppURL(t *testing.T) {
+	t.Setenv("LARVYN_HOME", t.TempDir())
+	dir := t.TempDir()
+	env := filepath.Join(dir, ".env")
+	if err := os.WriteFile(env, []byte("APP_URL=http://localhost:8000\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := store.Project{ID: "r1", Path: dir, Port: 8003}
+	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
+		t.Fatal(err)
+	}
+
+	// Serving with Flock remembers the original; switching to HTTPS does not
+	// overwrite it with the http site URL.
+	if !syncAppURL(p, "", "http://acme.test") || !syncAppURL(p, "http://acme.test", "https://acme.test") {
+		t.Fatal("APP_URL was not synced")
+	}
+	if got, _ := store.FindProject("r1"); got.AppURLBeforeFlock != "http://localhost:8000" {
+		t.Fatalf("remembered %q", got.AppURLBeforeFlock)
+	}
+
+	svc := &ProjectService{}
+	if url, err := svc.RestoreAppURL("r1"); err != nil || url != "http://localhost:8000" {
+		t.Fatalf("RestoreAppURL = %q, %v", url, err)
+	}
+	if raw, _ := os.ReadFile(env); string(raw) != "APP_URL=http://localhost:8000\n" {
+		t.Errorf(".env is now %q", raw)
+	}
+	if got, _ := store.FindProject("r1"); got.AppURLBeforeFlock != "" {
+		t.Errorf("the remembered URL should be cleared, is %q", got.AppURLBeforeFlock)
+	}
+
+	// Without a remembered URL, it falls back to artisan serve's.
+	if err := os.WriteFile(env, []byte("APP_URL=https://acme.test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if url, _ := svc.RestoreAppURL("r1"); url != "http://127.0.0.1:8003" {
+		t.Errorf("fallback = %q", url)
+	}
+}

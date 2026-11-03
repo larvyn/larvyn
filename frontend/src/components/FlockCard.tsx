@@ -1,25 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, GitBranch, Lock, Play, Power, Unplug } from 'lucide-react'
+import { ArrowUpRight, GitBranch, Lock, Play, Power, Undo2, Unplug } from 'lucide-react'
 import { ProjectService, type FlockInfo } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { refreshInfo, runInConsole, toast } from '../lib/store'
+import { fail, refreshInfo, runInConsole, toast } from '../lib/store'
 import { cx, errMsg } from '../lib/util'
 import { Toggle, confirmDialog } from './ui'
 import { Brand } from './Brand'
+
+/** Whether url is a .test address, as Flock (or Herd/Valet) serves. */
+export const isTestUrl = (url: string) => /^https?:\/\/[^/]+\.test(:\d+)?(\/|$)/i.test((url || '').trim())
+
+/** Puts back the APP_URL the app had before Flock served it. */
+export const restoreAppUrl = (id: string) =>
+  ProjectService.RestoreAppURL(id)
+    .then((url) => {
+      toast('success', 'APP_URL restored', url)
+      return refreshInfo(id)
+    })
+    .catch(fail('Could not restore APP_URL'))
 
 /** The project's site in Flock (flockphp.com), an optional local server.
  * Renders nothing when Flock is not installed. Every step is one click: set
  * Flock up, start it, serve the app at <folder>.test, then HTTPS, the PHP
  * version and the worktrees' URLs. `revision` reloads it when the project
  * info changes. */
-export function FlockCard({ id, revision }: { id: string; revision: string }) {
+export function FlockCard({ id, appUrl, served, revision }: { id: string; appUrl: string; served: boolean; revision: string }) {
   const [f, setF] = useState<FlockInfo | null>(null)
   const [busy, setBusy] = useState('')
   const alive = useRef(true)
 
   const load = () =>
     ProjectService.Flock(id)
-      .then((v) => alive.current && setF(v))
+      .then((v) => {
+        if (!alive.current) return
+        setF(v)
+        // Flock was started, stopped or changed outside Larvyn (its own app,
+        // systemctl, flk): refresh the project so the badge, the dev stack
+        // and the Doctor follow.
+        // (A site with a problem does not count as served, as in the project info.)
+        if ((v.state === 'running' && !!v.site && !v.site.problem) !== served) refreshInfo(id)
+      })
       .catch(() => {})
 
   useEffect(() => {
@@ -29,6 +49,13 @@ export function FlockCard({ id, revision }: { id: string; revision: string }) {
       alive.current = false
     }
   }, [id, revision])
+
+  // Keep up with Flock while the card is on screen.
+  useEffect(() => {
+    if (!f?.state) return
+    const t = setInterval(load, 5000)
+    return () => clearInterval(t)
+  }, [id, !!f?.state, served])
 
   // While a PHP version downloads, follow its progress.
   const installing = f?.php?.find((v) => v.job?.state === 'running')
@@ -88,11 +115,22 @@ export function FlockCard({ id, revision }: { id: string; revision: string }) {
       {f.state === 'stopped' && (
         <Row
           title="Flock is not running"
-          detail="Start it to serve this app and its worktrees."
+          detail={
+            isTestUrl(appUrl)
+              ? `Start it to serve this app again, or run it with artisan serve: APP_URL still points at ${appUrl}.`
+              : 'Start it to serve this app and its worktrees.'
+          }
           action={
-            <button className="btn sm primary" disabled={!!busy} onClick={act('start', () => ProjectService.FlockStart(), () => toast('success', 'Flock started'))}>
-              <Power /> Start
-            </button>
+            <div className="row" style={{ gap: 6 }}>
+              {isTestUrl(appUrl) && (
+                <button className="btn sm" disabled={!!busy} title="Put back the APP_URL the app had before Flock" onClick={act('restore APP_URL', () => restoreAppUrl(id))}>
+                  <Undo2 /> Use artisan serve
+                </button>
+              )}
+              <button className="btn sm primary" disabled={!!busy} onClick={act('start', () => ProjectService.FlockStart(), () => toast('success', 'Flock started'))}>
+                <Power /> Start
+              </button>
+            </div>
           }
         />
       )}

@@ -71,7 +71,8 @@ func (s *ProjectService) FlockServe(id string) (string, error) {
 	return site.URL, nil
 }
 
-// FlockUnserve stops serving the project. Worktrees go with it.
+// FlockUnserve stops serving the project (worktrees go with it) and puts
+// APP_URL back when it named the site.
 func (s *ProjectService) FlockUnserve(id string) error {
 	site, err := projectSite(id)
 	if err != nil {
@@ -80,7 +81,16 @@ func (s *ProjectService) FlockUnserve(id string) error {
 	if site.Parked {
 		return errors.New("Flock serves every folder in " + filepath.Dir(site.Path) + ": remove that project folder in Flock's settings to stop serving it")
 	}
-	return flock.Unlink(site.Name)
+	if err := flock.Unlink(site.Name); err != nil {
+		return err
+	}
+	// The app runs without Flock from now on: APP_URL goes back with it.
+	p, _ := store.FindProject(id)
+	if sameURL(dotenv.Read(filepath.Join(p.Path, ".env"))["APP_URL"], site.URL) {
+		_, err := s.RestoreAppURL(id)
+		return err
+	}
+	return nil
 }
 
 // FlockSecure turns HTTPS on or off and moves APP_URL along. It returns the
@@ -172,29 +182,90 @@ func projectSite(id string) (flock.Site, error) {
 // syncAppURL points APP_URL in the project's .env at url when it still names
 // a default (empty or localhost) or the site's previous URL, so Laravel's
 // links, redirects and Vite follow the site. A URL the user chose stays; the
-// Doctor points out the difference instead. The old .env is backed up.
+// Doctor points out the difference instead.
 func syncAppURL(p store.Project, previous, next string) bool {
+	value, ok := dotenv.Read(filepath.Join(p.Path, ".env"))["APP_URL"]
+	if !ok || !replaceableAppURL(value, previous) || sameURL(value, next) {
+		return false
+	}
+	return setAppURL(p, next, previous == "") == nil
+}
+
+// setAppURL writes APP_URL into the project's .env, after backing the file
+// up. With remember, the APP_URL it replaces is kept (once) so RestoreAppURL
+// can bring it back when Flock no longer serves the app.
+func setAppURL(p store.Project, value string, remember bool) error {
 	path := filepath.Join(p.Path, ".env")
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return false
+		return err
 	}
 	lines := strings.Split(string(raw), "\n")
+	found := false
 	for i, line := range lines {
-		key, value, ok := dotenv.ParseLine(line)
+		key, old, ok := dotenv.ParseLine(line)
 		if !ok || key != "APP_URL" {
 			continue
 		}
-		if !replaceableAppURL(value, previous) || sameURL(value, next) {
-			return false
+		found = true
+		lines[i] = "APP_URL=" + value
+		if remember && old != "" && !sameURL(old, value) {
+			_ = store.Update(func(d *store.State) {
+				for i := range d.Projects {
+					if d.Projects[i].ID == p.ID && d.Projects[i].AppURLBeforeFlock == "" {
+						d.Projects[i].AppURLBeforeFlock = old
+					}
+				}
+			})
 		}
-		lines[i] = "APP_URL=" + next
-		backup := filepath.Join(store.HomeDir(), "backups")
-		_ = os.MkdirAll(backup, 0o755)
-		_ = os.WriteFile(filepath.Join(backup, fmt.Sprintf("%s-.env-%d", p.ID, time.Now().Unix())), raw, 0o600)
-		return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600) == nil
 	}
-	return false
+	if !found {
+		return errors.New("APP_URL is not in .env")
+	}
+	backup := filepath.Join(store.HomeDir(), "backups")
+	_ = os.MkdirAll(backup, 0o755)
+	_ = os.WriteFile(filepath.Join(backup, fmt.Sprintf("%s-.env-%d", p.ID, time.Now().Unix())), raw, 0o600)
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600)
+}
+
+// FlockUseSiteURL points APP_URL at the URL Flock serves the app at,
+// remembering the one it had.
+func (s *ProjectService) FlockUseSiteURL(id string) error {
+	site, err := projectSite(id)
+	if err != nil {
+		return err
+	}
+	p, _ := store.FindProject(id)
+	return setAppURL(p, site.URL, true)
+}
+
+// RestoreAppURL puts back the APP_URL the project had before Flock served it
+// (artisan serve's URL when Larvyn did not see one), for running the app
+// without Flock. It returns the URL it set.
+func (s *ProjectService) RestoreAppURL(id string) (string, error) {
+	p, ok := store.FindProject(id)
+	if !ok {
+		return "", errors.New("project not found")
+	}
+	value := p.AppURLBeforeFlock
+	if value == "" {
+		port := p.Port
+		if port == 0 {
+			port = 8000
+		}
+		value = fmt.Sprintf("http://127.0.0.1:%d", port)
+	}
+	if err := setAppURL(p, value, false); err != nil {
+		return "", err
+	}
+	_ = store.Update(func(d *store.State) {
+		for i := range d.Projects {
+			if d.Projects[i].ID == id {
+				d.Projects[i].AppURLBeforeFlock = ""
+			}
+		}
+	})
+	return value, nil
 }
 
 func replaceableAppURL(value, previous string) bool {

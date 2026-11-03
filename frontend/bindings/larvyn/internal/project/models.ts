@@ -65,6 +65,12 @@ export interface ProjectInfo {
     "pinned": boolean;
     "addedAt": number;
     "lastOpenedAt": number;
+
+    /**
+     * AppURLBeforeFlock is the APP_URL the project had before Larvyn pointed
+     * it at Flock's site, so it can go back when Flock stops serving it.
+     */
+    "appUrlBeforeFlock"?: string;
     "exists": boolean;
     "isLaravel": boolean;
     "laravelVersion": string;

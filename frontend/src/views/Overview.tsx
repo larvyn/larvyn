@@ -55,7 +55,7 @@ import {
 import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
-import { FlockCard } from '../components/FlockCard'
+import { FlockCard, isTestUrl, restoreAppUrl } from '../components/FlockCard'
 
 const KIND_COLOR: Record<string, string> = {
   queue: 'orange', debug: 'yellow', monitoring: 'cyan', realtime: 'purple', server: 'red', auth: 'blue', starter: 'accent',
@@ -73,15 +73,28 @@ interface Check {
 
 const bare = (url: string) => url.trim().replace(/\/+$/, '').toLowerCase()
 
-/** When Flock serves the app, APP_URL should be its URL: Laravel builds
- * links, redirects and Vite's URLs from it. */
+/** APP_URL against Flock: when Flock serves the app it should be the site's
+ * URL (Laravel builds links, redirects and Vite's URLs from it); when nothing
+ * serves that .test URL any more, e.g. Flock was stopped, it should go back
+ * to the one the app had, so artisan serve works again. */
 function appUrlCheck(id: string, info: ProjectInfo): Check[] {
-  if (info.siteServer !== 'Flock' || !info.hasEnv || bare(info.appUrl) === bare(info.siteUrl)) return []
-  return [{
-    key: 'appurl', label: 'APP_URL', ok: false,
-    detail: `APP_URL is ${info.appUrl || 'empty'} but Flock serves the app at ${info.siteUrl}: links and redirects go to the wrong place`,
-    fix: { label: 'Use the site URL', run: () => LaravelService.SetEnv(id, 'APP_URL', info.siteUrl).then(() => refreshInfo(id)).catch(fail('Could not set APP_URL')) },
-  }]
+  if (!info.hasEnv) return []
+  if (info.siteServer === 'Flock' && bare(info.appUrl) !== bare(info.siteUrl)) {
+    return [{
+      key: 'appurl', label: 'APP_URL', ok: false,
+      detail: `APP_URL is ${info.appUrl || 'empty'} but Flock serves the app at ${info.siteUrl}: links and redirects go to the wrong place`,
+      fix: { label: 'Use the site URL', run: () => ProjectService.FlockUseSiteURL(id).then(() => refreshInfo(id)).catch(fail('Could not set APP_URL')) },
+    }]
+  }
+  if (!info.siteServer && isTestUrl(info.appUrl)) {
+    const back = info.appUrlBeforeFlock || `http://127.0.0.1:${info.port || 8000}`
+    return [{
+      key: 'appurl', label: 'APP_URL', ok: false,
+      detail: `APP_URL is ${info.appUrl}, which nothing serves now. Put back ${back} to run the app with artisan serve.`,
+      fix: { label: 'Restore', run: () => restoreAppUrl(id) },
+    }]
+  }
+  return []
 }
 
 export function Overview() {
@@ -96,7 +109,8 @@ export function Overview() {
   useEffect(() => {
     if (!id) return
     StackService.Items(id).then((s) => setStack(s ?? [])).catch(() => {})
-  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules])
+    // siteUrl: when Flock starts or stops serving the app, the HTTP server row changes.
+  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules, info?.siteUrl])
 
   useEffect(() => {
     if (!id) return
@@ -376,7 +390,7 @@ export function Overview() {
         </div>
 
         <div className="col" style={{ gap: 16 }}>
-          {info.isLaravel && <FlockCard id={id!} revision={`${info.siteUrl}|${info.appUrl}`} />}
+          {info.isLaravel && <FlockCard id={id!} appUrl={info.appUrl} served={info.siteServer === 'Flock'} revision={`${info.siteUrl}|${info.appUrl}`} />}
 
           <div className="card">
             <div className="card-head">

@@ -75,7 +75,8 @@ export function FlockStart(): $CancellablePromise<void> {
 }
 
 /**
- * FlockUnserve stops serving the project. Worktrees go with it.
+ * FlockUnserve stops serving the project (worktrees go with it) and puts
+ * APP_URL back when it named the site.
  */
 export function FlockUnserve(id: string): $CancellablePromise<void> {
     return $Call.ByID(412352780, id);
@@ -87,6 +88,14 @@ export function FlockUnserve(id: string): $CancellablePromise<void> {
  */
 export function FlockUsePHP(id: string, minor: string): $CancellablePromise<void> {
     return $Call.ByID(4261693003, id, minor);
+}
+
+/**
+ * FlockUseSiteURL points APP_URL at the URL Flock serves the app at,
+ * remembering the one it had.
+ */
+export function FlockUseSiteURL(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2079807787, id);
 }
 
 /**
@@ -131,6 +140,15 @@ export function Remove(id: string): $CancellablePromise<void> {
  */
 export function RepairEnv(id: string): $CancellablePromise<boolean> {
     return $Call.ByID(3661583115, id);
+}
+
+/**
+ * RestoreAppURL puts back the APP_URL the project had before Flock served it
+ * (artisan serve's URL when Larvyn did not see one), for running the app
+ * without Flock. It returns the URL it set.
+ */
+export function RestoreAppURL(id: string): $CancellablePromise<string> {
+    return $Call.ByID(4005914009, id);
 }
 
 /**

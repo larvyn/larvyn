@@ -25,6 +25,9 @@ type Project struct {
 	Pinned       bool   `json:"pinned"`
 	AddedAt      int64  `json:"addedAt"`
 	LastOpenedAt int64  `json:"lastOpenedAt"`
+	// AppURLBeforeFlock is the APP_URL the project had before Larvyn pointed
+	// it at Flock's site, so it can go back when Flock stops serving it.
+	AppURLBeforeFlock string `json:"appUrlBeforeFlock,omitempty"`
 }
 
 // Settings are the user's global preferences.
