@@ -35,7 +35,7 @@ type AgentKind struct {
 var agentKinds = []AgentKind{
 	{ID: "claude", Name: "Claude Code", Binary: "claude", Install: "npm i -g @anthropic-ai/claude-code", PromptAsArg: true, Color: "#D97757"},
 	{ID: "codex", Name: "Codex", Binary: "codex", Install: "npm i -g @openai/codex", PromptAsArg: true, Color: "#10A37F"},
-	{ID: "opencode", Name: "OpenCode", Binary: "opencode", Install: "npm i -g opencode-ai", Color: "#F5A623"},
+	{ID: "opencode", Name: "OpenCode", Binary: "opencode", Install: "npm i -g opencode-ai", PromptAsArg: true, PromptFlag: "--prompt", Color: "#F5A623"},
 	{ID: "antigravity", Name: "Antigravity CLI", Binary: "agy", Install: "curl -fsSL https://antigravity.google/cli | bash", PromptAsArg: true, PromptFlag: "-i", Color: "#4285F4"},
 	{ID: "cursor-agent", Name: "Cursor Agent", Binary: "cursor-agent", Install: "see cursor.com/cli", PromptAsArg: true, Color: "#A3A3A3"},
 	{ID: "aider", Name: "Aider", Binary: "aider", Install: "pip install aider-install", Color: "#14B8A6"},
@@ -321,12 +321,7 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 	if ext == ".cmd" || ext == ".bat" {
 		kind.PromptAsArg = false
 	}
-	if req.Prompt != "" && kind.PromptAsArg {
-		if kind.PromptFlag != "" {
-			argv = append(argv, kind.PromptFlag)
-		}
-		argv = append(argv, req.Prompt)
-	}
+	argv = append(argv, promptArgs(*kind, req.Prompt)...)
 	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Meta: meta})
 	if err != nil {
 		return sess, err
@@ -341,6 +336,19 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		}(sess.ID, req.Prompt)
 	}
 	return sess, nil
+}
+
+// promptArgs are the arguments that hand an agent its first prompt, for
+// CLIs that take it on the command line. Typing it in instead races the TUI's
+// startup, which is slow in a fresh worktree, and the prompt can get lost.
+func promptArgs(kind AgentKind, prompt string) []string {
+	if prompt == "" || !kind.PromptAsArg {
+		return nil
+	}
+	if kind.PromptFlag != "" {
+		return []string{kind.PromptFlag, prompt}
+	}
+	return []string{prompt}
 }
 
 func (a *AgentService) installDeps(p store.Project, dir string) {
