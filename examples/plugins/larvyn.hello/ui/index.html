@@ -1,0 +1,42 @@
+<!doctype html>
+<!--
+  The smallest plugin view. Larvyn runs it in a sandboxed iframe, so it can't
+  reach Larvyn's page or your files. Everything goes through window.larvyn,
+  and Larvyn checks each call against the permissions in larvyn.json.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hello</title>
+<style>
+  :root { color-scheme: dark; font: 13px/1.4 system-ui, sans-serif; }
+  body { margin: 0; padding: 16px; background: #09090b; color: #e4e4e7; }
+  code { color: #a1a1aa; }
+  button { background: #FF2D20; color: #fff; border: 0; border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1 id="title">Hello!</h1>
+<p id="path"></p>
+<button id="wave" hidden>Say hello</button>
+<script>
+async function main() {
+  if (!window.larvyn) {
+    document.getElementById("path").textContent = "Open this view inside Larvyn to see your project.";
+    return;
+  }
+  // Needs "project.read".
+  const project = await window.larvyn.call("project.info");
+  document.getElementById("title").textContent = `Hello, ${project.name}!`;
+  document.getElementById("path").innerHTML = `<code></code>`;
+  document.querySelector("#path code").textContent = project.path;
+
+  // Needs "ui.notify". Without it in larvyn.json, Larvyn refuses the call.
+  const wave = document.getElementById("wave");
+  wave.hidden = false;
+  wave.addEventListener("click", () => window.larvyn.call("ui.notify", { message: `Hello from ${project.name}` }));
+}
+main();
+</script>
+</body>
+</html>

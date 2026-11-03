@@ -1,0 +1,15 @@
+{
+  "apiVersion": 1,
+  "id": "larvyn.hello",
+  "name": "Hello",
+  "version": "0.1.0",
+  "description": "The smallest plugin with a view: shows the open project and says hello. Copy it to start your own.",
+  "author": "Larvyn",
+  "larvyn": ">=0.1.0",
+  "permissions": ["project.read", "ui.notify"],
+  "contributes": {
+    "views": [
+      {"id": "hello", "title": "Hello", "entry": "ui/index.html"}
+    ]
+  }
+}
