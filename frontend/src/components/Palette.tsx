@@ -28,7 +28,7 @@ import {
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { PluginService, type PluginCommand } from '../../bindings/larvyn/internal/plugins'
-import { runPluginCommand, startStackItem } from './pluginRun'
+import { restartStackItem, runPluginCommand, startStackItem } from './pluginRun'
 import {
   addProject,
   artisanRun,
@@ -221,7 +221,7 @@ export function Palette() {
                   key={s.key}
                   value={'service ' + s.label + ' ' + s.key}
                   disabled={!s.available && !s.session?.running}
-                  onSelect={act(() => (s.session?.running ? StackService.Restart(id!, s.key) : startStackItem(id!, s.key)).catch(fail(s.label)))}
+                  onSelect={act(() => (s.session?.running ? restartStackItem(id!, s.key) : startStackItem(id!, s.key)).catch(fail(s.label)))}
                 >
                   {s.session?.running ? <RefreshCw /> : <Play />}
                   {s.session?.running ? 'Restart' : 'Start'} {s.label}

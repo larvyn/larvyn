@@ -51,7 +51,7 @@ import {
   useStore,
   type View,
 } from '../lib/store'
-import { toggleService } from './pluginRun'
+import { PLUGINS_CHANGED, toggleService } from './pluginRun'
 import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
@@ -194,7 +194,11 @@ export function Sidebar() {
 
   useEffect(() => {
     if (!id) return
-    StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => setStack([]))
+    const load = () => StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => setStack([]))
+    load()
+    // Plugins add and remove stack items without any session changing.
+    window.addEventListener(PLUGINS_CHANGED, load)
+    return () => window.removeEventListener(PLUGINS_CHANGED, load)
   }, [id, sessKey, info?.hasVendor, info?.siteUrl])
 
   if (!project) return <div className="sidebar collapsed" />

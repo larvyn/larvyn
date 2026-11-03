@@ -43,20 +43,32 @@ export async function runPluginCommand(projectId: string, c: PluginCommand) {
 
 const CONFIRM = 'plugin-confirm:'
 
-/** Starts a stack item. A plugin's item that was never confirmed comes back
- * with its command line: ask, record the answer, and start it. */
-export async function startStackItem(projectId: string, key: string) {
+/** Runs start; a plugin's item whose command line was never confirmed comes
+ * back with it: ask, record the answer, and run start again. */
+async function withConfirm(start: () => Promise<SessionInfo>) {
   try {
-    return await StackService.Start(projectId, key)
+    return await start()
   } catch (e) {
     const msg = errMsg(e)
     if (!msg.startsWith(CONFIRM)) throw e
     const req = JSON.parse(msg.slice(CONFIRM.length)) as { pluginId: string; pluginName: string; key: string; title: string; line: string }
     if (!(await askRun(req.pluginName, req.title, req.line))) return null
     await PluginService.ConfirmStackItem(req.pluginId, req.key, req.line)
-    return await StackService.Start(projectId, key)
+    return await start()
   }
 }
+
+/** Starts a stack item, asking first for a plugin's unconfirmed one. */
+export const startStackItem = (projectId: string, key: string) => withConfirm(() => StackService.Start(projectId, key))
+
+/** Restarts a stack item. A plugin item whose command changed is confirmed
+ * before the running one stops (the backend checks that first). */
+export const restartStackItem = (projectId: string, key: string) => withConfirm(() => StackService.Restart(projectId, key))
+
+/** Tells views that show plugin contributions (the sidebar stack) to reload
+ * after a plugin was installed, turned on or off, or uninstalled. */
+export const PLUGINS_CHANGED = 'larvyn:plugins-changed'
+export const pluginsChanged = () => window.dispatchEvent(new Event(PLUGINS_CHANGED))
 
 /** Starts or stops a stack item, asking first for a plugin's item that was
  * never run. It lives here, not in lib/store, to keep store free of UI imports. */

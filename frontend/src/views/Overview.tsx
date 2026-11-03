@@ -51,7 +51,7 @@ import {
   useStore,
   type View,
 } from '../lib/store'
-import { toggleService } from '../components/pluginRun'
+import { restartStackItem, toggleService } from '../components/pluginRun'
 import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
@@ -329,7 +329,7 @@ export function Overview() {
                       </button>
                     )}
                     {on && (
-                      <button className="icon-btn sm" title="Restart" onClick={() => StackService.Restart(id!, s.key).catch(fail('Restart failed'))}>
+                      <button className="icon-btn sm" title="Restart" onClick={() => restartStackItem(id!, s.key).catch(fail('Restart failed'))}>
                         <RefreshCw />
                       </button>
                     )}

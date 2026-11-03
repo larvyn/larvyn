@@ -192,3 +192,53 @@ func TestCommandLine(t *testing.T) {
 		}
 	}
 }
+
+func TestGuardStackStart(t *testing.T) {
+	s, _ := installRun(t, "echo x")
+	started := 0
+	start := func() (terminal.SessionInfo, error) { started++; return terminal.SessionInfo{}, nil }
+	if _, err := GuardStackStart("acme.horizon", "watch", start); err == nil || started != 0 {
+		t.Fatalf("an unconfirmed item must not start: %v", err)
+	}
+	s.ConfirmStackItem("acme.horizon", "watch", "mailpit --listen 127.0.0.1:8025")
+	if _, err := GuardStackStart("acme.horizon", "watch", start); err != nil || started != 1 {
+		t.Fatalf("a confirmed item starts: %v", err)
+	}
+	s.Disable("acme.horizon")
+	if _, err := GuardStackStart("acme.horizon", "watch", start); err == nil || started != 1 {
+		t.Errorf("a plugin that is off must not start: %v", err)
+	}
+}
+
+// Turning a plugin off while its commands keep starting must leave nothing
+// running: a start either finishes before Disable closes the terminals, or
+// sees the plugin off.
+func TestDisableRacesWithStarts(t *testing.T) {
+	long := "sleep 30"
+	if runtime.GOOS == "windows" {
+		long = "ping -n 30 127.0.0.1"
+	}
+	s, proj := installRun(t, long)
+	if _, err := s.RunCommand(proj.ID, "acme.horizon", "hello", long); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 50; i++ {
+			if _, err := s.RunCommand(proj.ID, "acme.horizon", "hello", ""); err != nil {
+				return
+			}
+		}
+	}()
+	time.Sleep(20 * time.Millisecond)
+	if err := s.Disable("acme.horizon"); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+	for _, x := range terminal.Sessions.List() {
+		if strings.HasPrefix(x.Key, SessionKeyPrefix("acme.horizon")) {
+			t.Errorf("a plugin terminal survived turning the plugin off: %+v", x)
+		}
+	}
+}

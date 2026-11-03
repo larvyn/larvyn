@@ -111,13 +111,16 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 
 // Disable turns a plugin off; its files and granted permissions stay.
 func (s *PluginService) Disable(id string) error {
-	stopSessions(id)
-	return store.Update(func(d *store.State) {
+	runMu.Lock()
+	defer runMu.Unlock()
+	err := store.Update(func(d *store.State) {
 		if st, ok := d.Plugins[id]; ok {
 			st.Enabled = false
 			d.Plugins[id] = st
 		}
 	})
+	stopSessions(id)
+	return err
 }
 
 // Uninstall deletes the plugin folder with this name (only the link, for a
@@ -132,7 +135,9 @@ func (s *PluginService) Uninstall(folder string) error {
 		return fmt.Errorf("%q is not a plugin folder", folder)
 	}
 	dir := filepath.Join(Dir(), folder)
-	stopSessions(folder)
+	runMu.Lock()
+	defer runMu.Unlock()
+	defer stopSessions(folder)
 	fi, err := os.Lstat(dir)
 	switch {
 	case errors.Is(err, os.ErrNotExist):

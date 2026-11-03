@@ -73,6 +73,10 @@ func init() {
 			if it.Missing != "" {
 				si.Reason = "needs " + it.Missing + ": install it from Settings → Plugins"
 			}
+			pluginID, key := it.PluginID, it.ItemKey
+			si.Guard = func(start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
+				return plugins.GuardStackStart(pluginID, key, start)
+			}
 			if it.NeedsConfirm {
 				si.NeedConfirm = plugins.ConfirmError{PluginID: it.PluginID, PluginName: it.PluginName, Key: it.ItemKey, Title: it.Title, Line: it.Line}
 			}

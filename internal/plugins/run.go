@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -14,6 +15,12 @@ import (
 // allow, which checks the plugin is on and was granted terminal.run, and
 // through a first-run confirmation of the exact command line, both enforced
 // here rather than by the frontend.
+
+// runMu makes starting a plugin's process and turning a plugin off happen
+// one at a time: a start checks the gate and registers its terminal under
+// the lock, and Disable and Uninstall change the state and close the
+// plugin's terminals under it, so no start can slip past a revocation.
+var runMu sync.Mutex
 
 // SessionKeyPrefix starts the terminal key of everything a plugin runs, so
 // its processes can be found and stopped when the plugin is turned off.
@@ -73,6 +80,8 @@ func (s *PluginService) RunCommand(projectID, pluginID, commandID, confirmed str
 	if !ok {
 		return terminal.SessionInfo{}, errors.New("project not found")
 	}
+	runMu.Lock()
+	defer runMu.Unlock()
 	p, err := find(pluginID)
 	if err != nil {
 		return terminal.SessionInfo{}, err
@@ -152,6 +161,30 @@ func StackItems() []PluginStackItem {
 	return out
 }
 
+// GuardStackStart starts a plugin's stack item through the gate: under
+// runMu it checks again that the plugin is on, granted terminal.run, and
+// that the item's current command line was confirmed, then runs start.
+func GuardStackStart(pluginID, key string, start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
+	runMu.Lock()
+	defer runMu.Unlock()
+	p, err := find(pluginID)
+	if err != nil {
+		return terminal.SessionInfo{}, err
+	}
+	if err := allow(p, "terminal.run"); err != nil {
+		return terminal.SessionInfo{}, err
+	}
+	for _, it := range p.Manifest.Contributes.Stack {
+		if it.Key == key {
+			if store.Plugins()[pluginID].Confirmed["stack:"+key] != commandLine(it.Argv) {
+				return terminal.SessionInfo{}, errors.New("this command changed or was never confirmed; confirm it again")
+			}
+			return start()
+		}
+	}
+	return terminal.SessionInfo{}, fmt.Errorf("plugin %s has no stack item %s", pluginID, key)
+}
+
 // ConfirmError is what starting an unconfirmed plugin stack item returns, so
 // the frontend can ask and retry. Its message is "plugin-confirm:" + JSON.
 type ConfirmError struct {
@@ -198,7 +231,7 @@ func commandLine(argv []string) string {
 }
 
 // stopSessions ends everything a plugin runs, when it is turned off or
-// uninstalled.
+// uninstalled. The caller holds runMu.
 func stopSessions(pluginID string) {
 	for _, sess := range terminal.Sessions.List() {
 		if strings.HasPrefix(sess.Key, SessionKeyPrefix(pluginID)) {
