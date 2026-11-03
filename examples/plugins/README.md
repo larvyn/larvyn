@@ -5,21 +5,23 @@ Plugins you can install to see what Larvyn plugins do, and copy to start your ow
 | Plugin | Kind | What it shows |
 |---|---|---|
 | [`larvyn.horizon`](larvyn.horizon) | No code, manifest only | A stack item that runs `php artisan horizon`, and ⌘K commands to restart, pause and check Horizon |
-| [`larvyn.mailpit`](larvyn.mailpit) | Manifest + view | A stack item that runs Mailpit, and a sidebar view of its inbox. The view may only connect to `localhost:8025`, the address its manifest lists. |
+| [`larvyn.mailpit`](larvyn.mailpit) | Manifest + view | A stack item that runs Mailpit, and a sidebar view of its inbox. The view reads Mailpit's API through `network.fetch`, and Larvyn only fetches from `localhost:8025`, the address its manifest lists. |
 | [`larvyn.hello`](larvyn.hello) | View | The smallest view: it reads the open project through `window.larvyn` and shows a notification. Copy it to start your own plugin. |
 
 ## Trying them
 
-Plugins live in Larvyn's plugins folder, one folder per plugin, named after its id. On macOS that is `~/Library/Application Support/larvyn/plugins`.
+In Larvyn, open **Settings → Plugins → Install from folder** and pick one of these folders, such as `examples/plugins/larvyn.horizon`. Larvyn shows what the plugin may do, and copies it into its plugins folder only once you allow it.
 
-Until Settings > Plugins can install from a folder, link an example there:
+While you are working on a plugin, you can link its folder instead of copying it. Larvyn then reads your changes when you click Refresh. The plugins folder holds one folder per plugin, named after its id; on macOS it is `~/Library/Application Support/larvyn/plugins`.
 
 ```sh
 mkdir -p ~/Library/Application\ Support/larvyn/plugins
 ln -s "$PWD/examples/plugins/larvyn.horizon" ~/Library/Application\ Support/larvyn/plugins/
 ```
 
-> **Status:** Larvyn already reads and checks these manifests. Running their commands, stack items and views comes in the next v1 steps of #56. The `window.larvyn` API used by `larvyn.hello` is the planned API and may change before v1 ships.
+A linked plugin starts off. Turn it on in Settings, which asks you to approve its permissions.
+
+> **Status:** Larvyn installs, checks and turns these plugins on and off. Running their commands, stack items and views comes in the next v1 steps of #56. The `window.larvyn` API used by `larvyn.hello` is the planned API and may change before v1 ships. Views have no network access of their own: they call `network.fetch`, and Larvyn makes the request only to the hosts in `network`. So the Mailpit view needs no CORS setting in Larvyn. Opened directly in a browser for testing, it falls back to `fetch()`, which needs `mailpit --api-cors`.
 
 ## The manifest
 
@@ -50,4 +52,4 @@ The permissions marked sensitive are shown in red when a user installs the plugi
 | `stack.control` | | Starting and stopping the project's services |
 | `ui.notify` | | Showing notifications |
 | `storage` | | Keeping the plugin's own settings and data |
-| `network` | yes | Connecting to the hosts listed in `network` |
+| `network` | yes | Fetching from the hosts listed in `network`, through `network.fetch`. Larvyn makes the request, and refuses any other host. |

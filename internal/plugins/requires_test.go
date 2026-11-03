@@ -58,17 +58,20 @@ func TestInstallRequirement(t *testing.T) {
 	writePlugin(t, filepath.Join(Dir(), "acme.horizon"), requiresManifest(t))
 	s := &PluginService{}
 
-	if _, err := s.InstallRequirement("acme.horizon", "php"); err == nil || !strings.Contains(err.Error(), "not missing") {
+	if _, err := s.InstallRequirement("acme.horizon", "php", ""); err == nil || !strings.Contains(err.Error(), "not missing") {
 		t.Errorf("php is installed: %v", err)
 	}
-	if _, err := s.InstallRequirement("acme.horizon", "redis-server"); err == nil || !strings.Contains(err.Error(), "https://redis.io") {
+	if _, err := s.InstallRequirement("acme.horizon", "redis-server", ""); err == nil || !strings.Contains(err.Error(), "https://redis.io") {
 		t.Errorf("no command for this system should point to the url: %v", err)
 	}
-	if _, err := s.InstallRequirement("acme.nope", "mailpit"); err == nil {
+	if _, err := s.InstallRequirement("acme.nope", "mailpit", "echo installing-mailpit"); err == nil {
 		t.Error("unknown plugin")
 	}
+	if _, err := s.InstallRequirement("acme.horizon", "mailpit", "echo something-else"); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Errorf("a command other than the confirmed one must not run: %v", err)
+	}
 
-	sess, err := s.InstallRequirement("acme.horizon", "mailpit")
+	sess, err := s.InstallRequirement("acme.horizon", "mailpit", "echo installing-mailpit")
 	if err != nil {
 		t.Fatal(err)
 	}

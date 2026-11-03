@@ -60,10 +60,11 @@ export function Install(dir: string, granted: string[] | null): $CancellableProm
 /**
  * InstallRequirement runs the install command of a plugin's missing program
  * in a terminal the user can watch. The frontend shows the exact command and
- * asks first; Larvyn never runs it on its own.
+ * asks first; confirmed is that command, and Larvyn refuses to run anything
+ * else, in case the manifest changed after the user saw it.
  */
-export function InstallRequirement(id: string, program: string): $CancellablePromise<terminal$0.SessionInfo> {
-    return $Call.ByID(1418661512, id, program);
+export function InstallRequirement(id: string, program: string, confirmed: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(1418661512, id, program, confirmed);
 }
 
 /**

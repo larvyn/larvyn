@@ -157,7 +157,7 @@ export function PluginsCard() {
     })
     if (!ok) return
     try {
-      const sess = await PluginService.InstallRequirement(p.manifest.id, m.program)
+      const sess = await PluginService.InstallRequirement(p.manifest.id, m.program, m.install)
       useStore.setState((s) => ({ sessions: [...s.sessions, sess], drawer: { ...s.drawer, open: true, active: sess.id } }))
     } catch (e) {
       toast('error', `Could not install ${m.program}`, errMsg(e))

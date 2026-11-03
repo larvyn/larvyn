@@ -1,8 +1,12 @@
 <!doctype html>
 <!--
-  Mailpit inbox. Plain HTML and JS, no build step. It may only connect to
-  localhost:8025, the domain its manifest lists under "network": Larvyn's
-  sandbox blocks every other connection.
+  Mailpit inbox. Plain HTML and JS, no build step.
+
+  Inside Larvyn the view has no network access of its own: it asks Larvyn
+  to fetch for it (network.fetch), and Larvyn only fetches from the hosts
+  listed under "network" in larvyn.json, here localhost:8025. That also
+  means Mailpit needs no CORS setting. Opened directly in a browser, for
+  testing, it falls back to fetch(), which needs mailpit --api-cors.
 -->
 <html lang="en">
 <head>
@@ -33,10 +37,20 @@ function show(text) {
   p.hidden = false;
 }
 
+// getJSON reads a URL through Larvyn when running inside it.
+async function getJSON(url) {
+  if (window.larvyn) {
+    const res = await window.larvyn.call("network.fetch", { url });
+    if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+    return JSON.parse(res.body);
+  }
+  return (await fetch(url)).json();
+}
+
 async function load() {
   let data;
   try {
-    data = await (await fetch(API)).json();
+    data = await getJSON(API);
   } catch {
     show("Mailpit isn't running. Start it from the stack, and point MAIL_HOST=127.0.0.1 and MAIL_PORT=1025 at it in .env.");
     return;

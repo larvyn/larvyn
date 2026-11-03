@@ -45,8 +45,9 @@ func missing(m Manifest) []Missing {
 
 // InstallRequirement runs the install command of a plugin's missing program
 // in a terminal the user can watch. The frontend shows the exact command and
-// asks first; Larvyn never runs it on its own.
-func (s *PluginService) InstallRequirement(id, program string) (terminal.SessionInfo, error) {
+// asks first; confirmed is that command, and Larvyn refuses to run anything
+// else, in case the manifest changed after the user saw it.
+func (s *PluginService) InstallRequirement(id, program, confirmed string) (terminal.SessionInfo, error) {
 	p, err := find(id)
 	if err != nil {
 		return terminal.SessionInfo{}, err
@@ -57,6 +58,9 @@ func (s *PluginService) InstallRequirement(id, program string) (terminal.Session
 		}
 		if m.Install == "" {
 			return terminal.SessionInfo{}, fmt.Errorf("%s gives no install command for this system; see %s", p.Manifest.Name, m.URL)
+		}
+		if m.Install != confirmed {
+			return terminal.SessionInfo{}, fmt.Errorf("the install command of %s changed; refresh the plugins and confirm it again", p.Manifest.Name)
 		}
 		home, _ := os.UserHomeDir()
 		return terminal.Sessions.Start(terminal.SessionSpec{Kind: "run", Key: "plugin-require-" + program,
