@@ -57,3 +57,14 @@ export async function startStackItem(projectId: string, key: string) {
     return await StackService.Start(projectId, key)
   }
 }
+
+/** Starts or stops a stack item, asking first for a plugin's item that was
+ * never run. It lives here, not in lib/store, to keep store free of UI imports. */
+export async function toggleService(projectId: string, key: string, running: boolean) {
+  try {
+    if (running) await StackService.Stop(projectId, key)
+    else await startStackItem(projectId, key)
+  } catch (e) {
+    toast('error', `Could not ${running ? 'stop' : 'start'} ${key}`, errMsg(e))
+  }
+}

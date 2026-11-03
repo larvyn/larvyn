@@ -47,11 +47,11 @@ import {
   setView,
   showConsole,
   toast,
-  toggleService,
   useActive,
   useStore,
   type View,
 } from '../lib/store'
+import { toggleService } from '../components/pluginRun'
 import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'

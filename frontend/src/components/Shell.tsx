@@ -47,11 +47,11 @@ import {
   setDrawerHeight,
   setView,
   showConsole,
-  toggleService,
   useActive,
   useStore,
   type View,
 } from '../lib/store'
+import { toggleService } from './pluginRun'
 import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
