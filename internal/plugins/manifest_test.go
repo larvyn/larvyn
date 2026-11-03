@@ -73,6 +73,7 @@ func TestInvalidManifests(t *testing.T) {
 		{"no name", "name is missing", func(m map[string]any) { m["name"] = " " }},
 		{"bad version", "semantic version", func(m map[string]any) { m["version"] = "1.0" }},
 		{"no range", "larvyn is missing", func(m map[string]any) { delete(m, "larvyn") }},
+		{"javascript homepage", "http or https", func(m map[string]any) { m["homepage"] = "javascript:alert(1)" }},
 		{"bad range", "comparator", func(m map[string]any) { m["larvyn"] = "~1.0" }},
 		{"backend", "not supported yet", func(m map[string]any) { m["backend"] = map[string]any{"run": []string{"php", "main.php"}} }},
 		{"unknown permission", "unknown permission", func(m map[string]any) { m["permissions"] = []string{"terminal.run", "root"} }},

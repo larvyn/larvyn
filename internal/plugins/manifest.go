@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -170,6 +171,11 @@ func (m Manifest) check(dir string) error {
 		return errors.New("name is missing")
 	case !versionPattern.MatchString(m.Version):
 		return fmt.Errorf("version %q is not a semantic version like 1.0.0", m.Version)
+	}
+	if m.Homepage != "" {
+		if u, err := url.Parse(m.Homepage); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			return fmt.Errorf("homepage %q must be an http or https link", m.Homepage)
+		}
 	}
 	if err := checkRange(m.Larvyn); err != nil {
 		return err
