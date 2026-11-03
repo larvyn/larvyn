@@ -200,7 +200,7 @@ export function Palette() {
               <Command.Item value="reveal folder explorer finder" onSelect={act(() => SystemService.OpenFolder(project.path))}>
                 <FolderOpen /> Reveal in file manager
               </Command.Item>
-              {info?.appUrl && (
+              {(info?.siteUrl || info?.appUrl) && (
                 <Command.Item value="open site browser" onSelect={act(() => SystemService.OpenURL(info.siteUrl || info.appUrl))}>
                   <Globe /> Open {info.siteUrl || info.appUrl}
                 </Command.Item>

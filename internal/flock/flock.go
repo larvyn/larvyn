@@ -165,7 +165,11 @@ func run(dir string, args ...string) error {
 	if bin == "" {
 		return errors.New("Flock is not installed")
 	}
-	cmd := exec.Command(bin, args...)
+	// A flk that waits on a stuck daemon must not hang the action (or the
+	// auto-serve goroutine) for good.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

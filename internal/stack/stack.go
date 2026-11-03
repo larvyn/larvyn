@@ -118,6 +118,13 @@ type Facts struct {
 var Inspect = func(p store.Project) Facts { return Facts{} }
 
 func stackItems(p store.Project) []StackItem {
+	items, _ := stackItemsFrom(p)
+	return items
+}
+
+// stackItemsFrom is stackItems, also telling whether the app's own dev:list
+// chose the processes (fromDevList), or Larvyn's defaults did.
+func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 	info := Inspect(p)
 	has := func(name string) bool {
 		for _, pkg := range info.Packages {
@@ -139,10 +146,9 @@ func stackItems(p store.Project) []StackItem {
 	vite := StackItem{Key: "vite", Label: "Vite", Description: pm + " run dev, hot module reload",
 		Argv: []string{pm, "run", "dev"}, Available: hasDev}
 
-	var items []StackItem
 	if info.IsLaravel && info.HasVendor {
 		if procs, ok := devProcesses(p); ok {
-			items = devStackItems(procs, serve, vite)
+			items, fromDevList = devStackItems(procs, serve, vite), true
 		}
 	}
 	if items == nil {
@@ -209,7 +215,7 @@ func stackItems(p store.Project) []StackItem {
 	for i := range items {
 		items[i].Session = terminal.Find(p.ID, "service", items[i].Key)
 	}
-	return items
+	return items, fromDevList
 }
 
 // Items lists the project's stack with what is running.
@@ -278,13 +284,17 @@ func (s *StackService) StartAll(projectID string, keys []string) error {
 		if !ok {
 			return errors.New("project not found")
 		}
-		items := stackItems(p)
+		items, fromDevList := stackItemsFrom(p)
 		for _, it := range items {
 			if it.Dev {
 				keys = append(keys, it.Key)
 			}
 		}
-		if len(keys) == 0 {
+		// dev:list chose the processes: when Flock covers all of them (just
+		// serve), nothing is left to start, which is not the same as having
+		// no dev:list. The defaults would start a queue worker the app never
+		// asked for.
+		if len(keys) == 0 && !fromDevList {
 			for _, it := range items {
 				if (it.Key == "serve" || it.Key == "vite" || it.Key == "queue") && it.ServedBy == "" {
 					keys = append(keys, it.Key)

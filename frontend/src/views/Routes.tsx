@@ -38,7 +38,8 @@ export function Routes() {
   }, [routes, q, methods, appOnly])
 
   const serve = sessions.find((s) => s.projectId === id && s.key === 'serve' && s.running)?.meta?.url
-  const base = (info?.siteUrl || serve || info?.appUrl || '').replace(/\/$/, '')
+  // As in Overview: a running artisan serve first, then the local site (Flock, Herd).
+  const base = (serve || info?.siteUrl || info?.appUrl || '').replace(/\/$/, '')
 
   const openAction = async (action: string) => {
     const [cls, method] = action.split('@')
