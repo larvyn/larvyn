@@ -402,9 +402,10 @@ func restoredScrollback(b []byte, savedAt int64) []byte {
 		when = " · " + time.UnixMilli(savedAt).Format("Jan 2 15:04")
 	}
 	out := append([]byte(nil), b...)
-	// Leave the alternate screen, show the cursor, stop mouse reporting,
-	// bracketed paste and application keys, reset colours.
-	out = append(out, "\x1b[?1049l\x1b[?25h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?2004l\x1b[?1l\x1b>\x1b[0m"...)
+	// Leave the alternate screen, show the cursor, stop mouse and focus
+	// reporting, bracketed paste and application keys, reset colours. Focus
+	// reporting left on would type ESC[I into the new shell on every focus.
+	out = append(out, "\x1b[?1049l\x1b[?25h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[?1l\x1b>\x1b[0m"...)
 	out = append(out, "\r\n\x1b[2m── restored from the previous session"+when+" ──\x1b[0m\r\n"...)
 	return out
 }
