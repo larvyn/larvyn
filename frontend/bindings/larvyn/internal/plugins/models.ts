@@ -76,6 +76,13 @@ export interface Permission {
 export interface Plugin {
     "manifest": Manifest;
     "dir": string;
+
+    /**
+     * Folder is the name of the plugin's folder in the plugins folder. It
+     * is what Uninstall takes: a broken plugin's manifest id may name
+     * another plugin's folder.
+     */
+    "folder": string;
     "error"?: string;
 
     /**

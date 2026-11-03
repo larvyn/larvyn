@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"larvyn/internal/store"
@@ -118,15 +119,18 @@ func (s *PluginService) Disable(id string) error {
 	})
 }
 
-// Uninstall deletes a plugin's folder (only the link, for a linked one) and
-// forgets what the user decided about it.
-func (s *PluginService) Uninstall(id string) error {
-	// The id becomes a path: only a well-formed one, so it can't climb out
-	// of the plugins folder.
-	if !pluginIDPattern.MatchString(id) {
-		return fmt.Errorf("%q is not a plugin id", id)
+// Uninstall deletes the plugin folder with this name (only the link, for a
+// linked one) and forgets what the user decided about the plugin whose id
+// it is named after. It takes the folder, not the manifest id: a broken
+// plugin can carry another plugin's id, and uninstalling it must not remove
+// that other plugin.
+func (s *PluginService) Uninstall(folder string) error {
+	// The name becomes a path: one plain name, so it can't climb out of the
+	// plugins folder.
+	if folder == "" || strings.HasPrefix(folder, ".") || strings.ContainsAny(folder, `/\`) || filepath.Base(folder) != folder {
+		return fmt.Errorf("%q is not a plugin folder", folder)
 	}
-	dir := filepath.Join(Dir(), id)
+	dir := filepath.Join(Dir(), folder)
 	fi, err := os.Lstat(dir)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -140,7 +144,9 @@ func (s *PluginService) Uninstall(id string) error {
 	if err != nil {
 		return err
 	}
-	return store.Update(func(d *store.State) { delete(d.Plugins, id) })
+	// Only the plugin in the folder named after an id can own that id's
+	// state, so the state keyed by this folder name goes with it.
+	return store.Update(func(d *store.State) { delete(d.Plugins, folder) })
 }
 
 // find returns the installed plugin with this id.
@@ -172,15 +178,16 @@ func installCopy(src, dest string) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	// MkdirTemp makes the folder private; the installed plugin is a normal one.
-	if err := os.Chmod(tmp, 0o755); err != nil {
-		return err
-	}
+	// MkdirTemp keeps the copy private while it is made and checked; only
+	// the finished plugin becomes a normal, readable folder.
 	if err := copyTree(src, tmp); err != nil {
 		return err
 	}
 	if _, err := ReadManifest(tmp); err != nil {
 		return fmt.Errorf("the copied plugin is not valid (symlinks are not copied): %w", err)
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		return err
 	}
 	old := ""
 	if _, err := os.Lstat(dest); err == nil {
@@ -226,27 +233,37 @@ func copyTree(src, dest string) error {
 			return err
 		}
 		files++
-		size += info.Size()
-		if files > maxInstallFiles || size > maxInstallBytes {
-			return fmt.Errorf("the plugin is too large: more than %d files or %d MB", maxInstallFiles, maxInstallBytes>>20)
+		if files > maxInstallFiles || info.Size() > maxInstallBytes-size {
+			return tooLarge()
 		}
-		return copyFile(path, target, info.Mode().Perm())
+		// The limit holds while copying too, in case a file grows.
+		n, err := copyFile(path, target, info.Mode().Perm(), maxInstallBytes-size)
+		size += n
+		return err
 	})
 }
 
-func copyFile(src, dest string, perm fs.FileMode) error {
+func tooLarge() error {
+	return fmt.Errorf("the plugin is too large: more than %d files or %d MB", maxInstallFiles, maxInstallBytes>>20)
+}
+
+// copyFile copies at most limit bytes and fails if src holds more.
+func copyFile(src, dest string, perm fs.FileMode, limit int64) (int64, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer in.Close()
 	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm|0o600)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
+	n, err := io.Copy(out, io.LimitReader(in, limit+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
 	}
-	return out.Close()
+	if err == nil && n > limit {
+		err = tooLarge()
+	}
+	return n, err
 }

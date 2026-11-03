@@ -30,7 +30,7 @@ export function Enable(id: string, granted: string[] | null): $CancellablePromis
 }
 
 /**
- * Folder returns the plugins folder.
+ * Folder returns the plugins folder, creating it so it can be opened.
  */
 export function Folder(): $CancellablePromise<string> {
     return $Call.ByID(1739630286);
@@ -69,9 +69,12 @@ export function Permissions(): $CancellablePromise<$models.Permission[] | null> 
 }
 
 /**
- * Uninstall deletes a plugin's folder (only the link, for a linked one) and
- * forgets what the user decided about it.
+ * Uninstall deletes the plugin folder with this name (only the link, for a
+ * linked one) and forgets what the user decided about the plugin whose id
+ * it is named after. It takes the folder, not the manifest id: a broken
+ * plugin can carry another plugin's id, and uninstalling it must not remove
+ * that other plugin.
  */
-export function Uninstall(id: string): $CancellablePromise<void> {
-    return $Call.ByID(673548920, id);
+export function Uninstall(folder: string): $CancellablePromise<void> {
+    return $Call.ByID(673548920, folder);
 }

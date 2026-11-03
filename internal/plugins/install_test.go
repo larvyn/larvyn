@@ -212,10 +212,53 @@ func TestUninstall(t *testing.T) {
 	if _, ok := store.Plugins()["acme.horizon"]; ok {
 		t.Error("state still there")
 	}
-	for _, id := range []string{"../escape", "acme.horizon/../../x", ""} {
-		if err := s.Uninstall(id); err == nil {
-			t.Errorf("Uninstall(%q) should be refused", id)
+	for _, name := range []string{"../escape", "acme.horizon/../../x", "", ".", "..", ".cache", `a\b`} {
+		if err := s.Uninstall(name); err == nil {
+			t.Errorf("Uninstall(%q) should be refused", name)
 		}
+	}
+}
+
+// A broken folder carrying another plugin's id must not take that plugin
+// with it when it is uninstalled.
+func TestUninstallBrokenFolderKeepsTheRealPlugin(t *testing.T) {
+	reset(t)
+	s := &PluginService{}
+	src := t.TempDir()
+	writePlugin(t, src, validManifest)
+	if _, err := s.Install(src, horizonPerms); err != nil {
+		t.Fatal(err)
+	}
+	writePlugin(t, filepath.Join(Dir(), "copy-of-horizon"), validManifest)
+	var broken Plugin
+	for _, p := range Load() {
+		if p.Folder == "copy-of-horizon" {
+			broken = p
+		}
+	}
+	if broken.Error == "" || broken.Manifest.ID != "acme.horizon" {
+		t.Fatalf("the copy should be listed as broken with the real id: %+v", broken)
+	}
+	if err := s.Uninstall(broken.Folder); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(Dir(), "copy-of-horizon")); err == nil {
+		t.Error("the broken folder is still there")
+	}
+	p, err := find("acme.horizon")
+	if err != nil || !p.Enabled {
+		t.Errorf("the real plugin and its state must stay: %+v %v", p, err)
+	}
+}
+
+func TestCopyFileStopsAtTheLimit(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "big")
+	os.WriteFile(src, []byte("0123456789"), 0o644)
+	if _, err := copyFile(src, filepath.Join(t.TempDir(), "out"), 0o644, 9); err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Errorf("a file larger than the limit must fail: %v", err)
+	}
+	if n, err := copyFile(src, filepath.Join(t.TempDir(), "out"), 0o644, 10); err != nil || n != 10 {
+		t.Errorf("a file at the limit must copy: %d %v", n, err)
 	}
 }
 

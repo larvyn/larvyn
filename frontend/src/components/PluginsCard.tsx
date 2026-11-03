@@ -126,7 +126,7 @@ export function PluginsCard() {
       danger: true,
     })
     if (!ok) return
-    await PluginService.Uninstall(p.manifest.id).catch(fail('Could not uninstall the plugin'))
+    await PluginService.Uninstall(p.folder).catch(fail('Could not uninstall the plugin'))
     load()
   }
 

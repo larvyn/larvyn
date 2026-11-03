@@ -192,8 +192,29 @@ func (s *Store) saveLocked() error {
 func (s *Store) Update(fn func(d *State)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// If the save fails, the change is undone, so what Larvyn reports keeps
+	// matching what is on disk.
+	before := s.data.clone()
 	fn(&s.data)
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		s.data = before
+		return err
+	}
+	return nil
+}
+
+// clone is a deep copy: fn may change slices and maps in place.
+func (d State) clone() State {
+	c := d
+	c.Projects = append([]Project(nil), d.Projects...)
+	if d.Plugins != nil {
+		c.Plugins = make(map[string]PluginState, len(d.Plugins))
+		for id, p := range d.Plugins {
+			p.Granted = append([]string(nil), p.Granted...)
+			c.Plugins[id] = p
+		}
+	}
+	return c
 }
 
 // Plugins returns a copy of the plugin decisions, keyed by plugin id.

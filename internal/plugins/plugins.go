@@ -22,7 +22,11 @@ type PluginService struct{}
 type Plugin struct {
 	Manifest Manifest `json:"manifest"`
 	Dir      string   `json:"dir"`
-	Error    string   `json:"error,omitempty"`
+	// Folder is the name of the plugin's folder in the plugins folder. It
+	// is what Uninstall takes: a broken plugin's manifest id may name
+	// another plugin's folder.
+	Folder string `json:"folder"`
+	Error  string `json:"error,omitempty"`
 	// Enabled is whether the plugin runs: the user turned it on, it has no
 	// Error and every permission it asks for was granted.
 	Enabled bool     `json:"enabled"`
@@ -66,7 +70,7 @@ func Load() []Plugin {
 }
 
 func load(dir, name string) Plugin {
-	p := Plugin{Dir: dir}
+	p := Plugin{Dir: dir, Folder: name}
 	m, err := ReadManifest(dir)
 	p.Manifest = m
 	switch {
