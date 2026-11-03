@@ -7,6 +7,8 @@ import { cx, errMsg } from '../lib/util'
 import { Toggle, confirmDialog } from './ui'
 import { Brand } from './Brand'
 
+const sameUrl = (a: string, b: string) => a.trim().replace(/\/+$/, '').toLowerCase() === b.trim().replace(/\/+$/, '').toLowerCase()
+
 /** Whether url is a .test address, as Flock (or Herd/Valet) serves. */
 export const isTestUrl = (url: string) => /^https?:\/\/[^/]+\.test(:\d+)?(\/|$)/i.test((url || '').trim())
 
@@ -24,7 +26,7 @@ export const restoreAppUrl = (id: string) =>
  * Flock up, start it, serve the app at <folder>.test, then HTTPS, the PHP
  * version and the worktrees' URLs. `revision` reloads it when the project
  * info changes. */
-export function FlockCard({ id, appUrl, served, revision }: { id: string; appUrl: string; served: boolean; revision: string }) {
+export function FlockCard({ id, appUrl, siteUrl, served, revision }: { id: string; appUrl: string; siteUrl: string; served: boolean; revision: string }) {
   const [f, setF] = useState<FlockInfo | null>(null)
   const [busy, setBusy] = useState('')
   const alive = useRef(true)
@@ -38,7 +40,9 @@ export function FlockCard({ id, appUrl, served, revision }: { id: string; appUrl
         // systemctl, flk): refresh the project so the badge, the dev stack
         // and the Doctor follow.
         // (A site with a problem does not count as served, as in the project info.)
-        if ((v.state === 'running' && !!v.site && !v.site.problem) !== served) refreshInfo(id)
+        const nowServed = v.state === 'running' && !!v.site && !v.site.problem
+        // Also when only the URL changed, e.g. HTTPS switched in Flock's app.
+        if (nowServed !== served || (nowServed && !sameUrl(v.site!.url || '', siteUrl))) refreshInfo(id)
       })
       .catch(() => {})
 
@@ -55,7 +59,7 @@ export function FlockCard({ id, appUrl, served, revision }: { id: string; appUrl
     if (!f?.state) return
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
-  }, [id, !!f?.state, served])
+  }, [id, !!f?.state, served, siteUrl])
 
   // While a PHP version downloads, follow its progress.
   const installing = f?.php?.find((v) => v.job?.state === 'running')

@@ -390,7 +390,7 @@ export function Overview() {
         </div>
 
         <div className="col" style={{ gap: 16 }}>
-          {info.isLaravel && <FlockCard id={id!} appUrl={info.appUrl} served={info.siteServer === 'Flock'} revision={`${info.siteUrl}|${info.appUrl}`} />}
+          {info.isLaravel && <FlockCard id={id!} appUrl={info.appUrl} siteUrl={info.siteUrl} served={info.siteServer === 'Flock'} revision={`${info.siteUrl}|${info.appUrl}`} />}
 
           <div className="card">
             <div className="card-head">

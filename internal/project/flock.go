@@ -90,7 +90,10 @@ func (s *ProjectService) FlockUnserve(id string) error {
 		_, err := s.RestoreAppURL(id)
 		return err
 	}
-	return nil
+	// The user set APP_URL to something else meanwhile: that value stays, and
+	// the one remembered from before is stale, so a later serve and stop
+	// cannot bring it back over theirs.
+	return rememberAppURL(id, "", true)
 }
 
 // FlockSecure turns HTTPS on or off and moves APP_URL along. It returns the
@@ -201,31 +204,85 @@ func setAppURL(p store.Project, value string, remember bool) error {
 		return err
 	}
 	lines := strings.Split(string(raw), "\n")
-	found := false
+	old, found := "", false
 	for i, line := range lines {
-		key, old, ok := dotenv.ParseLine(line)
-		if !ok || key != "APP_URL" {
-			continue
-		}
-		found = true
-		lines[i] = "APP_URL=" + value
-		if remember && old != "" && !sameURL(old, value) {
-			_ = store.Update(func(d *store.State) {
-				for i := range d.Projects {
-					if d.Projects[i].ID == p.ID && d.Projects[i].AppURLBeforeFlock == "" {
-						d.Projects[i].AppURLBeforeFlock = old
-					}
-				}
-			})
+		if key, v, ok := dotenv.ParseLine(line); ok && key == "APP_URL" {
+			old, found = v, true
+			lines[i] = "APP_URL=" + value
 		}
 	}
 	if !found {
 		return errors.New("APP_URL is not in .env")
 	}
-	backup := filepath.Join(store.HomeDir(), "backups")
-	_ = os.MkdirAll(backup, 0o755)
-	_ = os.WriteFile(filepath.Join(backup, fmt.Sprintf("%s-.env-%d", p.ID, time.Now().Unix())), raw, 0o600)
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600)
+	// Save the URL to come back to before touching .env, so a failure
+	// here never leaves .env pointing at Flock with nothing to restore.
+	if remember && old != "" && !sameURL(old, value) {
+		if err := rememberAppURL(p.ID, old, false); err != nil {
+			return fmt.Errorf("could not save the current APP_URL: %w", err)
+		}
+	}
+	if err := backupEnv(p.ID, raw); err != nil {
+		return fmt.Errorf("could not back up .env: %w", err)
+	}
+	return replaceFile(path, []byte(strings.Join(lines, "\n")))
+}
+
+// rememberAppURL stores the APP_URL to restore when Flock stops serving the
+// project: only when none is stored yet, unless overwrite ("" forgets it).
+func rememberAppURL(id, url string, overwrite bool) error {
+	return store.Update(func(d *store.State) {
+		for i := range d.Projects {
+			if d.Projects[i].ID == id && (overwrite || d.Projects[i].AppURLBeforeFlock == "") {
+				d.Projects[i].AppURLBeforeFlock = url
+			}
+		}
+	})
+}
+
+// backupEnv keeps a copy of a .env about to change in Larvyn's backups
+// folder, under a name no other backup can take.
+func backupEnv(id string, raw []byte) error {
+	dir := filepath.Join(store.HomeDir(), "backups")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-.env-%d-*", id, time.Now().Unix()))
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(raw); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return err
+	}
+	return f.Close()
+}
+
+// replaceFile writes data next to path and renames it over path once it is
+// complete, so a failed write never leaves a truncated file. The file keeps
+// its permissions.
+func replaceFile(path string, data []byte) error {
+	mode := os.FileMode(0o600)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".larvyn-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // a no-op once renamed
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // FlockUseSiteURL points APP_URL at the URL Flock serves the app at,
@@ -258,13 +315,9 @@ func (s *ProjectService) RestoreAppURL(id string) (string, error) {
 	if err := setAppURL(p, value, false); err != nil {
 		return "", err
 	}
-	_ = store.Update(func(d *store.State) {
-		for i := range d.Projects {
-			if d.Projects[i].ID == id {
-				d.Projects[i].AppURLBeforeFlock = ""
-			}
-		}
-	})
+	if err := rememberAppURL(id, "", true); err != nil {
+		return "", err
+	}
 	return value, nil
 }
 

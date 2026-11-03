@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -94,5 +95,34 @@ func TestRestoreAppURL(t *testing.T) {
 	}
 	if url, _ := svc.RestoreAppURL("r1"); url != "http://127.0.0.1:8003" {
 		t.Errorf("fallback = %q", url)
+	}
+}
+
+func TestSetAppURLWritesSafely(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LARVYN_HOME", home)
+	dir := t.TempDir()
+	env := filepath.Join(dir, ".env")
+	if err := os.WriteFile(env, []byte("APP_URL=http://localhost\nAPP_KEY=x\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := setAppURL(store.Project{ID: "w1", Path: dir}, "http://acme.test", false); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(env); string(raw) != "APP_URL=http://acme.test\nAPP_KEY=x\n" {
+		t.Errorf(".env is now %q", raw)
+	}
+	if st, _ := os.Stat(env); runtime.GOOS != "windows" && st.Mode().Perm() != 0o640 {
+		t.Errorf("permissions changed to %v", st.Mode().Perm())
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, ".*.larvyn-*")); len(left) > 0 {
+		t.Errorf("temporary files left: %v", left)
+	}
+	backups, _ := filepath.Glob(filepath.Join(home, "backups", "w1-.env-*"))
+	if len(backups) != 1 {
+		t.Fatalf("backups: %v", backups)
+	}
+	if raw, _ := os.ReadFile(backups[0]); string(raw) != "APP_URL=http://localhost\nAPP_KEY=x\n" {
+		t.Errorf("backup holds %q", raw)
 	}
 }
