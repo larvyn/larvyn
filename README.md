@@ -13,8 +13,8 @@ points both at Laravel.
 | View | |
 | --- | --- |
 | **Overview** | Laravel/PHP versions, detected ecosystem (Filament, Livewire, Inertia, Horizon, Pest…), config summary, recent commits, and a **Doctor** that finds and fixes setup problems (missing vendor, `.env`, `APP_KEY`, pending migrations, storage link, debug in production). |
-| **Dev stack** | One toggle each for `artisan serve`, Vite, queue (or Horizon), scheduler, Pail, Reverb, Octane. Output in the console drawer; processes are killed with their children. |
-| **Agents** | Launch Claude Code, Codex, OpenCode, Antigravity CLI, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied. Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). |
+| **Dev stack** | One toggle each for `artisan serve`, Vite, queue (or Horizon), scheduler, Pail, Reverb, Octane. Output in the console drawer; processes are killed with their children. When [Flock](#flock-optional) serves the app, it takes the place of `artisan serve`. |
+| **Agents** | Launch Claude Code, Codex, OpenCode, Antigravity CLI, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied (with Flock, each attempt also gets its own `.test` URL to try in the browser). Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). |
 | **Terminals** | Real PTYs (ConPTY on Windows) with tabs and splits that keep running across views and projects. |
 | **Artisan** | Every command with a generated form for its arguments and options, favourites, and a generator studio for every `make:*`. |
 | **Routes** | Searchable route table with method filters, middleware, open-controller-at-method, open in browser, copy `route()`. |
@@ -31,6 +31,28 @@ points both at Laravel.
 `Ctrl K` opens the command palette: navigate, start/stop services, run any
 artisan line (`> migrate:fresh --seed`), a shell line (`$ npm run build`),
 composer/npm scripts, or hand a prompt to an agent or Tinker.
+
+### Flock (optional)
+
+[Flock](https://flockphp.com) is a free local PHP environment for Windows,
+macOS and Linux: PHP, Node, databases and `*.test` sites with trusted HTTPS,
+without Docker. Larvyn works without it; once it is installed, Larvyn uses it:
+
+- **Local site** card in Overview, one click per step: set Flock up, start it,
+  serve the app at `<folder>.test`, switch HTTPS, pick the PHP version (a
+  missing one downloads with its progress shown) and open each worktree's URL.
+  `APP_URL` follows the site when it was empty or `localhost`, with a backup
+  of `.env`; the Doctor flags one that doesn't match.
+- Laravel apps added to Larvyn are served by Flock right away (Settings →
+  Flock turns this off).
+- Agent worktrees are served by Flock at `larvyn-<task>.<site>.test`, set up
+  by Flock itself (dependencies, `.env`, database), with a 🌐 button on each
+  agent to compare attempts in the browser before merging.
+- The dev stack drops `artisan serve`; Vite, the queue and the rest still run
+  from Larvyn, since Flock doesn't run them.
+
+Larvyn reads Flock's daemon API on its unix socket and makes changes with
+Flock's `flk` command, as a user would.
 
 ## How it works
 
@@ -50,7 +72,8 @@ composer/npm scripts, or hand a prompt to an agent or Tinker.
 - Base packages the services build on, which never import a service:
   `store` (projects, settings, the state folder), `proc` (running PHP, artisan
   and git, finding programs, the login-shell PATH, killing process trees),
-  `composer` (Composer from PATH or Larvyn's own phar), `dotenv`, `updater`
+  `composer` (Composer from PATH or Larvyn's own phar), `dotenv`, `flock`
+  (the optional Flock local server: its daemon's API and `flk`), `updater`
   (self-update) and `platform` (OS start-up tweaks).
 - `internal/laravel/bridge.php`: embedded PHP script that boots the project's
   Laravel app and answers one JSON request (database, models, migrations,
