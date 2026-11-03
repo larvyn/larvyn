@@ -147,6 +147,21 @@ export interface PluginCommand {
 }
 
 /**
+ * PluginView is a view for the sidebar.
+ */
+export interface PluginView {
+    "pluginId": string;
+    "pluginName": string;
+    "id": string;
+    "title": string;
+
+    /**
+     * URL is where the iframe loads the view from.
+     */
+    "url": string;
+}
+
+/**
  * Requirement is a program a plugin needs. Larvyn checks PATH for it and,
  * when it is missing, offers the install command for the user's system; it
  * runs only in a visible terminal, after the user confirmed it.
@@ -182,4 +197,13 @@ export interface View {
      * Entry is the HTML file, relative to the plugin folder.
      */
     "entry": string;
+}
+
+/**
+ * ViewResult is what a view's call returns. Notify asks the frontend to
+ * show a notification for the plugin (ui.notify).
+ */
+export interface ViewResult {
+    "result": any;
+    "notify"?: string;
 }

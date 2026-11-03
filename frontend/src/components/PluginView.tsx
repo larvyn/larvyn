@@ -1,0 +1,87 @@
+import { useEffect, useRef, useState } from 'react'
+import { Puzzle } from 'lucide-react'
+import { PluginService, type PluginView as View } from '../../bindings/larvyn/internal/plugins'
+import { setView, toast, useStore } from '../lib/store'
+import { errMsg } from '../lib/util'
+import { Empty } from './ui'
+import { PLUGINS_CHANGED } from './pluginRun'
+
+/** The views of the plugins that are on, kept fresh when plugins change. */
+export function usePluginViews() {
+  const [views, setViews] = useState<View[]>([])
+  useEffect(() => {
+    const load = () =>
+      PluginService.Views()
+        .then((v) => setViews(v ?? []))
+        .catch(() => setViews([]))
+    load()
+    window.addEventListener(PLUGINS_CHANGED, load)
+    return () => window.removeEventListener(PLUGINS_CHANGED, load)
+  }, [])
+  return views
+}
+
+export const viewKey = (v: View) => `plugin:${v.pluginId}:${v.id}` as const
+
+/** A plugin's view: its page in a sandboxed iframe (scripts only, so it has
+ * no access to Larvyn's page, storage or Go bindings), and the other end of
+ * its window.larvyn. A call is trusted to come from this plugin only because
+ * it comes from this iframe; Larvyn's Go side then checks the plugin's
+ * permissions. */
+export function PluginView({ view }: { view: string }) {
+  const views = usePluginViews()
+  const projectId = useStore((s) => s.activeId)
+  const frame = useRef<HTMLIFrameElement>(null)
+  const v = views.find((x) => viewKey(x) === view)
+
+  useEffect(() => {
+    if (!v) return
+    const onMessage = async (e: MessageEvent) => {
+      const win = frame.current?.contentWindow
+      if (!win || e.source !== win) return
+      const m = e.data
+      if (!m || m.larvyn !== 1 || typeof m.id !== 'number' || typeof m.method !== 'string') return
+      const params = m.params && typeof m.params === 'object' && !Array.isArray(m.params) ? m.params : {}
+      try {
+        const r = await PluginService.Call(v.pluginId, projectId ?? '', m.method, params)
+        if (r.notify) toast('info', v.pluginName, r.notify)
+        win.postMessage({ larvyn: 1, id: m.id, result: r.result ?? null }, '*')
+      } catch (err) {
+        win.postMessage({ larvyn: 1, id: m.id, error: errMsg(err) }, '*')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [v?.pluginId, v?.id, projectId])
+
+  if (!v)
+    return (
+      <div className="view pad">
+        <Empty
+          icon={<Puzzle />}
+          title="This plugin view is not available"
+          action={
+            <button className="btn" onClick={() => setView('settings')}>
+              Open Settings → Plugins
+            </button>
+          }
+        >
+          The plugin may be off or uninstalled.
+        </Empty>
+      </div>
+    )
+
+  return (
+    <div className="view" style={{ padding: 0, display: 'flex' }}>
+      <iframe
+        key={projectId ?? ''}
+        ref={frame}
+        title={`${v.pluginName}: ${v.title}`}
+        src={v.url}
+        sandbox="allow-scripts"
+        referrerPolicy="no-referrer"
+        style={{ flex: 1, width: '100%', height: '100%', border: 0, background: 'transparent' }}
+      />
+    </div>
+  )
+}

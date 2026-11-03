@@ -19,6 +19,14 @@ import * as terminal$0 from "../terminal/models.js";
 import * as $models from "./models.js";
 
 /**
+ * Call runs a window.larvyn call from one of a plugin's views, for the
+ * project open in Larvyn. Every method checks its permission first.
+ */
+export function Call(pluginID: string, projectID: string, method: string, params: { [_ in string]?: any } | null): $CancellablePromise<$models.ViewResult> {
+    return $Call.ByID(3089511746, pluginID, projectID, method, params);
+}
+
+/**
  * Commands lists the commands of the plugins that are on.
  */
 export function Commands(): $CancellablePromise<$models.PluginCommand[] | null> {
@@ -115,4 +123,11 @@ export function RunCommand(projectID: string, pluginID: string, commandID: strin
  */
 export function Uninstall(folder: string): $CancellablePromise<void> {
     return $Call.ByID(673548920, folder);
+}
+
+/**
+ * Views lists the views of the plugins that are on.
+ */
+export function Views(): $CancellablePromise<$models.PluginView[] | null> {
+    return $Call.ByID(4170814180);
 }

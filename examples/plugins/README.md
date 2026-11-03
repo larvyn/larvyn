@@ -21,7 +21,12 @@ ln -s "$PWD/examples/plugins/larvyn.horizon" ~/Library/Application\ Support/larv
 
 A linked plugin starts off. Turn it on in Settings, which asks you to approve its permissions.
 
-> **Status:** Larvyn installs these plugins and runs their commands (in ⌘K, under Plugins) and stack items (in the sidebar's Stack). The first run of each asks you to confirm the exact command. Views come in the next v1 step of #56. The `window.larvyn` API used by `larvyn.hello` is the planned API and may change before v1 ships. Views have no network access of their own: they call `network.fetch`, and Larvyn makes the request only to the hosts in `network`. So the Mailpit view needs no CORS setting in Larvyn. Opened directly in a browser for testing, it falls back to `fetch()`, which needs `mailpit --api-cors`.
+> **Status:** Larvyn installs these plugins and runs all three kinds of contribution:
+> - **commands**, in ⌘K under Plugins;
+> - **stack items**, in the sidebar's Stack;
+> - **views**, in the sidebar's Plugins group.
+>
+> The first run of each command or stack item asks you to confirm the exact command line. Views have no network access of their own: they call `network.fetch`, and Larvyn makes the request only to the hosts in `network`. So the Mailpit view needs no CORS setting in Larvyn. Opened directly in a browser for testing, it falls back to `fetch()`, which needs `mailpit --api-cors`.
 
 ## The manifest
 
@@ -53,3 +58,27 @@ The permissions marked sensitive are shown in red when a user installs the plugi
 | `ui.notify` | | Showing notifications |
 | `storage` | | Keeping the plugin's own settings and data |
 | `network` | yes | Fetching from the hosts listed in `network`, through `network.fetch`. Larvyn makes the request, and refuses any other host. |
+
+## Views and `window.larvyn`
+
+A view is an HTML page from the plugin's folder. Larvyn shows it in a sandboxed iframe, which runs scripts but has no access to Larvyn's page, its storage or its Go side. Its Content-Security-Policy keeps it to its own files:
+- Scripts and styles may be inline or files in the plugin.
+- Images and fonts may be files in the plugin, or `data:` URLs.
+- There is no `fetch`, no forms and no frames.
+
+Larvyn adds `window.larvyn` to every view page. Its only method, `call`, returns a promise:
+
+```js
+const project = await window.larvyn.call('project.info')
+```
+
+Larvyn checks each call against the plugin's granted permissions, in Go, before doing anything.
+
+| Method | Permission | Params | Returns |
+|---|---|---|---|
+| `project.info` | `project.read` | — | `{ id, name, path }` of the open project |
+| `project.env.read` | `project.env.read` | — | the project's `.env`, as an object |
+| `ui.notify` | `ui.notify` | `{ message }` | shows a notification with the plugin's name |
+| `storage.get` | `storage` | `{ key }` | the stored value, or `null` |
+| `storage.set` | `storage` | `{ key, value }` | stores a JSON value; `null` deletes it. The limit is 1 MB per plugin. |
+| `network.fetch` | `network` | `{ url }` | a GET request made by Larvyn, only to the hosts in `network` (redirects included). Returns `{ status, contentType, body }`. The limit is 2 MB. |

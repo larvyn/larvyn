@@ -15,7 +15,9 @@ export type {
     Permission,
     Plugin,
     PluginCommand,
+    PluginView,
     Requirement,
     StackItem,
-    View
+    View,
+    ViewResult
 } from "./models.js";

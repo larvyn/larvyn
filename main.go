@@ -115,6 +115,9 @@ func main() {
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
+			// Plugin views are served from the plugins folder, and kept away
+			// from Wails' runtime endpoint.
+			Middleware: plugins.ViewMiddleware,
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
