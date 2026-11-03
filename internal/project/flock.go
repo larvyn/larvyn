@@ -86,7 +86,7 @@ func (s *ProjectService) FlockUnserve(id string) error {
 	}
 	// The app runs without Flock from now on: APP_URL goes back with it.
 	p, _ := store.FindProject(id)
-	if sameURL(dotenv.Read(filepath.Join(p.Path, ".env"))["APP_URL"], site.URL) {
+	if sameSite(dotenv.Read(filepath.Join(p.Path, ".env"))["APP_URL"], site.URL) {
 		_, err := s.RestoreAppURL(id)
 		return err
 	}
@@ -322,7 +322,7 @@ func (s *ProjectService) RestoreAppURL(id string) (string, error) {
 }
 
 func replaceableAppURL(value, previous string) bool {
-	if strings.TrimSpace(value) == "" || (previous != "" && sameURL(value, previous)) {
+	if strings.TrimSpace(value) == "" || (previous != "" && sameSite(value, previous)) {
 		return true
 	}
 	u, err := url.Parse(value)
@@ -334,6 +334,18 @@ func replaceableAppURL(value, previous string) bool {
 		return true
 	}
 	return false
+}
+
+// sameSite reports whether two URLs name the same host and port, whatever
+// their scheme: APP_URL still names Flock's site after HTTPS was switched in
+// Flock's own app, which changes only the scheme.
+func sameSite(a, b string) bool {
+	ua, errA := url.Parse(strings.TrimSpace(a))
+	ub, errB := url.Parse(strings.TrimSpace(b))
+	if errA != nil || errB != nil || ua.Host == "" {
+		return false
+	}
+	return strings.EqualFold(ua.Host, ub.Host)
 }
 
 func sameURL(a, b string) bool {

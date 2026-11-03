@@ -126,3 +126,20 @@ func TestSetAppURLWritesSafely(t *testing.T) {
 		t.Errorf("backup holds %q", raw)
 	}
 }
+
+func TestSameSite(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"http://acme.test", "https://acme.test", true},
+		{"https://ACME.test/", "http://acme.test", true},
+		{"http://acme.test:8080", "http://acme.test", false},
+		{"http://localhost", "http://acme.test", false},
+		{"", "http://acme.test", false},
+	} {
+		if got := sameSite(c.a, c.b); got != c.want {
+			t.Errorf("sameSite(%q, %q) = %v", c.a, c.b, got)
+		}
+	}
+}

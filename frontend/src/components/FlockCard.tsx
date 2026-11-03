@@ -30,11 +30,15 @@ export function FlockCard({ id, appUrl, siteUrl, served, revision }: { id: strin
   const [f, setF] = useState<FlockInfo | null>(null)
   const [busy, setBusy] = useState('')
   const alive = useRef(true)
+  // Loads overlap (polls, actions): only the latest one may update the card,
+  // or an older poll could bring back a state an action just changed.
+  const seq = useRef(0)
 
-  const load = () =>
-    ProjectService.Flock(id)
+  const load = () => {
+    const mine = ++seq.current
+    return ProjectService.Flock(id)
       .then((v) => {
-        if (!alive.current) return
+        if (!alive.current || mine !== seq.current) return
         setF(v)
         // Flock was started, stopped or changed outside Larvyn (its own app,
         // systemctl, flk): refresh the project so the badge, the dev stack
@@ -45,6 +49,7 @@ export function FlockCard({ id, appUrl, siteUrl, served, revision }: { id: strin
         if (nowServed !== served || (nowServed && !sameUrl(v.site!.url || '', siteUrl))) refreshInfo(id)
       })
       .catch(() => {})
+  }
 
   useEffect(() => {
     alive.current = true
