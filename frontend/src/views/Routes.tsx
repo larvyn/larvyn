@@ -38,7 +38,7 @@ export function Routes() {
   }, [routes, q, methods, appOnly])
 
   const serve = sessions.find((s) => s.projectId === id && s.key === 'serve' && s.running)?.meta?.url
-  const base = (info?.herdUrl || serve || info?.appUrl || '').replace(/\/$/, '')
+  const base = (info?.siteUrl || serve || info?.appUrl || '').replace(/\/$/, '')
 
   const openAction = async (action: string) => {
     const [cls, method] = action.split('@')

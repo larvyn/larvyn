@@ -201,8 +201,8 @@ export function Palette() {
                 <FolderOpen /> Reveal in file manager
               </Command.Item>
               {info?.appUrl && (
-                <Command.Item value="open site browser" onSelect={act(() => SystemService.OpenURL(info.herdUrl || info.appUrl))}>
-                  <Globe /> Open {info.herdUrl || info.appUrl}
+                <Command.Item value="open site browser" onSelect={act(() => SystemService.OpenURL(info.siteUrl || info.appUrl))}>
+                  <Globe /> Open {info.siteUrl || info.appUrl}
                 </Command.Item>
               )}
               <Command.Item value="start stack all services" onSelect={act(() => StackService.StartAll(id!, []).catch(fail('Some services did not start')))}>

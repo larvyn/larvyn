@@ -154,8 +154,8 @@ export function Overview() {
     : []
   const problems = checks.filter((c) => c.ok === false).length
   const running = stack.filter((s) => s.session?.running)
-  // While php artisan serve runs, open it: requests then show up in its output. Otherwise Herd's site.
-  const siteUrl = running.find((s) => s.key === 'serve')?.url || info.herdUrl || info.appUrl
+  // While php artisan serve runs, open it: requests then show up in its output. Otherwise the site Flock or Herd serves.
+  const siteUrl = running.find((s) => s.key === 'serve')?.url || info.siteUrl || info.appUrl
 
   const go = (v: View) => () => setView(v)
   const counts = info.counts ?? {}
@@ -179,7 +179,13 @@ export function Overview() {
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
               {info.isLaravel && <span className="badge accent">Laravel {info.laravelVersion}</span>}
               {info.phpConstraint && <span className="badge">PHP {info.phpConstraint}</span>}
-              {info.appEnv && <span className={cx('badge', info.appEnv === 'production' ? 'red' : 'green')}>{info.appEnv}</span>}
+              {info.siteServer && (
+                <span className="badge" title={`Served by ${info.siteServer} at ${info.siteUrl}`}>
+                  {info.siteServer}
+                  {info.sitePhp && ` · PHP ${info.sitePhp}`}
+                </span>
+              )}
+              {info.appEnv &&<span className={cx('badge', info.appEnv === 'production' ? 'red' : 'green')}>{info.appEnv}</span>}
               {info.appDebug && <span className="badge yellow">debug</span>}
               {info.testRunner && <span className="badge blue">{info.testRunner}</span>}
               {info.frontend?.map((f) => (

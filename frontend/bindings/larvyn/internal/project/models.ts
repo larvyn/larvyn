@@ -53,5 +53,13 @@ export interface ProjectInfo {
     "composerScripts": { [_ in string]?: string } | null;
     "npmScripts": { [_ in string]?: string } | null;
     "counts": { [_ in string]?: number } | null;
-    "herdUrl": string;
+
+    /**
+     * SiteURL is where a local server (Flock, Herd or Valet) serves the
+     * project without `artisan serve`; SiteServer names it, and SitePHP is the
+     * PHP version it uses when it reports one.
+     */
+    "siteUrl": string;
+    "siteServer": string;
+    "sitePhp": string;
 }

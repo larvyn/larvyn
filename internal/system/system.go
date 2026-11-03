@@ -101,7 +101,7 @@ func (s *SystemService) Tools() []Tool {
 		args          []string
 		hint          string
 	}{
-		{"php", "PHP", store.PHP(), []string{"-r", "echo PHP_VERSION;"}, "Install PHP 8.2+ or Laravel Herd"},
+		{"php", "PHP", store.PHP(), []string{"-r", "echo PHP_VERSION;"}, "Install PHP 8.2+, Flock or Laravel Herd"},
 		{"composer", "Composer", "composer", []string{"--version"}, "getcomposer.org"},
 		{"laravel", "Laravel installer", "laravel", []string{"--version"}, "composer global require laravel/installer"},
 		{"node", "Node.js", "node", []string{"--version"}, "nodejs.org"},
@@ -110,6 +110,8 @@ func (s *SystemService) Tools() []Tool {
 		{"bun", "Bun", "bun", []string{"--version"}, ""},
 		{"git", "Git", "git", []string{"--version"}, "git-scm.com"},
 		{"herd", "Laravel Herd", "herd", []string{"--version"}, "herd.laravel.com"},
+		// flk, not flock: on Linux /usr/bin/flock is util-linux's file lock.
+		{"flock", "Flock", "flk", []string{"version"}, "flockphp.com"},
 		{"docker", "Docker", "docker", []string{"--version"}, ""},
 		{"mysql", "MySQL client", "mysql", []string{"--version"}, ""},
 		{"redis", "Redis CLI", "redis-cli", []string{"--version"}, ""},

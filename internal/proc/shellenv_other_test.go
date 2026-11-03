@@ -10,11 +10,13 @@ import (
 )
 
 func TestToolDirs(t *testing.T) {
+	t.Setenv("FLOCK_HOME", "/flock-home")
 	got := strings.Join(toolDirs("/Users/me", "", ""), "\n")
 	for _, want := range []string{
 		"/Users/me/.composer/vendor/bin",
 		"/Users/me/.config/composer/vendor/bin",
 		"/Users/me/Library/Application Support/Herd/bin",
+		"/flock-home/bin",
 		"/opt/homebrew/bin",
 	} {
 		if !strings.Contains(got, want) {

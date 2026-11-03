@@ -41,3 +41,11 @@ export function Launch(req: $models.LaunchRequest): $CancellablePromise<terminal
 export function Send(sessionID: string, text: string): $CancellablePromise<void> {
     return $Call.ByID(1388024608, sessionID, text);
 }
+
+/**
+ * WorktreeURL is where Flock serves an agent's worktree, "" while it has not
+ * picked it up yet (it notices new worktrees within a few seconds).
+ */
+export function WorktreeURL(path: string): $CancellablePromise<string> {
+    return $Call.ByID(2361217228, path);
+}
