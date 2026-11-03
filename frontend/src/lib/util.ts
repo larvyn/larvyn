@@ -131,3 +131,15 @@ export function cronText(expr: string): string {
   if (h) return `Hourly at :${h[1].padStart(2, '0')}`
   return expr
 }
+
+/** Editors Larvyn knows how to open a file at a line in (store.Settings.editor). */
+export const EDITORS = [
+  { id: 'code', label: 'VS Code' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'windsurf', label: 'Windsurf' },
+  { id: 'phpstorm', label: 'PhpStorm' },
+  { id: 'zed', label: 'Zed' },
+  { id: 'sublime', label: 'Sublime Text' },
+  { id: 'nvim', label: 'Neovim' },
+  { id: 'custom', label: 'Custom command' },
+]

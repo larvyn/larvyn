@@ -45,4 +45,9 @@ export interface Settings {
      * services from the previous run.
      */
     "noRestore": boolean;
+
+    /**
+     * Onboarded is set once the first-run setup was finished or skipped.
+     */
+    "onboarded": boolean;
 }

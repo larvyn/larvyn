@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpCircle, Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Info, Lightbulb, RefreshCw, Save, Wrench, X } from 'lucide-react'
+import { ArrowUpCircle, Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Info, Lightbulb, RefreshCw, Save, Sparkles, Wrench, X } from 'lucide-react'
 import { checkForUpdate, installUpdate, useUpdate } from '../lib/update'
 import { Brand } from '../components/Brand'
 import { SystemService, type AppInfo, type Tool } from '../../bindings/larvyn/internal/system'
@@ -8,18 +8,8 @@ import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { AgentService, type AgentKind } from '../../bindings/larvyn/internal/agents'
 import { toast, updateLaravelInstaller, useStore } from '../lib/store'
 import { setFontSize } from '../lib/terms'
-import { errMsg, isMac, mod } from '../lib/util'
+import { EDITORS, errMsg, isMac, mod } from '../lib/util'
 
-const EDITORS = [
-  { id: 'code', label: 'VS Code' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'windsurf', label: 'Windsurf' },
-  { id: 'phpstorm', label: 'PhpStorm' },
-  { id: 'zed', label: 'Zed' },
-  { id: 'sublime', label: 'Sublime Text' },
-  { id: 'nvim', label: 'Neovim' },
-  { id: 'custom', label: 'Custom command' },
-]
 
 export function Settings() {
   const settings = useStore((s) => s.settings)
@@ -244,6 +234,9 @@ export function Settings() {
               </label>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn sm" onClick={() => useStore.setState({ onboarding: true })}>
+                <Sparkles /> Run the setup again
+              </button>
               <button className="btn sm primary" onClick={() => SystemService.ReportBug('').catch((e) => toast('error', 'Could not open the browser', errMsg(e)))}>
                 <Bug /> Report a bug
               </button>

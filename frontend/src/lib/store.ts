@@ -53,6 +53,7 @@ interface State {
   paletteOpen: boolean
   paletteQuery: string
   newProjectOpen: boolean
+  onboarding: boolean // the first-run setup is on screen
   sidebar: boolean
   toasts: Toast[]
   tabs: Record<string, TermTab[]>
@@ -74,6 +75,7 @@ const initial: State = {
   paletteOpen: false,
   paletteQuery: '',
   newProjectOpen: false,
+  onboarding: false,
   sidebar: true,
   toasts: [],
   tabs: {},
@@ -155,7 +157,9 @@ async function doBoot() {
     tabs[pid] = ts
     activeTab[pid] = ts.some((t) => t.id === pl?.active) ? pl!.active : ts[0].id
   }
-  set({ projects, settings, platform, activeId, sessions, tabs, activeTab, ready: true, ...(launch.view ? { view: launch.view as View } : {}) })
+  // A fresh install starts with the first-run setup, unless a script opened a
+  // view or runs something (LARVYN_VIEW, LARVYN_RUN…).
+  set({ projects, settings, platform, activeId, sessions, tabs, activeTab, onboarding: !settings.onboarded && !Object.values(launch).some(Boolean), ready: true, ...(launch.view ? { view: launch.view as View } : {}) })
   syncLayout()
   if (launch.palette) openPalette(launch.palette === '1' ? '' : launch.palette)
   if (activeId && launch.file) handoff('files', { file: launch.file })
