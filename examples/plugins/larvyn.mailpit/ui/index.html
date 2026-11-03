@@ -7,35 +7,104 @@
   listed under "network" in larvyn.json, here localhost:8025. That also
   means Mailpit needs no CORS setting. Opened directly in a browser, for
   testing, it falls back to fetch(), which needs mailpit --api-cors.
+
+  Messages are shown as text only: an email's HTML is never rendered, so
+  nothing in a message can run or load anything.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Mail</title>
 <style>
-  :root { color-scheme: dark; font: 13px/1.4 system-ui, sans-serif; }
-  body { margin: 0; padding: 12px; background: #09090b; color: #e4e4e7; }
-  h1 { font-size: 14px; margin: 0 0 10px; display: flex; justify-content: space-between; }
-  button { background: #27272a; color: inherit; border: 1px solid #3f3f46; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  li { padding: 8px 0; border-bottom: 1px solid #27272a; }
-  .subject { font-weight: 600; }
-  .meta, .empty { color: #a1a1aa; font-size: 12px; }
+  :root {
+    color-scheme: dark;
+    --bg: #08080a; --bg-2: #0f0f12; --bg-3: #16161a; --bg-4: #1d1d22;
+    --line: rgba(255, 255, 255, 0.06); --line-2: rgba(255, 255, 255, 0.1);
+    --text: #ededf0; --text-2: #a1a1aa; --text-3: #71717a;
+    --accent: #ff2d20; --green: #3ddc84; --yellow: #f5c542;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; font-weight: 620; margin: 0; letter-spacing: -0.01em; }
+  .count { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--bg-4); color: var(--text-2); }
+  .count.hot { background: rgba(255, 45, 32, 0.15); color: #ff6a5f; }
+  .spacer { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3); }
+  .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+  .status.on i { background: var(--green); box-shadow: 0 0 0 3px rgba(61, 220, 132, 0.15); }
+  .status.off i { background: var(--yellow); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--bg-3); border: 1px solid var(--line-2); font-size: 12px; }
+  .btn:hover { background: var(--bg-4); }
+  .btn svg { width: 13px; height: 13px; }
+  .btn.spin svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search { height: 28px; width: 220px; padding: 0 10px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line-2); color: var(--text); font: inherit; font-size: 12px; outline: none; }
+  .search:focus { border-color: rgba(255, 45, 32, 0.5); }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 360px) 1fr; }
+  main.single { grid-template-columns: 1fr; }
+  .list { overflow-y: auto; border-right: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: start; width: 100%; text-align: left; padding: 11px 14px; background: none; border: 0; border-bottom: 1px solid var(--line); }
+  .item:hover { background: var(--bg-2); }
+  .item.active { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
+  .avatar { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-size: 12px; font-weight: 650; color: #fff; }
+  .item .who { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item.unread .who::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: 2px; }
+  .item .subject { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item.unread .subject { font-weight: 600; }
+  .item .snippet { font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .when { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .item > div { min-width: 0; }
+
+  .detail { overflow-y: auto; }
+  .detail .head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+  .detail h2 { margin: 0 0 12px; font-size: 17px; font-weight: 620; letter-spacing: -0.01em; }
+  .meta { display: grid; grid-template-columns: 52px 1fr; gap: 4px 10px; font-size: 12px; }
+  .meta dt { color: var(--text-3); }
+  .meta dd { margin: 0; color: var(--text-2); word-break: break-all; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--text-2); font-family: var(--mono); }
+  .body { padding: 20px 24px 32px; margin: 0; font: 12.5px/1.65 var(--mono); color: var(--text); white-space: pre-wrap; word-break: break-word; }
+
+  .center { display: grid; place-items: center; padding: 40px 24px; text-align: center; height: 100%; }
+  .card { max-width: 440px; }
+  .card .ico { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 13px; display: grid; place-items: center; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--text-2); }
+  .card .ico svg { width: 20px; height: 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 14.5px; font-weight: 620; }
+  .card p { margin: 0 0 14px; color: var(--text-2); font-size: 12.5px; }
+  .card pre { margin: 0; padding: 12px 14px; text-align: left; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 9px; font: 12px/1.7 var(--mono); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .card pre b { color: var(--text); font-weight: 500; }
+  .muted { color: var(--text-3); }
 </style>
 </head>
 <body>
-<h1>Mail <button id="refresh">Refresh</button></h1>
-<ul id="list"></ul>
-<p class="empty" id="empty" hidden></p>
-<script>
-const API = "http://localhost:8025/api/v1/messages?limit=50";
+<header>
+  <h1>Mail</h1>
+  <span class="count" id="count" hidden></span>
+  <span class="status" id="status"><i></i><span>Connecting…</span></span>
+  <span class="spacer"></span>
+  <input class="search" id="search" type="search" placeholder="Search mail…" hidden>
+  <button class="btn" id="refresh" title="Refresh">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+    Refresh
+  </button>
+</header>
+<main id="main" class="single"></main>
 
-function show(text) {
-  document.getElementById("list").replaceChildren();
-  const p = document.getElementById("empty");
-  p.textContent = text;
-  p.hidden = false;
-}
+<script>
+const BASE = "http://localhost:8025/api/v1";
+const ICON_MAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>';
+const ICON_PLUG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></svg>';
+
+let messages = [];
+let selected = null;
+let query = "";
+let online = null;
 
 // getJSON reads a URL through Larvyn when running inside it.
 async function getJSON(url) {
@@ -47,35 +116,179 @@ async function getJSON(url) {
   return (await fetch(url)).json();
 }
 
-async function load() {
-  let data;
-  try {
-    data = await getJSON(API);
-  } catch {
-    show("Mailpit isn't running. Start it from the stack, and point MAIL_HOST=127.0.0.1 and MAIL_PORT=1025 at it in .env.");
-    return;
-  }
-  const messages = data.messages || [];
-  if (messages.length === 0) {
-    show("No mail yet.");
-    return;
-  }
-  document.getElementById("empty").hidden = true;
-  document.getElementById("list").replaceChildren(...messages.map((m) => {
-    const li = document.createElement("li");
-    const subject = document.createElement("div");
-    subject.className = "subject";
-    subject.textContent = m.Subject || "(no subject)";
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const to = (m.To || []).map((a) => a.Address).join(", ");
-    meta.textContent = `${m.From?.Address ?? ""} → ${to} · ${new Date(m.Created).toLocaleString()}`;
-    li.append(subject, meta);
-    return li;
-  }));
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
 }
 
-document.getElementById("refresh").addEventListener("click", load);
+// A stable colour per sender, from a small palette that reads on dark.
+const COLORS = ["#ff2d20", "#4c8dff", "#a77bff", "#2dd4bf", "#ff9f43", "#3ddc84", "#f472b6"];
+function colorFor(s) {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return COLORS[h % COLORS.length];
+}
+function initials(from) {
+  const s = (from?.Name || from?.Address || "?").trim();
+  const parts = s.split(/[\s@._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+function addr(a) {
+  if (!a) return "";
+  return a.Name ? `${a.Name} <${a.Address}>` : a.Address;
+}
+function ago(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function size(n) {
+  return n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KB` : `${(n / (1 << 20)).toFixed(1)} MB`;
+}
+
+function setStatus(on, text) {
+  online = on;
+  const s = $("status");
+  s.className = "status " + (on ? "on" : "off");
+  s.lastElementChild.textContent = text;
+}
+
+function showCard(icon, title, text, code) {
+  const main = $("main");
+  main.className = "single";
+  const wrap = el("div", "center");
+  const card = el("div", "card");
+  const ico = el("div", "ico");
+  ico.innerHTML = icon;
+  card.append(ico, el("h3", null, title), el("p", null, text));
+  if (code) {
+    const pre = el("pre");
+    // Each line is [highlighted part, rest].
+    for (const [k, v] of code) {
+      const line = el("div");
+      line.append(el("b", null, k), document.createTextNode(v));
+      pre.append(line);
+    }
+    card.append(pre);
+  }
+  wrap.append(card);
+  main.replaceChildren(wrap);
+}
+
+function renderList() {
+  const q = query.toLowerCase();
+  const shown = messages.filter((m) => !q || [m.Subject, m.Snippet, m.From?.Address, m.From?.Name, ...(m.To || []).map((t) => t.Address)].join(" ").toLowerCase().includes(q));
+  const list = el("div", "list");
+  for (const m of shown) {
+    const b = el("button", "item" + (m.Read ? "" : " unread") + (m.ID === selected ? " active" : ""));
+    const av = el("div", "avatar", initials(m.From));
+    av.style.background = colorFor(m.From?.Address || "");
+    const mid = el("div");
+    mid.append(el("div", "who", m.From?.Name || m.From?.Address || "(unknown sender)"), el("div", "subject", m.Subject || "(no subject)"), el("div", "snippet", m.Snippet || ""));
+    b.append(av, mid, el("div", "when", ago(m.Created)));
+    b.addEventListener("click", () => open(m.ID));
+    list.append(b);
+  }
+  if (shown.length === 0) list.append(el("div", "center muted", "No messages match."));
+  return list;
+}
+
+async function render() {
+  const main = $("main");
+  const detail = el("div", "detail");
+  main.className = "";
+  main.replaceChildren(renderList(), detail);
+  if (!selected) {
+    detail.append(el("div", "center muted", "Select a message to read it."));
+    return;
+  }
+  let msg;
+  try {
+    msg = await getJSON(`${BASE}/message/${encodeURIComponent(selected)}`);
+  } catch {
+    detail.append(el("div", "center muted", "Could not open this message."));
+    return;
+  }
+  const head = el("div", "head");
+  head.append(el("h2", null, msg.Subject || "(no subject)"));
+  const meta = el("dl", "meta");
+  const row = (k, v) => v && meta.append(el("dt", null, k), el("dd", null, v));
+  row("From", addr(msg.From));
+  row("To", (msg.To || []).map(addr).join(", "));
+  row("Cc", (msg.Cc || []).map(addr).join(", "));
+  row("Date", new Date(msg.Date).toLocaleString());
+  head.append(meta);
+  const tags = el("div", "tags");
+  if (msg.Size) tags.append(el("span", "tag", size(msg.Size)));
+  for (const a of msg.Attachments || []) tags.append(el("span", "tag", "📎 " + a.FileName));
+  if (msg.HTML) tags.append(el("span", "tag", "HTML shown as text"));
+  if (tags.childElementCount) head.append(tags);
+  // Text only: the HTML part is turned into plain text, never rendered.
+  const text = msg.Text || (msg.HTML ? new DOMParser().parseFromString(msg.HTML, "text/html").body.textContent : "");
+  detail.append(head, el("pre", "body", (text || "(empty message)").trim()));
+  const m = messages.find((x) => x.ID === selected);
+  if (m && !m.Read) {
+    m.Read = true;
+    renderCount();
+  }
+}
+
+function open(id) {
+  selected = id;
+  render();
+}
+
+function renderCount() {
+  const c = $("count");
+  const unread = messages.filter((m) => !m.Read).length;
+  c.hidden = messages.length === 0;
+  c.className = "count" + (unread ? " hot" : "");
+  c.textContent = unread ? `${unread} new` : `${messages.length}`;
+}
+
+async function load(manual) {
+  const btn = $("refresh");
+  if (manual) btn.classList.add("spin");
+  let data;
+  try {
+    data = await getJSON(`${BASE}/messages?limit=100`);
+  } catch {
+    setStatus(false, "Not running");
+    messages = [];
+    renderCount();
+    $("search").hidden = true;
+    showCard(ICON_PLUG, "Mailpit isn't running", "Start Mailpit from the Stack in the sidebar, then point your app's mail at it in .env:", [["MAIL_MAILER", "=smtp"], ["MAIL_HOST", "=127.0.0.1"], ["MAIL_PORT", "=1025"]]);
+    return;
+  } finally {
+    btn.classList.remove("spin");
+  }
+  const before = messages.map((m) => m.ID).join();
+  messages = data.messages || [];
+  setStatus(true, "Running on :8025");
+  renderCount();
+  $("search").hidden = messages.length === 0;
+  if (messages.length === 0) {
+    selected = null;
+    showCard(ICON_MAIL, "No mail yet", "Mail your app sends shows up here. Try it from Tinker:", [["Mail::raw", "('Hi!', fn ($m) => $m->to('you@example.test'));"]]);
+    return;
+  }
+  if (selected && !messages.some((m) => m.ID === selected)) selected = null;
+  if (!selected) selected = messages[0].ID;
+  // Only redraw when something changed, so reading isn't interrupted.
+  if (manual || before !== messages.map((m) => m.ID).join() || $("main").classList.contains("single")) render();
+}
+
+$("refresh").addEventListener("click", () => load(true));
+$("search").addEventListener("input", (e) => {
+  query = e.target.value;
+  const list = document.querySelector(".list");
+  if (list) list.replaceWith(renderList());
+});
 load();
 setInterval(load, 5000);
 </script>
