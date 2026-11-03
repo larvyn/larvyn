@@ -72,7 +72,7 @@ func Check() (Info, error) {
 		return info, err
 	}
 	info.Latest, info.NotesURL, info.Published = rel.Tag, rel.URL, rel.Published
-	info.Available = compareVersions(rel.Tag, info.Current) > 0
+	info.Available = CompareVersions(rel.Tag, info.Current) > 0
 	if _, err := updateAsset(); err != nil {
 		info.Reason = err.Error()
 	} else {
@@ -311,9 +311,9 @@ func Cleanup() {
 	}
 }
 
-// compareVersions compares two tags like v0.1.0-beta.10 by semver rules:
+// CompareVersions compares two tags like v0.1.0-beta.10 by semver rules:
 // a prerelease sorts before its release, numeric parts compare as numbers.
-func compareVersions(a, b string) int {
+func CompareVersions(a, b string) int {
 	ma, pa, _ := strings.Cut(strings.TrimPrefix(a, "v"), "-")
 	mb, pb, _ := strings.Cut(strings.TrimPrefix(b, "v"), "-")
 	if c := compareDotted(ma, mb, true); c != 0 {

@@ -14,6 +14,7 @@ import (
 	"larvyn/internal/files"
 	"larvyn/internal/git"
 	"larvyn/internal/laravel"
+	"larvyn/internal/plugins"
 	"larvyn/internal/proc"
 	"larvyn/internal/project"
 	"larvyn/internal/stack"
@@ -85,6 +86,7 @@ func main() {
 			application.NewService(&agents.AgentService{}),
 			application.NewService(&system.SystemService{}),
 			application.NewService(&files.FileService{}),
+			application.NewService(&plugins.PluginService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
