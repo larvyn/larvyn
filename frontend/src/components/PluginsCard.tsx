@@ -44,6 +44,7 @@ function PermissionList({ p, all }: { p: Plugin; all: Permission[] }) {
                 <li key={name} style={{ color: perm?.sensitive ? 'var(--red)' : undefined }}>
                   {perm?.label ?? name}
                   {name === 'network' && p.manifest.network?.length ? <span className="mono"> ({p.manifest.network.join(', ')})</span> : null}
+                  {name === 'project.env.keys' && p.manifest.env?.length ? <span className="mono">: {p.manifest.env.join(', ')}</span> : null}
                 </li>
               )
             })}

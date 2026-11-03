@@ -2,13 +2,24 @@
   "apiVersion": 1,
   "id": "larvyn.mailpit",
   "name": "Mailpit",
-  "version": "0.1.0",
-  "description": "Catch the mail your app sends: runs Mailpit in the stack and shows the inbox in the sidebar.",
+  "version": "0.2.0",
+  "description": "Catch the mail your app sends: runs Mailpit in the stack, shows the inbox in the sidebar, and points the app's mail settings at it.",
   "author": "Larvyn",
   "homepage": "https://mailpit.axllent.org",
   "larvyn": ">=0.1.0",
-  "permissions": ["terminal.run", "network"],
-  "network": ["localhost:8025"],
+  "permissions": [
+    "terminal.run",
+    "network",
+    "project.env.keys"
+  ],
+  "network": [
+    "localhost:8025"
+  ],
+  "env": [
+    "MAIL_MAILER",
+    "MAIL_HOST",
+    "MAIL_PORT"
+  ],
   "requires": [
     {
       "program": "mailpit",
@@ -22,10 +33,24 @@
   ],
   "contributes": {
     "stack": [
-      {"key": "mailpit", "title": "Mailpit", "argv": ["mailpit", "--smtp", "127.0.0.1:1025", "--listen", "127.0.0.1:8025"]}
+      {
+        "key": "mailpit",
+        "title": "Mailpit",
+        "argv": [
+          "mailpit",
+          "--smtp",
+          "127.0.0.1:1025",
+          "--listen",
+          "127.0.0.1:8025"
+        ]
+      }
     ],
     "views": [
-      {"id": "inbox", "title": "Mail", "entry": "ui/index.html"}
+      {
+        "id": "inbox",
+        "title": "Mail",
+        "entry": "ui/index.html"
+      }
     ]
   }
 }

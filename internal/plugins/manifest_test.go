@@ -103,6 +103,16 @@ func TestInvalidManifests(t *testing.T) {
 		{"require bad url", "http or https", func(m map[string]any) {
 			m["requires"] = []any{map[string]any{"program": "mailpit", "url": "file:///etc/passwd"}}
 		}},
+		{"env keys without permission", "go together", func(m map[string]any) { m["env"] = []string{"MAIL_HOST"} }},
+		{"env permission without keys", "go together", func(m map[string]any) { m["permissions"] = []string{"terminal.run", "project.env.keys"} }},
+		{"bad env key", "capital letters", func(m map[string]any) {
+			m["permissions"] = []string{"terminal.run", "project.env.keys"}
+			m["env"] = []string{"mail_host"}
+		}},
+		{"env key twice", "listed twice", func(m map[string]any) {
+			m["permissions"] = []string{"terminal.run", "project.env.keys"}
+			m["env"] = []string{"MAIL_HOST", "MAIL_HOST"}
+		}},
 		{"nothing contributed", "adds nothing", func(m map[string]any) { m["contributes"] = map[string]any{} }},
 		{"command without terminal.run", "terminal.run", func(m map[string]any) { m["permissions"] = []string{"project.read"} }},
 		{"duplicate command", "used twice", func(m map[string]any) {

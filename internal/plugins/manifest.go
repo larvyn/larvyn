@@ -42,7 +42,11 @@ type Manifest struct {
 	Permissions []string `json:"permissions"`
 	// Network lists the domains the plugin's views may connect to. It needs
 	// the network permission, and the permission needs it.
-	Network     []string    `json:"network,omitempty"`
+	Network []string `json:"network,omitempty"`
+	// Env lists the .env keys the plugin may read and change, such as
+	// MAIL_MAILER. It needs the project.env.keys permission, and the
+	// permission needs it; no other key is ever shown or written.
+	Env         []string    `json:"env,omitempty"`
 	Contributes Contributes `json:"contributes"`
 	// Requires lists the programs the plugin needs on PATH, such as mailpit.
 	Requires []Requirement `json:"requires,omitempty"`
@@ -114,6 +118,7 @@ var Permissions = []Permission{
 	{"ui.notify", "Show notifications", false},
 	{"storage", "Keep its own settings and data", false},
 	{"network", "Connect to the internet", true},
+	{"project.env.keys", "Read and change these .env values", true},
 }
 
 func knownPermission(name string) bool {
@@ -129,6 +134,7 @@ var (
 	pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`)
 	itemIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	versionPattern  = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+	envKeyPattern   = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 	programPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 	// A domain (optionally *.example.com) or a local host, each with an
 	// optional port: api.example.com, localhost:8025, 127.0.0.1:1025.
@@ -213,6 +219,19 @@ func (m Manifest) check(dir string) error {
 	}
 	if perms["network"] != (len(m.Network) > 0) {
 		return errors.New(`the "network" permission and the network domains go together: list the domains the plugin connects to`)
+	}
+	if perms["project.env.keys"] != (len(m.Env) > 0) {
+		return errors.New(`the "project.env.keys" permission and the env keys go together: list the .env keys the plugin may read and change`)
+	}
+	seenKey := map[string]bool{}
+	for _, k := range m.Env {
+		if !envKeyPattern.MatchString(k) {
+			return fmt.Errorf("env key %q must look like MAIL_HOST: capital letters, digits and underscores", k)
+		}
+		if seenKey[k] {
+			return fmt.Errorf("env key %q is listed twice", k)
+		}
+		seenKey[k] = true
 	}
 	for _, d := range m.Network {
 		if !validHost(d) {

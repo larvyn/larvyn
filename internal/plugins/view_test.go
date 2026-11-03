@@ -286,3 +286,46 @@ func TestHostAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvKeys(t *testing.T) {
+	s, proj := installView(t, edit(t, func(m map[string]any) {
+		m["permissions"] = []string{"terminal.run", "project.env.keys"}
+		m["env"] = []string{"MAIL_MAILER", "MAIL_PORT"}
+	}))
+	os.WriteFile(filepath.Join(proj.Path, ".env"), []byte("APP_KEY=base64:secret\nMAIL_MAILER=log\nDB_PASSWORD=secret\n"), 0o600)
+
+	r, err := s.Call("acme.horizon", proj.ID, "project.env.get", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := r.Result.(map[string]any)
+	if got["MAIL_MAILER"] != "log" || got["MAIL_PORT"] != nil || len(got) != 2 {
+		t.Errorf("get must return only the listed keys: %+v", got)
+	}
+
+	if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_MAILER": "smtp", "MAIL_PORT": float64(1025)}}); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := os.ReadFile(filepath.Join(proj.Path, ".env"))
+	if string(env) != "APP_KEY=base64:secret\nMAIL_MAILER=smtp\nDB_PASSWORD=secret\nMAIL_PORT=1025\n" {
+		t.Errorf(".env after set:\n%s", env)
+	}
+	backups, _ := filepath.Glob(filepath.Join(store.HomeDir(), "backups", proj.ID+"-.env-*-acme.horizon"))
+	if len(backups) != 1 {
+		t.Errorf("want one backup, got %v", backups)
+	}
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+
+	for name, values := range map[string]map[string]any{
+		"an unlisted key": {"APP_KEY": "x"},
+		"a second line":   {"MAIL_MAILER": "smtp\nAPP_KEY=x"},
+		"an object value": {"MAIL_MAILER": map[string]any{}},
+	} {
+		if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": values}); err == nil {
+			t.Errorf("%s must be refused", name)
+		}
+	}
+	if env2, _ := os.ReadFile(filepath.Join(proj.Path, ".env")); string(env2) != string(env) {
+		t.Errorf("a refused set changed .env:\n%s", env2)
+	}
+}
