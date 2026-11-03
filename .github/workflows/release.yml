@@ -55,7 +55,10 @@ jobs:
             larvyn-windows-amd64.exe
 
   macos:
-    runs-on: macos-latest
+    # Intel, not macos-latest (arm64): GitHub's arm64 macOS runners went whole
+    # days without capacity, cancelling the job unstarted. The app is built
+    # universal (amd64 + arm64) either way: Go cross-compiles the arm64 half.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
