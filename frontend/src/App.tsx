@@ -23,6 +23,7 @@ import { Env } from './views/Env'
 import { Deps } from './views/Deps'
 import { Settings } from './views/Settings'
 import { NewProject, Welcome } from './views/Welcome'
+import { Onboarding } from './views/Onboarding'
 import { Loading } from './components/ui'
 
 // The editor pulls in CodeMirror: load it only when Files is opened.
@@ -56,6 +57,7 @@ export default function App() {
   const ready = useStore((s) => s.ready)
   const view = useStore((s) => s.view)
   const activeId = useStore((s) => s.activeId)
+  const onboarding = useStore((s) => s.onboarding)
   useLogWatcher()
   useEffect(() => (ready ? startUpdateChecks() : undefined), [ready])
 
@@ -117,12 +119,12 @@ export default function App() {
       <TitleBar />
       <div className="body">
         <Rail />
-        {ready && activeId ? <Sidebar /> : <div />}
+        {ready && activeId && !onboarding ? <Sidebar /> : <div />}
         <main className="main">
           <ErrorBoundary resetKey={activeId + view}>
-            {!ready ? <div className="view" /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
+            {!ready ? <div className="view" /> : onboarding ? <Onboarding /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
           </ErrorBoundary>
-          {activeId && <Drawer />}
+          {activeId && !onboarding && <Drawer />}
         </main>
       </div>
       <StatusBar />

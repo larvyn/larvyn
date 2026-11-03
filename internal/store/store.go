@@ -46,6 +46,8 @@ type Settings struct {
 	// NoRestore stops Larvyn from bringing back terminals, agents and
 	// services from the previous run.
 	NoRestore bool `json:"noRestore"`
+	// Onboarded is set once the first-run setup was finished or skipped.
+	Onboarded bool `json:"onboarded"`
 }
 
 // State is what state.json holds.
@@ -144,6 +146,11 @@ func New() *Store {
 	}
 	if s.data.Settings.Accent == "" {
 		s.data.Settings.Accent = "#FF2D20"
+	}
+	// Installs from before the first-run setup already have projects: they
+	// don't need to be walked through it.
+	if len(s.data.Projects) > 0 {
+		s.data.Settings.Onboarded = true
 	}
 	return s
 }
