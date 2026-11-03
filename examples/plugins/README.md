@@ -4,7 +4,7 @@ Plugins you can install to see what Larvyn plugins do, and copy to start your ow
 
 | Plugin | Kind | What it shows |
 |---|---|---|
-| [`larvyn.horizon`](larvyn.horizon) | No code, manifest only | A stack item that runs `php artisan horizon`, and ⌘K commands to restart, pause and check Horizon |
+| [`larvyn.horizon`](larvyn.horizon) | No code, manifest only | ⌘K commands to restart, pause, continue and check Horizon. It adds no stack item, because Larvyn already adds Horizon to the stack when the app uses `laravel/horizon`. |
 | [`larvyn.mailpit`](larvyn.mailpit) | Manifest + view | A stack item that runs Mailpit, and a sidebar view of its inbox. The view reads Mailpit's API through `network.fetch`, and Larvyn only fetches from `localhost:8025`, the address its manifest lists. |
 | [`larvyn.hello`](larvyn.hello) | View | The smallest view: it reads the open project through `window.larvyn` and shows a notification. Copy it to start your own plugin. |
 
@@ -21,7 +21,7 @@ ln -s "$PWD/examples/plugins/larvyn.horizon" ~/Library/Application\ Support/larv
 
 A linked plugin starts off. Turn it on in Settings, which asks you to approve its permissions.
 
-> **Status:** Larvyn installs, checks and turns these plugins on and off. Running their commands, stack items and views comes in the next v1 steps of #56. The `window.larvyn` API used by `larvyn.hello` is the planned API and may change before v1 ships. Views have no network access of their own: they call `network.fetch`, and Larvyn makes the request only to the hosts in `network`. So the Mailpit view needs no CORS setting in Larvyn. Opened directly in a browser for testing, it falls back to `fetch()`, which needs `mailpit --api-cors`.
+> **Status:** Larvyn installs these plugins and runs their commands (in ⌘K, under Plugins) and stack items (in the sidebar's Stack). The first run of each asks you to confirm the exact command. Views come in the next v1 step of #56. The `window.larvyn` API used by `larvyn.hello` is the planned API and may change before v1 ships. Views have no network access of their own: they call `network.fetch`, and Larvyn makes the request only to the hosts in `network`. So the Mailpit view needs no CORS setting in Larvyn. Opened directly in a browser for testing, it falls back to `fetch()`, which needs `mailpit --api-cors`.
 
 ## The manifest
 

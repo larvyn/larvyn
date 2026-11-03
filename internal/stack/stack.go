@@ -28,6 +28,11 @@ type StackItem struct {
 	// ServedBy names the local server (Flock) that already does this item's
 	// job, so it needs no process: the HTTP server when Flock serves the app.
 	ServedBy string `json:"servedBy"`
+	// Plugin names the plugin that added the item; "" for Larvyn's own.
+	Plugin string `json:"plugin"`
+	// NeedConfirm is returned by Start until the user confirmed a plugin
+	// item's command line.
+	NeedConfirm error `json:"-"`
 }
 
 // devStackItems turns the app's dev:list into stack items. The well-known
@@ -117,6 +122,10 @@ type Facts struct {
 // inspection, so this package does not depend on it.
 var Inspect = func(p store.Project) Facts { return Facts{} }
 
+// PluginItems returns the stack items of the plugins that are on. main sets
+// it from the plugin host; their keys start with "plugin:".
+var PluginItems = func(p store.Project) []StackItem { return nil }
+
 func stackItems(p store.Project) []StackItem {
 	items, _ := stackItemsFrom(p)
 	return items
@@ -186,6 +195,9 @@ func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 			Argv: []string{store.PHP(), "artisan", "octane:start", "--watch", fmt.Sprintf("--port=%d", port+100)}, Available: true,
 			URL: fmt.Sprintf("http://127.0.0.1:%d", port+100)})
 	}
+	for _, it := range PluginItems(p) {
+		add(it)
+	}
 	if !info.HasVendor {
 		for i := range items {
 			if items[i].Argv[0] == store.PHP() {
@@ -245,6 +257,9 @@ func (s *StackService) Start(projectID, key string) (terminal.SessionInfo, error
 		}
 		if !it.Available {
 			return terminal.SessionInfo{}, errors.New(proc.FirstNonEmpty(it.Reason, it.Label+" is not available here"))
+		}
+		if it.NeedConfirm != nil {
+			return terminal.SessionInfo{}, it.NeedConfirm
 		}
 		return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
 			Cwd: p.Path, Argv: it.Argv, Meta: map[string]string{"url": it.URL}})

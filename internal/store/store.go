@@ -63,6 +63,10 @@ type PluginState struct {
 	// asks for more stays off until the user approves again.
 	Granted     []string `json:"granted"`
 	InstalledAt int64    `json:"installedAt"`
+	// Confirmed maps a plugin command or stack item ("command:<id>",
+	// "stack:<key>") to the exact command line the user confirmed before its
+	// first run. A different command line asks again.
+	Confirmed map[string]string `json:"confirmed,omitempty"`
 }
 
 // State is what state.json holds.
@@ -211,8 +215,20 @@ func (d State) clone() State {
 		c.Plugins = make(map[string]PluginState, len(d.Plugins))
 		for id, p := range d.Plugins {
 			p.Granted = append([]string(nil), p.Granted...)
+			p.Confirmed = copyMap(p.Confirmed)
 			c.Plugins[id] = p
 		}
+	}
+	return c
+}
+
+func copyMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	c := make(map[string]string, len(m))
+	for k, v := range m {
+		c[k] = v
 	}
 	return c
 }
@@ -224,6 +240,7 @@ func (s *Store) Plugins() map[string]PluginState {
 	out := make(map[string]PluginState, len(s.data.Plugins))
 	for id, p := range s.data.Plugins {
 		p.Granted = append([]string(nil), p.Granted...)
+		p.Confirmed = copyMap(p.Confirmed)
 		out[id] = p
 	}
 	return out

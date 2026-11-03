@@ -14,6 +14,7 @@ export type {
     Missing,
     Permission,
     Plugin,
+    PluginCommand,
     Requirement,
     StackItem,
     View

@@ -9,6 +9,7 @@ import { AgentService } from '../../bindings/larvyn/internal/agents'
 import { StackService } from '../../bindings/larvyn/internal/stack'
 import { TerminalService, type ProjectLayout, type SessionSpec } from '../../bindings/larvyn/internal/terminal'
 import { errMsg, load, save } from './util'
+import { startStackItem } from '../components/pluginRun'
 
 export type View =
   | 'overview'
@@ -428,7 +429,7 @@ export function setDrawerHeight(h: number) {
 export async function toggleService(projectId: string, key: string, running: boolean) {
   try {
     if (running) await StackService.Stop(projectId, key)
-    else await StackService.Start(projectId, key)
+    else await startStackItem(projectId, key)
   } catch (e) {
     toast('error', `Could not ${running ? 'stop' : 'start'} ${key}`, errMsg(e))
   }

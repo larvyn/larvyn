@@ -33,6 +33,7 @@ import {
   Waypoints,
   X,
   Zap,
+  Puzzle,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
@@ -280,6 +281,7 @@ export function Sidebar() {
                 <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />
                 <span className="label" onClick={() => s.session && showConsole(true, s.session.id)}>
                   {s.label}
+                  {s.plugin && <Puzzle style={{ width: 11, height: 11, marginLeft: 5, opacity: 0.6, verticalAlign: -1 }} />}
                 </span>
                 {on && s.url && (
                   <button className="icon-btn sm" title={s.url} onClick={() => SystemService.OpenURL(s.url)}>

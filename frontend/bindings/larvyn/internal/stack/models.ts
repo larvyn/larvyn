@@ -28,4 +28,9 @@ export interface StackItem {
      * job, so it needs no process: the HTTP server when Flock serves the app.
      */
     "servedBy": string;
+
+    /**
+     * Plugin names the plugin that added the item; "" for Larvyn's own.
+     */
+    "plugin": string;
 }

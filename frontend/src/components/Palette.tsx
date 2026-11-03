@@ -22,10 +22,13 @@ import {
   Code2,
   Zap,
   RefreshCw,
+  Puzzle,
   X,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
+import { PluginService, type PluginCommand } from '../../bindings/larvyn/internal/plugins'
+import { runPluginCommand, startStackItem } from './pluginRun'
 import {
   addProject,
   artisanRun,
@@ -71,11 +74,13 @@ export function Palette() {
   const { id, project, info } = useActive()
   const [q, setQ] = useState('')
   const [stack, setStack] = useState<StackItem[]>([])
+  const [pluginCmds, setPluginCmds] = useState<PluginCommand[]>([])
 
   useEffect(() => {
     if (open) {
       setQ(initialQuery)
       if (id) StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => {})
+      PluginService.Commands().then((x) => setPluginCmds(x ?? [])).catch(() => {})
     }
   }, [open])
 
@@ -216,11 +221,24 @@ export function Palette() {
                   key={s.key}
                   value={'service ' + s.label + ' ' + s.key}
                   disabled={!s.available && !s.session?.running}
-                  onSelect={act(() => (s.session?.running ? StackService.Restart(id!, s.key) : StackService.Start(id!, s.key)).catch(fail(s.label)))}
+                  onSelect={act(() => (s.session?.running ? StackService.Restart(id!, s.key) : startStackItem(id!, s.key)).catch(fail(s.label)))}
                 >
                   {s.session?.running ? <RefreshCw /> : <Play />}
                   {s.session?.running ? 'Restart' : 'Start'} {s.label}
                   <span className="hint">{s.description}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          )}
+
+          {project && pluginCmds.length > 0 && (
+            <Command.Group heading="Plugins">
+              {pluginCmds.map((c) => (
+                <Command.Item key={c.pluginId + ' ' + c.id} value={'plugin ' + c.pluginName + ' ' + c.title + ' ' + c.run} onSelect={act(() => runPluginCommand(id!, c))}>
+                  <Puzzle /> {c.title}
+                  <span className="hint">
+                    {c.pluginName} · <span className="mono">{c.run}</span>
+                  </span>
                 </Command.Item>
               ))}
             </Command.Group>

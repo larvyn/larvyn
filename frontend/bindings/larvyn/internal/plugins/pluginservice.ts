@@ -19,6 +19,21 @@ import * as terminal$0 from "../terminal/models.js";
 import * as $models from "./models.js";
 
 /**
+ * Commands lists the commands of the plugins that are on.
+ */
+export function Commands(): $CancellablePromise<$models.PluginCommand[] | null> {
+    return $Call.ByID(696378388);
+}
+
+/**
+ * ConfirmStackItem records that the user confirmed a plugin stack item's
+ * command line before its first start.
+ */
+export function ConfirmStackItem(pluginID: string, key: string, confirmed: string): $CancellablePromise<void> {
+    return $Call.ByID(4121454717, pluginID, key, confirmed);
+}
+
+/**
  * Disable turns a plugin off; its files and granted permissions stay.
  */
 export function Disable(id: string): $CancellablePromise<void> {
@@ -80,6 +95,15 @@ export function List(): $CancellablePromise<$models.Plugin[] | null> {
  */
 export function Permissions(): $CancellablePromise<$models.Permission[] | null> {
     return $Call.ByID(96332710);
+}
+
+/**
+ * RunCommand runs a plugin command in the project's folder, in a terminal.
+ * confirmed is the command line the user saw: it must match the plugin's
+ * current one if this line was never confirmed before.
+ */
+export function RunCommand(projectID: string, pluginID: string, commandID: string, confirmed: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(3941952900, projectID, pluginID, commandID, confirmed);
 }
 
 /**
