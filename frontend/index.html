@@ -5,9 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Larvyn</title>
+    <!-- The splash shows from the first frame, before the scripts and the
+         app's stylesheet load; App renders the same markup until boot is
+         done, so the switch is seamless. -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #08080a; }
+      .boot-splash {
+        position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+        background: #08080a; color: #71717a; font: 12.5px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        --wails-draggable: drag; user-select: none; animation: boot-in 0.25s ease-out both;
+      }
+      .boot-splash .logo { position: relative; width: 56px; height: 56px; }
+      .boot-splash .logo img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 8px 30px rgba(255, 45, 32, 0.25); animation: boot-pulse 1.6s ease-in-out infinite; }
+      .boot-splash .ring { position: absolute; inset: -9px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.06); border-top-color: #ff2d20; animation: boot-spin 0.9s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @keyframes boot-pulse { 50% { transform: scale(0.94); } }
+      @keyframes boot-in { from { opacity: 0; } }
+      .boot-splash .err { max-width: 520px; padding: 0 24px; text-align: center; color: #f87171; white-space: pre-wrap; word-break: break-word; --wails-draggable: no-drag; user-select: text; }
+      .boot-splash .err small { display: block; margin-top: 6px; color: #71717a; }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-splash .logo img { animation: none; }
+        .boot-splash .ring { animation-duration: 2.4s; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-splash" role="status" aria-label="Starting Larvyn">
+        <div class="logo"><div class="ring"></div><img src="/icon.svg" alt="" /></div>
+        <div id="boot-msg">Starting Larvyn…</div>
+      </div>
+    </div>
+    <script>
+      // If the app fails while its scripts load, say so on the splash
+      // instead of leaving it spinning (or the window black).
+      window.addEventListener('error', function (e) {
+        var msg = document.getElementById('boot-msg')
+        if (!msg) return
+        var ring = document.querySelector('.boot-splash .ring')
+        if (ring) ring.style.animation = 'none'
+        msg.className = 'err'
+        msg.textContent = 'Larvyn could not start: ' + (e.message || 'unknown error')
+        var hint = document.createElement('small')
+        hint.textContent = 'Please report it at github.com/larvyn/releases/issues with this message.'
+        msg.appendChild(hint)
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

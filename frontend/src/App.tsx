@@ -113,16 +113,20 @@ export default function App() {
     }
   }, [])
 
+  // Until boot has loaded the projects and settings, keep showing the splash
+  // from index.html instead of an empty window.
+  if (!ready) return <BootSplash />
+
   const View = VIEWS[view] ?? Overview
   return (
     <div className="app">
       <TitleBar />
       <div className="body">
         <Rail />
-        {ready && activeId && !onboarding ? <Sidebar /> : <div />}
+        {activeId && !onboarding ? <Sidebar /> : <div />}
         <main className="main">
           <ErrorBoundary resetKey={activeId + view}>
-            {!ready ? <div className="view" /> : onboarding ? <Onboarding /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
+            {onboarding ? <Onboarding /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
           </ErrorBoundary>
           {activeId && !onboarding && <Drawer />}
         </main>
@@ -134,6 +138,20 @@ export default function App() {
       <PromptHost />
       <Toasts />
       <UpdateNotice />
+    </div>
+  )
+}
+
+/** The startup splash; its styles are in index.html, so it looks the same
+ * before and after the scripts load. */
+function BootSplash() {
+  return (
+    <div className="boot-splash" role="status" aria-label="Starting Larvyn">
+      <div className="logo">
+        <div className="ring" />
+        <img src="/icon.svg" alt="" />
+      </div>
+      <div>Starting Larvyn…</div>
     </div>
   )
 }
