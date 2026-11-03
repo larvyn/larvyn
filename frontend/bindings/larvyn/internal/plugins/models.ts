@@ -54,9 +54,28 @@ export interface Manifest {
     "contributes": Contributes;
 
     /**
+     * Requires lists the programs the plugin needs on PATH, such as mailpit.
+     */
+    "requires"?: Requirement[] | null;
+
+    /**
      * Backend is a program for Tier 2 plugins; Larvyn does not run those yet.
      */
     "backend"?: Backend | null;
+}
+
+/**
+ * Missing is a required program that is not on PATH, with how to install it
+ * on this system.
+ */
+export interface Missing {
+    "program": string;
+
+    /**
+     * Install is the command for this system; "" when the plugin gave none.
+     */
+    "install": string;
+    "url": string;
 }
 
 /**
@@ -99,10 +118,31 @@ export interface Plugin {
     "needsApproval": boolean;
 
     /**
+     * Missing are the required programs that are not installed. They don't
+     * stop the plugin, but its stack items can't start without them.
+     */
+    "missing": Missing[] | null;
+
+    /**
      * Linked is set when the plugin folder is a symlink, as while developing
      * a plugin; uninstalling removes only the link.
      */
     "linked": boolean;
+}
+
+/**
+ * Requirement is a program a plugin needs. Larvyn checks PATH for it and,
+ * when it is missing, offers the install command for the user's system; it
+ * runs only in a visible terminal, after the user confirmed it.
+ */
+export interface Requirement {
+    "program": string;
+
+    /**
+     * Install maps "mac", "linux" and "windows" to a shell command.
+     */
+    "install"?: { [_ in string]?: string } | null;
+    "url"?: string;
 }
 
 /**

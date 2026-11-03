@@ -11,8 +11,10 @@ export type {
     Command,
     Contributes,
     Manifest,
+    Missing,
     Permission,
     Plugin,
+    Requirement,
     StackItem,
     View
 } from "./models.js";

@@ -88,6 +88,21 @@ func TestInvalidManifests(t *testing.T) {
 			m["permissions"] = []string{"terminal.run", "network"}
 			m["network"] = []string{"localhost:8025/api"}
 		}},
+		{"require a path", "not a path", func(m map[string]any) {
+			m["requires"] = []any{map[string]any{"program": "/usr/bin/mailpit"}}
+		}},
+		{"require twice", "listed twice", func(m map[string]any) {
+			m["requires"] = []any{map[string]any{"program": "mailpit"}, map[string]any{"program": "mailpit"}}
+		}},
+		{"require unknown os", "use mac, linux or windows", func(m map[string]any) {
+			m["requires"] = []any{map[string]any{"program": "mailpit", "install": map[string]string{"macos": "brew install mailpit"}}}
+		}},
+		{"require two-line install", "one line", func(m map[string]any) {
+			m["requires"] = []any{map[string]any{"program": "mailpit", "install": map[string]string{"mac": "brew install mailpit\nrm -rf ~"}}}
+		}},
+		{"require bad url", "http or https", func(m map[string]any) {
+			m["requires"] = []any{map[string]any{"program": "mailpit", "url": "file:///etc/passwd"}}
+		}},
 		{"nothing contributed", "adds nothing", func(m map[string]any) { m["contributes"] = map[string]any{} }},
 		{"command without terminal.run", "terminal.run", func(m map[string]any) { m["permissions"] = []string{"project.read"} }},
 		{"duplicate command", "used twice", func(m map[string]any) {
