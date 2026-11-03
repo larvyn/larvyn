@@ -15,10 +15,42 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
- * Folder returns the plugins folder.
+ * Disable turns a plugin off; its files and granted permissions stay.
+ */
+export function Disable(id: string): $CancellablePromise<void> {
+    return $Call.ByID(3689488822, id);
+}
+
+/**
+ * Enable turns an installed plugin on with the permissions the user just
+ * approved.
+ */
+export function Enable(id: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(1880352893, id, granted);
+}
+
+/**
+ * Folder returns the plugins folder, creating it so it can be opened.
  */
 export function Folder(): $CancellablePromise<string> {
     return $Call.ByID(1739630286);
+}
+
+/**
+ * Inspect reads the plugin in dir without installing it, for the dialog
+ * that asks the user for its permissions.
+ */
+export function Inspect(dir: string): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(3287267586, dir);
+}
+
+/**
+ * Install copies the plugin in dir into the plugins folder and turns it on.
+ * granted must hold every permission the plugin asks for: the user saw them
+ * in the install dialog. Installing over an existing copy updates it.
+ */
+export function Install(dir: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(2489704325, dir, granted);
 }
 
 /**
@@ -34,4 +66,15 @@ export function List(): $CancellablePromise<$models.Plugin[] | null> {
  */
 export function Permissions(): $CancellablePromise<$models.Permission[] | null> {
     return $Call.ByID(96332710);
+}
+
+/**
+ * Uninstall deletes the plugin folder with this name (only the link, for a
+ * linked one) and forgets what the user decided about the plugin whose id
+ * it is named after. It takes the folder, not the manifest id: a broken
+ * plugin can carry another plugin's id, and uninstalling it must not remove
+ * that other plugin.
+ */
+export function Uninstall(folder: string): $CancellablePromise<void> {
+    return $Call.ByID(673548920, folder);
 }

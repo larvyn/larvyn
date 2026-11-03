@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowUpCircle, Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Info, Lightbulb, RefreshCw, Save, Sparkles, Wrench, X } from 'lucide-react'
 import { checkForUpdate, installUpdate, useUpdate } from '../lib/update'
 import { Brand } from '../components/Brand'
+import { PluginsCard } from '../components/PluginsCard'
 import { SystemService, type AppInfo, type Tool } from '../../bindings/larvyn/internal/system'
 import { type Settings as S } from '../../bindings/larvyn/internal/store'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
@@ -144,6 +145,8 @@ export function Settings() {
             )}
           </div>
         </div>
+
+        <PluginsCard />
 
         <div className="card">
           <div className="card-head">
