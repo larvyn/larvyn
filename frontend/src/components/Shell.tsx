@@ -194,7 +194,7 @@ export function Sidebar() {
   useEffect(() => {
     if (!id) return
     StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => setStack([]))
-  }, [id, sessKey, info?.hasVendor])
+  }, [id, sessKey, info?.hasVendor, info?.siteUrl])
 
   if (!project) return <div className="sidebar collapsed" />
   const agents = mine.filter((s) => s.kind === 'agent' && s.running).length
@@ -261,6 +261,20 @@ export function Sidebar() {
           </div>
           {stack.map((s) => {
             const on = !!s.session?.running
+            // Flock serves the app already: shown as up, with its URL, no toggle.
+            if (s.servedBy && !on)
+              return (
+                <div key={s.key} className="svc on" title={s.description}>
+                  <span className="status-dot on" />
+                  <span className="label">{s.label}</span>
+                  <button className="icon-btn sm" title={s.url} onClick={() => SystemService.OpenURL(s.url)}>
+                    <Globe />
+                  </button>
+                  <span className="badge" style={{ fontSize: 10.5, padding: '0 6px' }}>
+                    {s.servedBy}
+                  </span>
+                </div>
+              )
             return (
               <div key={s.key} className={cx('svc', on && 'on')} title={s.reason || s.description}>
                 <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />

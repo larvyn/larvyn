@@ -211,7 +211,7 @@ export function Palette() {
               <Command.Item value="stop stack all services" onSelect={act(() => StackService.StopAll(id!))}>
                 <Square /> Stop all services
               </Command.Item>
-              {stack.map((s) => (
+              {stack.filter((s) => !s.servedBy || s.session?.running).map((s) => (
                 <Command.Item
                   key={s.key}
                   value={'service ' + s.label + ' ' + s.key}
