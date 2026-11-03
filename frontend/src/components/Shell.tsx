@@ -33,6 +33,7 @@ import {
   Waypoints,
   X,
   Zap,
+  Puzzle,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
@@ -46,11 +47,11 @@ import {
   setDrawerHeight,
   setView,
   showConsole,
-  toggleService,
   useActive,
   useStore,
   type View,
 } from '../lib/store'
+import { PLUGINS_CHANGED, toggleService } from './pluginRun'
 import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
@@ -193,7 +194,11 @@ export function Sidebar() {
 
   useEffect(() => {
     if (!id) return
-    StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => setStack([]))
+    const load = () => StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => setStack([]))
+    load()
+    // Plugins add and remove stack items without any session changing.
+    window.addEventListener(PLUGINS_CHANGED, load)
+    return () => window.removeEventListener(PLUGINS_CHANGED, load)
   }, [id, sessKey, info?.hasVendor, info?.siteUrl])
 
   if (!project) return <div className="sidebar collapsed" />
@@ -280,6 +285,7 @@ export function Sidebar() {
                 <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />
                 <span className="label" onClick={() => s.session && showConsole(true, s.session.id)}>
                   {s.label}
+                  {s.plugin && <Puzzle style={{ width: 11, height: 11, marginLeft: 5, opacity: 0.6, verticalAlign: -1 }} />}
                 </span>
                 {on && s.url && (
                   <button className="icon-btn sm" title={s.url} onClick={() => SystemService.OpenURL(s.url)}>

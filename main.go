@@ -59,6 +59,31 @@ func init() {
 		wt, err := (&git.GitService{}).CreateWorktree(git.WorktreeRequest{ProjectID: projectID, Name: name, Base: base, CopyEnv: true})
 		return wt.Path, wt.Branch, err
 	}
+	// Plugin stack items join the stack; plugins.StackItems only lists the
+	// plugins that are on and may run commands.
+	stack.PluginItems = func(p store.Project) []stack.StackItem {
+		var out []stack.StackItem
+		for _, it := range plugins.StackItems() {
+			argv := append([]string(nil), it.Argv...)
+			if argv[0] == "php" {
+				argv[0] = store.PHP()
+			}
+			si := stack.StackItem{Key: it.Key, Label: it.Title, Description: it.PluginName + " plugin · " + it.Line,
+				Argv: argv, Available: it.Missing == "", Plugin: it.PluginName}
+			if it.Missing != "" {
+				si.Reason = "needs " + it.Missing + ": install it from Settings → Plugins"
+			}
+			pluginID, key := it.PluginID, it.ItemKey
+			si.Guard = func(start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
+				return plugins.GuardStackStart(pluginID, key, start)
+			}
+			if it.NeedsConfirm {
+				si.NeedConfirm = plugins.ConfirmError{PluginID: it.PluginID, PluginName: it.PluginName, Key: it.ItemKey, Title: it.Title, Line: it.Line}
+			}
+			out = append(out, si)
+		}
+		return out
+	}
 	stack.Inspect = func(p store.Project) stack.Facts {
 		info := project.Inspect(p)
 		f := stack.Facts{IsLaravel: info.IsLaravel, HasVendor: info.HasVendor, HasNodeModules: info.HasNodeModules, NpmScripts: info.NpmScripts}

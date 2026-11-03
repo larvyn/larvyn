@@ -1,8 +1,11 @@
 package stack
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"larvyn/internal/store"
 )
 
 func TestSplitCommand(t *testing.T) {
@@ -51,5 +54,50 @@ func TestDevStackItems(t *testing.T) {
 	}
 	if items[4].Argv[0] == "npm" {
 		t.Errorf("a chained command must run through the shell: %v", items[4].Argv)
+	}
+}
+
+func TestPluginStackItems(t *testing.T) {
+	dir := t.TempDir()
+	p := store.Project{ID: "plugtest", Path: dir}
+	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
+	defer store.Update(func(d *store.State) { d.Projects = nil })
+	old := PluginItems
+	defer func() { PluginItems = old }()
+	confirmErr := errors.New("plugin-confirm:{}")
+	PluginItems = func(store.Project) []StackItem {
+		return []StackItem{
+			{Key: "plugin:acme.x:mail", Label: "Mail", Argv: []string{"mailpit"}, Available: true, Plugin: "X", NeedConfirm: confirmErr},
+			{Key: "plugin:acme.x:gone", Label: "Gone", Argv: []string{"nope"}, Available: false, Reason: "needs nope", Plugin: "X"},
+			// The project has no vendor/ or node_modules/: that must not turn
+			// off a plugin's php or node item.
+			{Key: "plugin:acme.x:php", Label: "PHP thing", Argv: []string{store.PHP(), "worker.php"}, Available: true, Plugin: "X"},
+			{Key: "plugin:acme.x:node", Label: "Node thing", Argv: []string{"npm", "run", "x"}, Available: true, Plugin: "X"},
+		}
+	}
+	items, err := (&StackService{}).Items(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found int
+	for _, it := range items {
+		if strings.HasPrefix(it.Key, "plugin:") {
+			found++
+		}
+		if (it.Key == "plugin:acme.x:php" || it.Key == "plugin:acme.x:node") && !it.Available {
+			t.Errorf("the project's dependencies must not turn off a plugin item: %+v", it)
+		}
+	}
+	if found != 4 {
+		t.Fatalf("plugin items missing: %+v", items)
+	}
+	if _, err := (&StackService{}).Start(p.ID, "plugin:acme.x:mail"); err != confirmErr {
+		t.Errorf("an unconfirmed plugin item must return its confirmation error, got %v", err)
+	}
+	if _, err := (&StackService{}).Restart(p.ID, "plugin:acme.x:mail"); err != confirmErr {
+		t.Errorf("restarting an unconfirmed plugin item must ask before stopping it, got %v", err)
+	}
+	if _, err := (&StackService{}).Start(p.ID, "plugin:acme.x:gone"); err == nil || !strings.Contains(err.Error(), "needs nope") {
+		t.Errorf("a missing program must say so: %v", err)
 	}
 }

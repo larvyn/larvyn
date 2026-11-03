@@ -3,15 +3,12 @@
   "id": "larvyn.horizon",
   "name": "Horizon",
   "version": "0.1.0",
-  "description": "Run Laravel Horizon in the stack and restart it after a deploy or a code change.",
+  "description": "Restart, pause and check Laravel Horizon from ⌘K. (Larvyn already adds Horizon to the stack when the app uses laravel/horizon.)",
   "author": "Larvyn",
   "homepage": "https://laravel.com/docs/horizon",
   "larvyn": ">=0.1.0",
   "permissions": ["terminal.run"],
   "contributes": {
-    "stack": [
-      {"key": "horizon", "title": "Horizon", "argv": ["php", "artisan", "horizon"]}
-    ],
     "commands": [
       {"id": "restart", "title": "Horizon: restart workers", "run": "php artisan horizon:terminate"},
       {"id": "status", "title": "Horizon: status", "run": "php artisan horizon:status"},

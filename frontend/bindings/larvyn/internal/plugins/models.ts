@@ -131,6 +131,22 @@ export interface Plugin {
 }
 
 /**
+ * PluginCommand is a plugin command for ⌘K.
+ */
+export interface PluginCommand {
+    "pluginId": string;
+    "pluginName": string;
+    "id": string;
+    "title": string;
+    "run": string;
+
+    /**
+     * NeedsConfirm is set until the user confirmed this exact command line.
+     */
+    "needsConfirm": boolean;
+}
+
+/**
  * Requirement is a program a plugin needs. Larvyn checks PATH for it and,
  * when it is missing, offers the install command for the user's system; it
  * runs only in a visible terminal, after the user confirmed it.

@@ -6,6 +6,7 @@ import { SystemService } from '../../bindings/larvyn/internal/system'
 import { fail, toast, useStore } from '../lib/store'
 import { errMsg } from '../lib/util'
 import { Toggle, confirmDialog } from './ui'
+import { pluginsChanged } from './pluginRun'
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
@@ -96,7 +97,10 @@ export function PluginsCard() {
 
   const load = () =>
     PluginService.List()
-      .then((l) => setPlugins(l ?? []))
+      .then((l) => {
+        setPlugins(l ?? [])
+        pluginsChanged()
+      })
       .catch(fail('Could not list the plugins'))
   useEffect(() => {
     load()

@@ -28,6 +28,14 @@ type StackItem struct {
 	// ServedBy names the local server (Flock) that already does this item's
 	// job, so it needs no process: the HTTP server when Flock serves the app.
 	ServedBy string `json:"servedBy"`
+	// Plugin names the plugin that added the item; "" for Larvyn's own.
+	Plugin string `json:"plugin"`
+	// NeedConfirm is returned by Start until the user confirmed a plugin
+	// item's command line.
+	NeedConfirm error `json:"-"`
+	// Guard starts a plugin item through the plugin host's gate, which
+	// checks again, in step with the plugin being turned off, that it may run.
+	Guard func(start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) `json:"-"`
 }
 
 // devStackItems turns the app's dev:list into stack items. The well-known
@@ -117,6 +125,10 @@ type Facts struct {
 // inspection, so this package does not depend on it.
 var Inspect = func(p store.Project) Facts { return Facts{} }
 
+// PluginItems returns the stack items of the plugins that are on. main sets
+// it from the plugin host; their keys start with "plugin:".
+var PluginItems = func(p store.Project) []StackItem { return nil }
+
 func stackItems(p store.Project) []StackItem {
 	items, _ := stackItemsFrom(p)
 	return items
@@ -186,9 +198,15 @@ func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 			Argv: []string{store.PHP(), "artisan", "octane:start", "--watch", fmt.Sprintf("--port=%d", port+100)}, Available: true,
 			URL: fmt.Sprintf("http://127.0.0.1:%d", port+100)})
 	}
+	for _, it := range PluginItems(p) {
+		add(it)
+	}
+	// The project's own setup only matters for Larvyn's items: a plugin's
+	// php or node program may not use the app's dependencies, and its
+	// missing programs are reported by the plugin host.
 	if !info.HasVendor {
 		for i := range items {
-			if items[i].Argv[0] == store.PHP() {
+			if items[i].Plugin == "" && items[i].Argv[0] == store.PHP() {
 				items[i].Available = false
 				items[i].Reason = "run composer install first"
 			}
@@ -196,7 +214,7 @@ func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 	}
 	if !info.HasNodeModules {
 		for i := range items {
-			if isNodeCommand(items[i].Argv) {
+			if items[i].Plugin == "" && isNodeCommand(items[i].Argv) {
 				items[i].Available = false
 				items[i].Reason = "run " + pm + " install first"
 			}
@@ -246,8 +264,17 @@ func (s *StackService) Start(projectID, key string) (terminal.SessionInfo, error
 		if !it.Available {
 			return terminal.SessionInfo{}, errors.New(proc.FirstNonEmpty(it.Reason, it.Label+" is not available here"))
 		}
-		return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
-			Cwd: p.Path, Argv: it.Argv, Meta: map[string]string{"url": it.URL}})
+		if it.NeedConfirm != nil {
+			return terminal.SessionInfo{}, it.NeedConfirm
+		}
+		start := func() (terminal.SessionInfo, error) {
+			return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "service", Key: key, Title: it.Label,
+				Cwd: p.Path, Argv: it.Argv, Meta: map[string]string{"url": it.URL}})
+		}
+		if it.Guard != nil {
+			return it.Guard(start)
+		}
+		return start()
 	}
 	return terminal.SessionInfo{}, errors.New("unknown stack item " + key)
 }
@@ -262,6 +289,15 @@ func (s *StackService) Stop(projectID, key string) error {
 
 // Restart stops and starts a stack item.
 func (s *StackService) Restart(projectID, key string) (terminal.SessionInfo, error) {
+	// A plugin item whose command line changed must be confirmed before the
+	// running one is stopped, or a declined prompt would leave it stopped.
+	if p, ok := store.FindProject(projectID); ok {
+		for _, it := range stackItems(p) {
+			if it.Key == key && it.NeedConfirm != nil {
+				return terminal.SessionInfo{}, it.NeedConfirm
+			}
+		}
+	}
 	if sess := terminal.Find(projectID, "service", key); sess != nil {
 		_ = terminal.Sessions.Kill(sess.ID)
 		// A program that ignores SIGTERM is killed after about 3 s.
