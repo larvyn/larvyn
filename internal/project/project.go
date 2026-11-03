@@ -467,7 +467,9 @@ func Inspect(p store.Project) ProjectInfo {
 	}
 	if site, ok := flock.SiteFor(root); ok && site.Problem == "" {
 		info.SiteURL, info.SiteServer, info.SitePHP = site.URL, "Flock", site.PHP
-	} else if server := parkedServer(root); server != "" {
+	} else if server := parkedServer(root); server != "" && flock.State() != flock.Running {
+		// (With Flock running, it owns .test and ports 80/443: a Herd or Valet
+		// that is merely installed cannot be serving the folder.)
 		info.SiteURL, info.SiteServer = "http://"+strings.ToLower(filepath.Base(root))+".test", server
 	}
 
