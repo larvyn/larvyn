@@ -18,7 +18,7 @@ const STEPS = [
 // Tools a Laravel app can't run without, and ones that only make life easier.
 // Composer is not required: Larvyn installs its own on first use.
 const REQUIRED = ['php', 'node', 'git']
-const RECOMMENDED = ['composer', 'laravel', 'herd']
+const RECOMMENDED = ['composer', 'laravel']
 
 const HIGHLIGHTS = [
   { icon: Server, title: 'Your dev stack in one click', text: 'artisan serve, Vite, queues, scheduler and Reverb, with their output side by side.' },
@@ -187,7 +187,11 @@ function WelcomeStep() {
 }
 
 function ToolchainStep({ tools, checking, onCheck }: { tools: Tool[] | null; checking: boolean; onCheck: () => void }) {
+  const platform = useStore((s) => s.platform)
   const byId = new Map((tools ?? []).map((t) => [t.id, t]))
+  // One local server is enough: the one installed, else the one this OS has
+  // (Herd has no Linux version; Flock runs everywhere).
+  const server = byId.get('flock')?.path ? 'flock' : byId.get('herd')?.path ? 'herd' : platform === 'linux' ? 'flock' : 'herd'
   const missing = REQUIRED.filter((id) => !byId.get(id)?.path)
   const row = (id: string, required: boolean) => {
     const t = byId.get(id)
@@ -248,7 +252,7 @@ function ToolchainStep({ tools, checking, onCheck }: { tools: Tool[] | null; che
             <div className="onboard-group">Required</div>
             {REQUIRED.map((id) => row(id, true))}
             <div className="onboard-group">Recommended</div>
-            {RECOMMENDED.map((id) => row(id, false))}
+            {[...RECOMMENDED, server].map((id) => row(id, false))}
           </div>
         </>
       )}

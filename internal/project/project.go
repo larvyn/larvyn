@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"larvyn/internal/dotenv"
+	"larvyn/internal/flock"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -50,7 +51,12 @@ type ProjectInfo struct {
 	ComposerScripts map[string]string `json:"composerScripts"`
 	NpmScripts      map[string]string `json:"npmScripts"`
 	Counts          map[string]int    `json:"counts"`
-	HerdURL         string            `json:"herdUrl"`
+	// SiteURL is where a local server (Flock, Herd or Valet) serves the
+	// project without `artisan serve`; SiteServer names it, and SitePHP is the
+	// PHP version it uses when it reports one.
+	SiteURL    string `json:"siteUrl"`
+	SiteServer string `json:"siteServer"`
+	SitePHP    string `json:"sitePhp"`
 }
 
 // Package is a notable Composer package found in a project.
@@ -114,6 +120,7 @@ type ProjectService struct{}
 
 func init() {
 	application.RegisterEvent[[]store.Project]("projects:changed")
+	application.RegisterEvent[FlockServed]("flock:served")
 }
 
 func (s *ProjectService) changed() {
@@ -159,6 +166,9 @@ func (s *ProjectService) Add(path string) (store.Project, error) {
 	}
 	err = store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
 	s.changed()
+	if err == nil {
+		go s.autoServe(p)
+	}
 	return p, err
 }
 
@@ -455,8 +465,12 @@ func Inspect(p store.Project) ProjectInfo {
 			info.SQLiteMissing = err != nil
 		}
 	}
-	if herdSite(root) {
-		info.HerdURL = "http://" + strings.ToLower(filepath.Base(root)) + ".test"
+	if site, ok := flock.SiteFor(root); ok && site.Problem == "" {
+		info.SiteURL, info.SiteServer, info.SitePHP = site.URL, "Flock", site.PHP
+	} else if server := parkedServer(root); server != "" && flock.State() != flock.Running {
+		// (With Flock running, it owns .test and ports 80/443: a Herd or Valet
+		// that is merely installed cannot be serving the folder.)
+		info.SiteURL, info.SiteServer = "http://"+strings.ToLower(filepath.Base(root))+".test", server
 	}
 
 	for key, dir := range map[string]string{
@@ -477,13 +491,20 @@ func Inspect(p store.Project) ProjectInfo {
 	return info
 }
 
-func herdSite(root string) bool {
-	// Herd and Valet serve every folder in a parked directory as <name>.test.
-	if proc.Which("herd") == "" && proc.Which("valet") == "" {
-		return false
-	}
+// parkedServer guesses whether Herd or Valet serves root: both serve every
+// folder in a parked directory as <name>.test. It returns the server's name.
+func parkedServer(root string) string {
 	parent := strings.ToLower(filepath.Base(filepath.Dir(root)))
-	return parent == "herd" || parent == "sites" || parent == "valet"
+	if parent != "herd" && parent != "sites" && parent != "valet" {
+		return ""
+	}
+	if proc.Which("herd") != "" {
+		return "Herd"
+	}
+	if proc.Which("valet") != "" {
+		return "Valet"
+	}
+	return ""
 }
 
 func lockedVersions(root string) map[string]string {

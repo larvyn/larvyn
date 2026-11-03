@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"larvyn/internal/composer"
+	"larvyn/internal/flock"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -299,7 +300,12 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		cwd = path
 		meta["worktree"] = path
 		meta["branch"] = branch
-		if req.InstallDeps {
+		if _, served := flock.SiteFor(p.Path); served {
+			// Flock serves every worktree of a site at its own .test domain
+			// and sets it up itself (dependencies, .env, database), so
+			// installing here too would race its composer and npm installs.
+			meta["site"] = "flock"
+		} else if req.InstallDeps {
 			a.installDeps(p, cwd)
 		}
 	}
@@ -361,6 +367,16 @@ func (a *AgentService) installDeps(p store.Project, dir string) {
 		_, _ = terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "deps", Title: pm + " install · " + filepath.Base(dir),
 			Cwd: dir, Argv: []string{pm, "install"}})
 	}
+}
+
+// WorktreeURL is where Flock serves an agent's worktree, "" while it has not
+// picked it up yet (it notices new worktrees within a few seconds).
+func (a *AgentService) WorktreeURL(path string) string {
+	flock.Forget()
+	if s, ok := flock.SiteFor(path); ok && s.Problem == "" {
+		return s.URL
+	}
+	return ""
 }
 
 // Fanout starts the same prompt in several agents, each in its own worktree.

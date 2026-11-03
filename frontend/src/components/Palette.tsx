@@ -200,9 +200,9 @@ export function Palette() {
               <Command.Item value="reveal folder explorer finder" onSelect={act(() => SystemService.OpenFolder(project.path))}>
                 <FolderOpen /> Reveal in file manager
               </Command.Item>
-              {info?.appUrl && (
-                <Command.Item value="open site browser" onSelect={act(() => SystemService.OpenURL(info.herdUrl || info.appUrl))}>
-                  <Globe /> Open {info.herdUrl || info.appUrl}
+              {(info?.siteUrl || info?.appUrl) && (
+                <Command.Item value="open site browser" onSelect={act(() => SystemService.OpenURL(info.siteUrl || info.appUrl))}>
+                  <Globe /> Open {info.siteUrl || info.appUrl}
                 </Command.Item>
               )}
               <Command.Item value="start stack all services" onSelect={act(() => StackService.StartAll(id!, []).catch(fail('Some services did not start')))}>
@@ -211,7 +211,7 @@ export function Palette() {
               <Command.Item value="stop stack all services" onSelect={act(() => StackService.StopAll(id!))}>
                 <Square /> Stop all services
               </Command.Item>
-              {stack.map((s) => (
+              {stack.filter((s) => !s.servedBy || s.session?.running).map((s) => (
                 <Command.Item
                   key={s.key}
                   value={'service ' + s.label + ' ' + s.key}

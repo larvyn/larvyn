@@ -31,7 +31,7 @@ import {
   X,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { ProjectService } from '../../bindings/larvyn/internal/project'
+import { ProjectService, type ProjectInfo } from '../../bindings/larvyn/internal/project'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { GitService, type Commit } from '../../bindings/larvyn/internal/git'
@@ -55,6 +55,7 @@ import {
 import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
+import { FlockCard, isTestUrl, restoreAppUrl } from '../components/FlockCard'
 
 const KIND_COLOR: Record<string, string> = {
   queue: 'orange', debug: 'yellow', monitoring: 'cyan', realtime: 'purple', server: 'red', auth: 'blue', starter: 'accent',
@@ -70,6 +71,32 @@ interface Check {
   fix?: { label: string; run: () => void }
 }
 
+const bare = (url: string) => url.trim().replace(/\/+$/, '').toLowerCase()
+
+/** APP_URL against Flock: when Flock serves the app it should be the site's
+ * URL (Laravel builds links, redirects and Vite's URLs from it); when nothing
+ * serves that .test URL any more, e.g. Flock was stopped, it should go back
+ * to the one the app had, so artisan serve works again. */
+function appUrlCheck(id: string, info: ProjectInfo): Check[] {
+  if (!info.hasEnv) return []
+  if (info.siteServer === 'Flock' && bare(info.appUrl) !== bare(info.siteUrl)) {
+    return [{
+      key: 'appurl', label: 'APP_URL', ok: false,
+      detail: `APP_URL is ${info.appUrl || 'empty'} but Flock serves the app at ${info.siteUrl}: links and redirects go to the wrong place`,
+      fix: { label: 'Use the site URL', run: () => ProjectService.FlockUseSiteURL(id).then(() => refreshInfo(id)).catch(fail('Could not set APP_URL')) },
+    }]
+  }
+  if (!info.siteServer && isTestUrl(info.appUrl)) {
+    const back = info.appUrlBeforeFlock || `http://127.0.0.1:${info.port || 8000}`
+    return [{
+      key: 'appurl', label: 'APP_URL', ok: false,
+      detail: `APP_URL is ${info.appUrl}, which nothing serves now. Put back ${back} to run the app with artisan serve.`,
+      fix: { label: 'Restore', run: () => restoreAppUrl(id) },
+    }]
+  }
+  return []
+}
+
 export function Overview() {
   const { id, project, info } = useActive()
   const sessions = useStore((s) => s.sessions)
@@ -82,7 +109,8 @@ export function Overview() {
   useEffect(() => {
     if (!id) return
     StackService.Items(id).then((s) => setStack(s ?? [])).catch(() => {})
-  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules])
+    // siteUrl: when Flock starts or stops serving the app, the HTTP server row changes.
+  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules, info?.siteUrl])
 
   useEffect(() => {
     if (!id) return
@@ -152,10 +180,11 @@ export function Overview() {
         },
       ]
     : []
+  if (info.isLaravel) checks.push(...appUrlCheck(id!, info))
   const problems = checks.filter((c) => c.ok === false).length
   const running = stack.filter((s) => s.session?.running)
-  // While php artisan serve runs, open it: requests then show up in its output. Otherwise Herd's site.
-  const siteUrl = running.find((s) => s.key === 'serve')?.url || info.herdUrl || info.appUrl
+  // While php artisan serve runs, open it: requests then show up in its output. Otherwise the site Flock or Herd serves.
+  const siteUrl = running.find((s) => s.key === 'serve')?.url || info.siteUrl || info.appUrl
 
   const go = (v: View) => () => setView(v)
   const counts = info.counts ?? {}
@@ -179,7 +208,13 @@ export function Overview() {
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
               {info.isLaravel && <span className="badge accent">Laravel {info.laravelVersion}</span>}
               {info.phpConstraint && <span className="badge">PHP {info.phpConstraint}</span>}
-              {info.appEnv && <span className={cx('badge', info.appEnv === 'production' ? 'red' : 'green')}>{info.appEnv}</span>}
+              {info.siteServer && (
+                <span className="badge" title={`Served by ${info.siteServer} at ${info.siteUrl}`}>
+                  {info.siteServer}
+                  {info.sitePhp && ` · PHP ${info.sitePhp}`}
+                </span>
+              )}
+              {info.appEnv &&<span className={cx('badge', info.appEnv === 'production' ? 'red' : 'green')}>{info.appEnv}</span>}
               {info.appDebug && <span className="badge yellow">debug</span>}
               {info.testRunner && <span className="badge blue">{info.testRunner}</span>}
               {info.frontend?.map((f) => (
@@ -210,7 +245,12 @@ export function Overview() {
         </div>
         <div className="row wrap" style={{ marginTop: 18 }}>
           {running.length === 0 ? (
-            <button className="btn primary" disabled={!info.isLaravel} onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}>
+            <button
+              className="btn primary"
+              disabled={!info.isLaravel}
+              title={info.siteServer === 'Flock' ? `Flock serves the app at ${info.siteUrl}: this starts the rest, like Vite and the queue worker` : undefined}
+              onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}
+            >
               <Play /> Start dev stack
             </button>
           ) : (
@@ -255,6 +295,22 @@ export function Overview() {
             <div>
               {stack.map((s) => {
                 const on = !!s.session?.running
+                // Flock serves the app already: no process to start, just its URL.
+                if (s.servedBy && !on)
+                  return (
+                    <div key={s.key} className="check-row">
+                      <span className="status-dot on" />
+                      <div className="t">
+                        <b>
+                          {s.label} <span className="badge" style={{ marginLeft: 4 }}><Brand id="flock" size={10} /> {s.servedBy}</span>
+                        </b>
+                        <span className="mono">{s.description}</span>
+                      </div>
+                      <button className="btn sm ghost" onClick={() => SystemService.OpenURL(s.url)}>
+                        {s.url.replace(/^https?:\/\//, '')} <ArrowUpRight />
+                      </button>
+                    </div>
+                  )
                 return (
                   <div key={s.key} className="check-row">
                     <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />
@@ -334,6 +390,8 @@ export function Overview() {
         </div>
 
         <div className="col" style={{ gap: 16 }}>
+          {info.isLaravel && <FlockCard id={id!} appUrl={info.appUrl} siteUrl={info.siteUrl} served={info.siteServer === 'Flock'} revision={`${info.siteUrl}|${info.appUrl}`} />}
+
           <div className="card">
             <div className="card-head">
               <h3>

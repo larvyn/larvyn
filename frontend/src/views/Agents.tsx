@@ -23,6 +23,7 @@ import {
   Layers,
   ArrowUpCircle,
   Code2,
+  Globe,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { type SessionInfo } from '../../bindings/larvyn/internal/terminal'
@@ -309,6 +310,11 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
       toast('error', 'Merge failed', errMsg(e))
     }
   }
+  const openSite = async () => {
+    const url = await AgentService.WorktreeURL(s.meta!.worktree!).catch(() => '')
+    if (url) SystemService.OpenURL(url)
+    else toast('info', 'Flock is still setting this worktree up', 'It serves new worktrees within a few seconds. Try again shortly.')
+  }
   const discard = async () => {
     if (s.meta?.worktree) {
       if (!(await confirmDialog({ title: 'Discard this attempt?', message: `The agent is stopped, the worktree folder and branch ${s.meta.branch} are deleted.`, confirm: 'Discard', danger: true })))
@@ -351,6 +357,11 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
             <button className="icon-btn sm" title="Open worktree in editor" onClick={() => SystemService.OpenInEditor(s.meta!.worktree!, 1).catch(fail('Editor'))}>
               <Code2 />
             </button>
+            {s.meta.site === 'flock' && (
+              <button className="icon-btn sm" title="Open this attempt in the browser (served by Flock)" onClick={openSite}>
+                <Globe />
+              </button>
+            )}
             <button className="icon-btn sm" title="Merge into current branch" onClick={merge}>
               <GitMerge />
             </button>

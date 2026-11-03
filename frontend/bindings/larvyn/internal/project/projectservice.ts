@@ -45,6 +45,60 @@ export function EnsureSQLite(id: string): $CancellablePromise<boolean> {
 }
 
 /**
+ * Flock describes how Flock serves the project.
+ */
+export function Flock(id: string): $CancellablePromise<$models.FlockInfo> {
+    return $Call.ByID(86612862, id);
+}
+
+/**
+ * FlockSecure turns HTTPS on or off and moves APP_URL along. It returns the
+ * new URL.
+ */
+export function FlockSecure(id: string, on: boolean): $CancellablePromise<string> {
+    return $Call.ByID(1127592259, id, on);
+}
+
+/**
+ * FlockServe serves the project at <folder>.test and points APP_URL at it
+ * when APP_URL was still a default. It returns the site's URL.
+ */
+export function FlockServe(id: string): $CancellablePromise<string> {
+    return $Call.ByID(2371848817, id);
+}
+
+/**
+ * FlockStart starts Flock's daemon when it is set up but not running.
+ */
+export function FlockStart(): $CancellablePromise<void> {
+    return $Call.ByID(653498222);
+}
+
+/**
+ * FlockUnserve stops serving the project (worktrees go with it) and puts
+ * APP_URL back when it named the site.
+ */
+export function FlockUnserve(id: string): $CancellablePromise<void> {
+    return $Call.ByID(412352780, id);
+}
+
+/**
+ * FlockUsePHP makes the project's site use a PHP minor version, installing it
+ * first when Flock does not have it yet; "" goes back to the default.
+ */
+export function FlockUsePHP(id: string, minor: string): $CancellablePromise<void> {
+    return $Call.ByID(4261693003, id, minor);
+}
+
+/**
+ * FlockUseSiteURL points APP_URL at the URL Flock serves the app at,
+ * remembering the one it had.
+ */
+export function FlockUseSiteURL(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2079807787, id);
+}
+
+/**
  * Info inspects a project's files.
  */
 export function Info(id: string): $CancellablePromise<$models.ProjectInfo> {
@@ -86,6 +140,15 @@ export function Remove(id: string): $CancellablePromise<void> {
  */
 export function RepairEnv(id: string): $CancellablePromise<boolean> {
     return $Call.ByID(3661583115, id);
+}
+
+/**
+ * RestoreAppURL puts back the APP_URL the project had before Flock served it
+ * (artisan serve's URL when Larvyn did not see one), for running the app
+ * without Flock. It returns the URL it set.
+ */
+export function RestoreAppURL(id: string): $CancellablePromise<string> {
+    return $Call.ByID(4005914009, id);
 }
 
 /**

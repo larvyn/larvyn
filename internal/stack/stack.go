@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/flock"
 	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
@@ -24,6 +25,9 @@ type StackItem struct {
 	Session     *terminal.SessionInfo `json:"session"`
 	// Dev is set for the processes `php artisan dev` would start (from dev:list).
 	Dev bool `json:"dev"`
+	// ServedBy names the local server (Flock) that already does this item's
+	// job, so it needs no process: the HTTP server when Flock serves the app.
+	ServedBy string `json:"servedBy"`
 }
 
 // devStackItems turns the app's dev:list into stack items. The well-known
@@ -114,6 +118,13 @@ type Facts struct {
 var Inspect = func(p store.Project) Facts { return Facts{} }
 
 func stackItems(p store.Project) []StackItem {
+	items, _ := stackItemsFrom(p)
+	return items
+}
+
+// stackItemsFrom is stackItems, also telling whether the app's own dev:list
+// chose the processes (fromDevList), or Larvyn's defaults did.
+func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 	info := Inspect(p)
 	has := func(name string) bool {
 		for _, pkg := range info.Packages {
@@ -135,10 +146,9 @@ func stackItems(p store.Project) []StackItem {
 	vite := StackItem{Key: "vite", Label: "Vite", Description: pm + " run dev, hot module reload",
 		Argv: []string{pm, "run", "dev"}, Available: hasDev}
 
-	var items []StackItem
 	if info.IsLaravel && info.HasVendor {
 		if procs, ok := devProcesses(p); ok {
-			items = devStackItems(procs, serve, vite)
+			items, fromDevList = devStackItems(procs, serve, vite), true
 		}
 	}
 	if items == nil {
@@ -192,10 +202,20 @@ func stackItems(p store.Project) []StackItem {
 			}
 		}
 	}
+	if site, ok := flock.SiteFor(p.Path); ok && site.Problem == "" {
+		for i := range items {
+			if items[i].Key == "serve" {
+				// Flock serves the app at its .test domain all the time:
+				// artisan serve would only add a second copy on another URL.
+				items[i].ServedBy, items[i].URL, items[i].Dev = "Flock", site.URL, false
+				items[i].Description = "Served by Flock at " + site.Domain
+			}
+		}
+	}
 	for i := range items {
 		items[i].Session = terminal.Find(p.ID, "service", items[i].Key)
 	}
-	return items
+	return items, fromDevList
 }
 
 // Items lists the project's stack with what is running.
@@ -256,20 +276,30 @@ func (s *StackService) Restart(projectID, key string) (terminal.SessionInfo, err
 }
 
 // StartAll starts the given services, or by default what `php artisan dev`
-// would run (server, vite and queue on apps without dev:list).
+// would run (server, vite and queue on apps without dev:list), leaving out
+// what a local server like Flock already does.
 func (s *StackService) StartAll(projectID string, keys []string) error {
 	if len(keys) == 0 {
 		p, ok := store.FindProject(projectID)
 		if !ok {
 			return errors.New("project not found")
 		}
-		for _, it := range stackItems(p) {
+		items, fromDevList := stackItemsFrom(p)
+		for _, it := range items {
 			if it.Dev {
 				keys = append(keys, it.Key)
 			}
 		}
-		if len(keys) == 0 {
-			keys = []string{"serve", "vite", "queue"}
+		// dev:list chose the processes: when Flock covers all of them (just
+		// serve), nothing is left to start, which is not the same as having
+		// no dev:list. The defaults would start a queue worker the app never
+		// asked for.
+		if len(keys) == 0 && !fromDevList {
+			for _, it := range items {
+				if (it.Key == "serve" || it.Key == "vite" || it.Key == "queue") && it.ServedBy == "" {
+					keys = append(keys, it.Key)
+				}
+			}
 		}
 	}
 	var errs []error

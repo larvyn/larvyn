@@ -7,6 +7,8 @@ export {
 };
 
 export type {
+    FlockInfo,
+    FlockServed,
     Package,
     ProjectInfo
 } from "./models.js";

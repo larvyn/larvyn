@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"larvyn/internal/flock"
 	"larvyn/internal/store"
 )
 
@@ -52,7 +53,7 @@ func importShellPath() {
 }
 
 // addToolDirs appends the folders Laravel tooling installs into (Composer
-// global bin with the laravel installer, Herd, Homebrew) when they exist, so
+// global bin with the laravel installer, Herd, Flock, Homebrew) when they exist, so
 // those tools are found even when the shell PATH import fails or times out.
 // They go last, so the shell's own order still wins.
 func addToolDirs() {
@@ -82,6 +83,9 @@ func toolDirs(home, composerHome, xdgConfig string) []string {
 			filepath.Join(home, ".composer", "vendor", "bin"),
 			filepath.Join(home, "Library", "Application Support", "Herd", "bin"),
 		)
+	}
+	if d := flock.BinDir(); d != "" {
+		dirs = append(dirs, d)
 	}
 	return append(dirs, "/opt/homebrew/bin", "/usr/local/bin")
 }

@@ -13,6 +13,12 @@ export interface Project {
     "pinned": boolean;
     "addedAt": number;
     "lastOpenedAt": number;
+
+    /**
+     * AppURLBeforeFlock is the APP_URL the project had before Larvyn pointed
+     * it at Flock's site, so it can go back when Flock stops serving it.
+     */
+    "appUrlBeforeFlock"?: string;
 }
 
 /**
@@ -50,4 +56,10 @@ export interface Settings {
      * Onboarded is set once the first-run setup was finished or skipped.
      */
     "onboarded": boolean;
+
+    /**
+     * NoFlockAutoServe stops Larvyn from serving the Laravel projects it
+     * adds with Flock (flk link) when Flock runs.
+     */
+    "noFlockAutoServe": boolean;
 }

@@ -4,7 +4,8 @@ Logos of the tools Larvyn works with, used only to identify them. Every logo is
 a trademark of its owner; Larvyn is not affiliated with or endorsed by them.
 
 Source: [theSVG](https://thesvg.org) ([glincker/thesvg](https://github.com/glincker/thesvg)),
-except Pi, taken from [pi.dev](https://pi.dev/). "Recolored" means the one-colour
+except Pi, taken from [pi.dev](https://pi.dev/), and Flock, its app icon from
+[flock-php/flock](https://github.com/flock-php/flock) (`design/logo`). "Recolored" means the one-colour
 variant was filled light grey so it reads on Larvyn's dark theme.
 
 Attribution required by the file licenses: the PHP logo (CC BY-SA 4.0, PHP Group)
@@ -20,6 +21,7 @@ and the Git logo by Jason Long (CC BY 3.0).
 | `composer.svg` | Composer | thesvg `composer` (mono, recolored) | CC0-1.0 |
 | `cursor-agent.svg` | Cursor | thesvg `cursor` (dark) | CC0-1.0 |
 | `docker.svg` | Docker | thesvg `docker` (default) | CC0-1.0 |
+| `flock.svg` | Flock | flock-php/flock `design/logo/flock-app-icon.svg` | Trademark of Guava s.r.o. |
 | `git.svg` | Git | thesvg `git` (default) | CC-BY-3.0 |
 | `horizon.svg` | Laravel Horizon | thesvg `laravel-horizon` (default) | CC0-1.0 |
 | `inertia.svg` | Inertia | thesvg `inertia` (default) | CC0-1.0 |
