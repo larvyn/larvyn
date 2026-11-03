@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { SystemService } from '../bindings/larvyn/internal/system'
+import { errMsg } from './lib/util'
 import { boot, newTerminal, openPalette, selectProject, setView, showConsole, useStore } from './lib/store'
 import { Drawer, NAV_ITEMS, Rail, Sidebar, StatusBar, TitleBar } from './components/Shell'
 import { Palette } from './components/Palette'
@@ -58,11 +59,15 @@ export default function App() {
   const view = useStore((s) => s.view)
   const activeId = useStore((s) => s.activeId)
   const onboarding = useStore((s) => s.onboarding)
+  const [bootError, setBootError] = useState('')
   useLogWatcher()
   useEffect(() => (ready ? startUpdateChecks() : undefined), [ready])
 
   useEffect(() => {
-    boot().catch((e) => SystemService.Log('error', 'boot failed: ' + (e?.stack ?? e?.message ?? e)))
+    boot().catch((e) => {
+      SystemService.Log('error', 'boot failed: ' + (e?.stack ?? e?.message ?? e))
+      setBootError(errMsg(e))
+    })
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
@@ -114,8 +119,17 @@ export default function App() {
   }, [])
 
   // Until boot has loaded the projects and settings, keep showing the splash
-  // from index.html instead of an empty window.
-  if (!ready) return <BootSplash />
+  // from index.html instead of an empty window. The title bar stays on top:
+  // on Windows and Linux it holds the window's close button.
+  if (!ready)
+    return (
+      <>
+        <BootSplash error={bootError} />
+        <div style={{ position: 'relative', zIndex: 1, height: 42, display: 'grid' }}>
+          <TitleBar />
+        </div>
+      </>
+    )
 
   const View = VIEWS[view] ?? Overview
   return (
@@ -144,14 +158,21 @@ export default function App() {
 
 /** The startup splash; its styles are in index.html, so it looks the same
  * before and after the scripts load. */
-function BootSplash() {
+function BootSplash({ error }: { error: string }) {
   return (
     <div className="boot-splash" role="status" aria-label="Starting Larvyn">
       <div className="logo">
-        <div className="ring" />
+        <div className="ring" style={error ? { animation: 'none' } : undefined} />
         <img src="/icon.svg" alt="" />
       </div>
-      <div>Starting Larvyn…</div>
+      {error ? (
+        <div className="err">
+          Larvyn could not start: {error}
+          <small>Please report it at github.com/larvyn/releases/issues with this message.</small>
+        </div>
+      ) : (
+        <div>Starting Larvyn…</div>
+      )}
     </div>
   )
 }
