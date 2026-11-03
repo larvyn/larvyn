@@ -172,6 +172,10 @@ func installCopy(src, dest string) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
+	// MkdirTemp makes the folder private; the installed plugin is a normal one.
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		return err
+	}
 	if err := copyTree(src, tmp); err != nil {
 		return err
 	}

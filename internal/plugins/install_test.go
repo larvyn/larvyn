@@ -3,6 +3,7 @@ package plugins
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -40,6 +41,9 @@ func TestInstallCopiesAndEnables(t *testing.T) {
 	}
 	if !p.Enabled || p.Dir != filepath.Join(Dir(), "acme.horizon") || p.Linked {
 		t.Fatalf("installed plugin: %+v", p)
+	}
+	if fi, err := os.Stat(p.Dir); err == nil && runtime.GOOS != "windows" && fi.Mode().Perm() != 0o755 {
+		t.Errorf("installed folder mode %v, want 0755", fi.Mode().Perm())
 	}
 	for _, f := range []string{"larvyn.json", "ui/index.html"} {
 		if _, err := os.Stat(filepath.Join(p.Dir, f)); err != nil {
