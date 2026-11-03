@@ -67,8 +67,10 @@ Flock's `flk` command, as a user would.
   streamed as base64 chunks with sequence numbers and a 1 MB scrollback, plus
   the workspace restore), `stack` (dev services), `agents`, `laravel`
   (artisan, routes, models, env, logs, tests and the PHP bridge), `git`,
-  `files` (the editor and fuzzy finder) and `system` (toolchain, settings,
-  New app, updates, feedback, open in editor).
+  `files` (the editor and fuzzy finder), `system` (toolchain, settings,
+  New app, updates, feedback, open in editor) and `plugins` (the plugin
+  host: reads and checks the `larvyn.json` of each plugin in the plugins
+  folder; see #56).
 - Base packages the services build on, which never import a service:
   `store` (projects, settings, the state folder), `proc` (running PHP, artisan
   and git, finding programs, the login-shell PATH, killing process trees),
