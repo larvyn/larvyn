@@ -56,11 +56,22 @@ type Settings struct {
 	NoFlockAutoServe bool `json:"noFlockAutoServe"`
 }
 
+// PluginState is what the user decided about an installed plugin.
+type PluginState struct {
+	Enabled bool `json:"enabled"`
+	// Granted are the permissions the user approved. A plugin whose update
+	// asks for more stays off until the user approves again.
+	Granted     []string `json:"granted"`
+	InstalledAt int64    `json:"installedAt"`
+}
+
 // State is what state.json holds.
 type State struct {
 	Projects []Project `json:"projects"`
 	Settings Settings  `json:"settings"`
 	Active   string    `json:"active"`
+	// Plugins is keyed by plugin id.
+	Plugins map[string]PluginState `json:"plugins,omitempty"`
 }
 
 // Store is the state loaded from (and saved to) HomeDir()/state.json.
@@ -99,6 +110,7 @@ func CurrentSettings() Settings             { return Default().Settings() }
 func PHP() string                           { return Default().PHP() }
 func Update(fn func(d *State)) error        { return Default().Update(fn) }
 func ActiveID() string                      { return Default().ActiveID() }
+func Plugins() map[string]PluginState       { return Default().Plugins() }
 
 // DefaultSettings are the preferences of a fresh install.
 func DefaultSettings() Settings {
@@ -182,6 +194,18 @@ func (s *Store) Update(fn func(d *State)) error {
 	defer s.mu.Unlock()
 	fn(&s.data)
 	return s.saveLocked()
+}
+
+// Plugins returns a copy of the plugin decisions, keyed by plugin id.
+func (s *Store) Plugins() map[string]PluginState {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]PluginState, len(s.data.Plugins))
+	for id, p := range s.data.Plugins {
+		p.Granted = append([]string(nil), p.Granted...)
+		out[id] = p
+	}
+	return out
 }
 
 // Projects returns a copy of the saved projects.

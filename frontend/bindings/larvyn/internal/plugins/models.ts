@@ -77,6 +77,25 @@ export interface Plugin {
     "manifest": Manifest;
     "dir": string;
     "error"?: string;
+
+    /**
+     * Enabled is whether the plugin runs: the user turned it on, it has no
+     * Error and every permission it asks for was granted.
+     */
+    "enabled": boolean;
+    "granted": string[] | null;
+
+    /**
+     * NeedsApproval is set when the user turned the plugin on but it now
+     * asks for permissions they never granted, usually after an update.
+     */
+    "needsApproval": boolean;
+
+    /**
+     * Linked is set when the plugin folder is a symlink, as while developing
+     * a plugin; uninstalling removes only the link.
+     */
+    "linked": boolean;
 }
 
 /**
