@@ -22,4 +22,10 @@ export interface StackItem {
      * Dev is set for the processes `php artisan dev` would start (from dev:list).
      */
     "dev": boolean;
+
+    /**
+     * ServedBy names the local server (Flock) that already does this item's
+     * job, so it needs no process: the HTTP server when Flock serves the app.
+     */
+    "servedBy": string;
 }

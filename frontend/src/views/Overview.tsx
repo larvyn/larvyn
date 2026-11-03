@@ -231,7 +231,12 @@ export function Overview() {
         </div>
         <div className="row wrap" style={{ marginTop: 18 }}>
           {running.length === 0 ? (
-            <button className="btn primary" disabled={!info.isLaravel} onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}>
+            <button
+              className="btn primary"
+              disabled={!info.isLaravel}
+              title={info.siteServer === 'Flock' ? `Flock serves the app at ${info.siteUrl}: this starts the rest, like Vite and the queue worker` : undefined}
+              onClick={() => StackService.StartAll(id!, []).catch(fail('Some services did not start'))}
+            >
               <Play /> Start dev stack
             </button>
           ) : (
@@ -276,6 +281,22 @@ export function Overview() {
             <div>
               {stack.map((s) => {
                 const on = !!s.session?.running
+                // Flock serves the app already: no process to start, just its URL.
+                if (s.servedBy && !on)
+                  return (
+                    <div key={s.key} className="check-row">
+                      <span className="status-dot on" />
+                      <div className="t">
+                        <b>
+                          {s.label} <span className="badge" style={{ marginLeft: 4 }}><Brand id="flock" size={10} /> {s.servedBy}</span>
+                        </b>
+                        <span className="mono">{s.description}</span>
+                      </div>
+                      <button className="btn sm ghost" onClick={() => SystemService.OpenURL(s.url)}>
+                        {s.url.replace(/^https?:\/\//, '')} <ArrowUpRight />
+                      </button>
+                    </div>
+                  )
                 return (
                   <div key={s.key} className="check-row">
                     <span className={cx('status-dot', on && 'on', s.session && !on && !s.session.stopped && s.session.exitCode !== 0 && 'err')} />

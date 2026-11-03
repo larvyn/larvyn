@@ -131,14 +131,17 @@ export function Settings() {
               </select>
               <span className="hint">Shells come back with their output, agents resume their conversation and services that ran start again.</span>
             </div>
-            <div className="field">
-              <label>Flock</label>
-              <select className="select" value={v.noFlockAutoServe ? 'off' : 'on'} onChange={(e) => set({ noFlockAutoServe: e.target.value === 'off' })}>
-                <option value="on">Serve projects I add at their .test domain</option>
-                <option value="off">Only when I ask</option>
-              </select>
-              <span className="hint">When Flock runs, Laravel apps you add to Larvyn are served at &lt;folder&gt;.test, and every agent's worktree at its own URL.</span>
-            </div>
+            {/* Flock is optional: its setting shows only once it is installed. */}
+            {tools?.some((t) => t.id === 'flock' && t.path) && (
+              <div className="field">
+                <label>Flock</label>
+                <select className="select" value={v.noFlockAutoServe ? 'off' : 'on'} onChange={(e) => set({ noFlockAutoServe: e.target.value === 'off' })}>
+                  <option value="on">Serve projects I add at their .test domain</option>
+                  <option value="off">Only when I ask</option>
+                </select>
+                <span className="hint">When Flock runs, Laravel apps you add to Larvyn are served at &lt;folder&gt;.test, and every agent's worktree at its own URL.</span>
+              </div>
+            )}
           </div>
         </div>
 

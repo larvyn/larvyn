@@ -36,7 +36,8 @@ export function Start(projectID: string, key: string): $CancellablePromise<termi
 
 /**
  * StartAll starts the given services, or by default what `php artisan dev`
- * would run (server, vite and queue on apps without dev:list).
+ * would run (server, vite and queue on apps without dev:list), leaving out
+ * what a local server like Flock already does.
  */
 export function StartAll(projectID: string, keys: string[] | null): $CancellablePromise<void> {
     return $Call.ByID(934824746, projectID, keys);
