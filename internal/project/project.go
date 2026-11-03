@@ -120,6 +120,7 @@ type ProjectService struct{}
 
 func init() {
 	application.RegisterEvent[[]store.Project]("projects:changed")
+	application.RegisterEvent[FlockServed]("flock:served")
 }
 
 func (s *ProjectService) changed() {
@@ -165,6 +166,9 @@ func (s *ProjectService) Add(path string) (store.Project, error) {
 	}
 	err = store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
 	s.changed()
+	if err == nil {
+		go s.autoServe(p)
+	}
 	return p, err
 }
 

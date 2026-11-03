@@ -50,4 +50,10 @@ export interface Settings {
      * Onboarded is set once the first-run setup was finished or skipped.
      */
     "onboarded": boolean;
+
+    /**
+     * NoFlockAutoServe stops Larvyn from serving the Laravel projects it
+     * adds with Flock (flk link) when Flock runs.
+     */
+    "noFlockAutoServe": boolean;
 }

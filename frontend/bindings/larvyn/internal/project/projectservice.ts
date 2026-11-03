@@ -45,6 +45,51 @@ export function EnsureSQLite(id: string): $CancellablePromise<boolean> {
 }
 
 /**
+ * Flock describes how Flock serves the project.
+ */
+export function Flock(id: string): $CancellablePromise<$models.FlockInfo> {
+    return $Call.ByID(86612862, id);
+}
+
+/**
+ * FlockSecure turns HTTPS on or off and moves APP_URL along. It returns the
+ * new URL.
+ */
+export function FlockSecure(id: string, on: boolean): $CancellablePromise<string> {
+    return $Call.ByID(1127592259, id, on);
+}
+
+/**
+ * FlockServe serves the project at <folder>.test and points APP_URL at it
+ * when APP_URL was still a default. It returns the site's URL.
+ */
+export function FlockServe(id: string): $CancellablePromise<string> {
+    return $Call.ByID(2371848817, id);
+}
+
+/**
+ * FlockStart starts Flock's daemon when it is set up but not running.
+ */
+export function FlockStart(): $CancellablePromise<void> {
+    return $Call.ByID(653498222);
+}
+
+/**
+ * FlockUnserve stops serving the project. Worktrees go with it.
+ */
+export function FlockUnserve(id: string): $CancellablePromise<void> {
+    return $Call.ByID(412352780, id);
+}
+
+/**
+ * FlockUsePHP makes the project's site use a PHP minor version, installing it
+ * first when Flock does not have it yet; "" goes back to the default.
+ */
+export function FlockUsePHP(id: string, minor: string): $CancellablePromise<void> {
+    return $Call.ByID(4261693003, id, minor);
+}
+
+/**
  * Info inspects a project's files.
  */
 export function Info(id: string): $CancellablePromise<$models.ProjectInfo> {

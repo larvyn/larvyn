@@ -167,6 +167,12 @@ async function doBoot() {
   if (activeId && launch.agent) AgentService.Launch({ projectId: activeId, agent: launch.agent } as any).catch(fail('Could not start agent'))
   if (activeId) refreshInfo(activeId)
 
+  Events.On('flock:served', (ev: any) => {
+    const { projectId, url } = ev.data ?? {}
+    if (!projectId) return
+    refreshInfo(projectId)
+    toast('success', 'Served by Flock', url)
+  })
   Events.On('projects:changed', (ev: any) => {
     const list = (ev.data ?? []) as Project[]
     set((s) => ({

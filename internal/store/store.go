@@ -48,6 +48,9 @@ type Settings struct {
 	NoRestore bool `json:"noRestore"`
 	// Onboarded is set once the first-run setup was finished or skipped.
 	Onboarded bool `json:"onboarded"`
+	// NoFlockAutoServe stops Larvyn from serving the Laravel projects it
+	// adds with Flock (flk link) when Flock runs.
+	NoFlockAutoServe bool `json:"noFlockAutoServe"`
 }
 
 // State is what state.json holds.

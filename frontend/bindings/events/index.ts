@@ -9,6 +9,11 @@ import type {} from "../github.com/wailsapp/wails/v3/internal/eventdata.js";
 import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 
 /**
+ * Name of the custom event "flock:served".
+ */
+export const FlockServed = "flock:served";
+
+/**
  * Name of the custom event "projects:changed".
  */
 export const ProjectsChanged = "projects:changed";

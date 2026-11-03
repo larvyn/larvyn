@@ -31,7 +31,7 @@ import {
   X,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { ProjectService } from '../../bindings/larvyn/internal/project'
+import { ProjectService, type ProjectInfo } from '../../bindings/larvyn/internal/project'
 import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { GitService, type Commit } from '../../bindings/larvyn/internal/git'
@@ -55,6 +55,7 @@ import {
 import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
+import { FlockCard } from '../components/FlockCard'
 
 const KIND_COLOR: Record<string, string> = {
   queue: 'orange', debug: 'yellow', monitoring: 'cyan', realtime: 'purple', server: 'red', auth: 'blue', starter: 'accent',
@@ -68,6 +69,19 @@ interface Check {
   detail: string
   ok: boolean | null
   fix?: { label: string; run: () => void }
+}
+
+const bare = (url: string) => url.trim().replace(/\/+$/, '').toLowerCase()
+
+/** When Flock serves the app, APP_URL should be its URL: Laravel builds
+ * links, redirects and Vite's URLs from it. */
+function appUrlCheck(id: string, info: ProjectInfo): Check[] {
+  if (info.siteServer !== 'Flock' || !info.hasEnv || bare(info.appUrl) === bare(info.siteUrl)) return []
+  return [{
+    key: 'appurl', label: 'APP_URL', ok: false,
+    detail: `APP_URL is ${info.appUrl || 'empty'} but Flock serves the app at ${info.siteUrl}: links and redirects go to the wrong place`,
+    fix: { label: 'Use the site URL', run: () => LaravelService.SetEnv(id, 'APP_URL', info.siteUrl).then(() => refreshInfo(id)).catch(fail('Could not set APP_URL')) },
+  }]
 }
 
 export function Overview() {
@@ -152,6 +166,7 @@ export function Overview() {
         },
       ]
     : []
+  if (info.isLaravel) checks.push(...appUrlCheck(id!, info))
   const problems = checks.filter((c) => c.ok === false).length
   const running = stack.filter((s) => s.session?.running)
   // While php artisan serve runs, open it: requests then show up in its output. Otherwise the site Flock or Herd serves.
@@ -340,6 +355,8 @@ export function Overview() {
         </div>
 
         <div className="col" style={{ gap: 16 }}>
+          {info.isLaravel && <FlockCard id={id!} revision={`${info.siteUrl}|${info.appUrl}`} />}
+
           <div className="card">
             <div className="card-head">
               <h3>
