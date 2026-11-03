@@ -49,6 +49,9 @@ func TestRestoredScrollbackStartsAtALine(t *testing.T) {
 	if !strings.Contains(got, "\x1b[?1049l") || !strings.Contains(got, "restored from the previous session") {
 		t.Fatalf("missing reset or marker: %q", got)
 	}
+	if !strings.Contains(got, "\x1b[?1004l") {
+		t.Fatalf("focus reporting should be turned off: %q", got)
+	}
 }
 
 // TestWorkspaceRoundTrip saves a shell, a one-off run and its layout, then
