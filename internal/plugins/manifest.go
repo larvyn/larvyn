@@ -44,8 +44,20 @@ type Manifest struct {
 	// the network permission, and the permission needs it.
 	Network     []string    `json:"network,omitempty"`
 	Contributes Contributes `json:"contributes"`
+	// Requires lists the programs the plugin needs on PATH, such as mailpit.
+	Requires []Requirement `json:"requires,omitempty"`
 	// Backend is a program for Tier 2 plugins; Larvyn does not run those yet.
 	Backend *Backend `json:"backend,omitempty"`
+}
+
+// Requirement is a program a plugin needs. Larvyn checks PATH for it and,
+// when it is missing, offers the install command for the user's system; it
+// runs only in a visible terminal, after the user confirmed it.
+type Requirement struct {
+	Program string `json:"program"`
+	// Install maps "mac", "linux" and "windows" to a shell command.
+	Install map[string]string `json:"install,omitempty"`
+	URL     string            `json:"url,omitempty"`
 }
 
 // Contributes is what a plugin adds to Larvyn.
@@ -117,6 +129,7 @@ var (
 	pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`)
 	itemIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	versionPattern  = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+	programPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 	// A domain (optionally *.example.com) or a local host, each with an
 	// optional port: api.example.com, localhost:8025, 127.0.0.1:1025.
 	domainPattern    = regexp.MustCompile(`^((\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}|localhost|127\.0\.0\.1)(:[0-9]{1,5})?$`)
@@ -175,10 +188,11 @@ func (m Manifest) check(dir string) error {
 	case !versionPattern.MatchString(m.Version):
 		return fmt.Errorf("version %q is not a semantic version like 1.0.0", m.Version)
 	}
-	if m.Homepage != "" {
-		if u, err := url.Parse(m.Homepage); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			return fmt.Errorf("homepage %q must be an http or https link", m.Homepage)
-		}
+	if m.Homepage != "" && !webLink(m.Homepage) {
+		return fmt.Errorf("homepage %q must be an http or https link", m.Homepage)
+	}
+	if err := checkRequires(m.Requires); err != nil {
+		return err
 	}
 	if err := checkRange(m.Larvyn); err != nil {
 		return err
@@ -254,6 +268,37 @@ func validHost(d string) bool {
 		return err == nil && n >= 1 && n <= 65535
 	}
 	return true
+}
+
+func webLink(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
+}
+
+func checkRequires(reqs []Requirement) error {
+	seen := map[string]bool{}
+	for _, r := range reqs {
+		// A program name, not a path: Larvyn looks it up on PATH.
+		if !programPattern.MatchString(r.Program) {
+			return fmt.Errorf("requires: program %q must be a program name like mailpit, not a path", r.Program)
+		}
+		if seen[r.Program] {
+			return fmt.Errorf("requires: program %q is listed twice", r.Program)
+		}
+		seen[r.Program] = true
+		for osName, cmd := range r.Install {
+			if osName != "mac" && osName != "linux" && osName != "windows" {
+				return fmt.Errorf("requires %s: install has %q; use mac, linux or windows", r.Program, osName)
+			}
+			if strings.TrimSpace(cmd) == "" || strings.ContainsAny(cmd, "\n\r") {
+				return fmt.Errorf("requires %s: the %s install command must be one line", r.Program, osName)
+			}
+		}
+		if r.URL != "" && !webLink(r.URL) {
+			return fmt.Errorf("requires %s: url %q must be an http or https link", r.Program, r.URL)
+		}
+	}
+	return nil
 }
 
 func checkItem(kind, id, title string, seen map[string]bool) error {

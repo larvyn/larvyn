@@ -9,6 +9,17 @@
   "larvyn": ">=0.1.0",
   "permissions": ["terminal.run", "network"],
   "network": ["localhost:8025"],
+  "requires": [
+    {
+      "program": "mailpit",
+      "install": {
+        "mac": "brew install mailpit",
+        "linux": "curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh | sudo bash",
+        "windows": "scoop install mailpit"
+      },
+      "url": "https://mailpit.axllent.org/docs/install/"
+    }
+  ],
   "contributes": {
     "stack": [
       {"key": "mailpit", "title": "Mailpit", "argv": ["mailpit", "--smtp", "127.0.0.1:1025", "--listen", "127.0.0.1:8025"]}

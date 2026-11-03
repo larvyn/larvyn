@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
-import { PluginService, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
+import { AlertTriangle, Download, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
+import { PluginService, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { fail, toast } from '../lib/store'
+import { fail, toast, useStore } from '../lib/store'
 import { errMsg } from '../lib/util'
 import { Toggle, confirmDialog } from './ui'
 
@@ -48,6 +48,25 @@ function PermissionList({ p, all }: { p: Plugin; all: Permission[] }) {
             })}
           </ul>
         </>
+      )}
+      {(p.missing?.length ?? 0) > 0 && (
+        <div style={{ display: 'grid', gap: 4, color: 'var(--yellow)' }}>
+          <div>It needs programs that are not installed:</div>
+          {p.missing!.map((m) => (
+            <div key={m.program} style={{ paddingLeft: 18 }}>
+              <span className="mono">{m.program}</span>
+              {m.install ? (
+                <>
+                  {' '}
+                  — <span className="mono">{m.install}</span>
+                </>
+              ) : (
+                m.url && <> — see {m.url}</>
+              )}
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>You can install them from the plugin's row afterwards.</div>
+        </div>
       )}
       {leak && (
         <div className="row" style={{ gap: 6, color: 'var(--red)' }}>
@@ -114,6 +133,35 @@ export function PluginsCard() {
       toast('error', 'Could not change the plugin', errMsg(e))
     }
     load()
+  }
+
+  /** Runs a missing program's install command in a terminal, after showing
+   * the exact command: it comes from the plugin, so the user decides. */
+  const installProgram = async (p: Plugin, m: Missing) => {
+    if (!m.install) {
+      if (m.url) SystemService.OpenURL(m.url)
+      return
+    }
+    const ok = await confirmDialog({
+      title: `Install ${m.program}?`,
+      message: (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div>{p.manifest.name} suggests this command. Larvyn runs it in a terminal you can watch:</div>
+          <pre className="mono" style={{ margin: 0, padding: 8, background: 'var(--bg-3)', borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {m.install}
+          </pre>
+          <div style={{ fontSize: 12 }}>Only run it if you trust this plugin.{m.url && <> Instructions: {m.url}</>}</div>
+        </div>
+      ),
+      confirm: 'Run in terminal',
+    })
+    if (!ok) return
+    try {
+      const sess = await PluginService.InstallRequirement(p.manifest.id, m.program, m.install)
+      useStore.setState((s) => ({ sessions: [...s.sessions, sess], drawer: { ...s.drawer, open: true, active: sess.id } }))
+    } catch (e) {
+      toast('error', `Could not install ${m.program}`, errMsg(e))
+    }
   }
 
   const uninstall = async (p: Plugin) => {
@@ -185,6 +233,15 @@ export function PluginsCard() {
             ) : (
               <span>{[p.manifest.description, summary(p)].filter(Boolean).join(' — ')}</span>
             )}
+            {!p.error &&
+              p.missing?.map((m) => (
+                <span key={m.program} className="row" style={{ gap: 6, color: 'var(--yellow)', marginTop: 4 }}>
+                  Needs <span className="mono">{m.program}</span>, not found on PATH.
+                  <button className="btn sm" onClick={() => installProgram(p, m)}>
+                    <Download /> {m.install ? 'Install' : 'How to install'}
+                  </button>
+                </span>
+              ))}
           </div>
           <Toggle on={p.enabled} disabled={!!p.error} title={p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off' : 'Turn on'} onChange={(on) => toggle(p, on)} />
           <button className="icon-btn" title="Uninstall" onClick={() => uninstall(p)}>

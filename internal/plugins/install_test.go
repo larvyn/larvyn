@@ -294,3 +294,19 @@ func TestInspect(t *testing.T) {
 		t.Errorf("empty folder: %v", err)
 	}
 }
+
+// Enable and the other id-based calls must pick the plugin in the folder
+// named after the id, not a broken folder carrying the same id.
+func TestFindIgnoresBrokenFolderWithSameID(t *testing.T) {
+	reset(t)
+	writePlugin(t, filepath.Join(Dir(), "a-copy"), validManifest)
+	writePlugin(t, filepath.Join(Dir(), "acme.horizon"), validManifest)
+	p, err := find("acme.horizon")
+	if err != nil || p.Folder != "acme.horizon" || p.Error != "" {
+		t.Fatalf("find picked %+v %v", p, err)
+	}
+	os.RemoveAll(filepath.Join(Dir(), "acme.horizon"))
+	if _, err := find("acme.horizon"); err == nil {
+		t.Error("only a broken folder carries the id: the plugin is not installed")
+	}
+}

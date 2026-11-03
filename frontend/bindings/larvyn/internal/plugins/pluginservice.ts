@@ -12,6 +12,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -51,6 +55,16 @@ export function Inspect(dir: string): $CancellablePromise<$models.Plugin> {
  */
 export function Install(dir: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
     return $Call.ByID(2489704325, dir, granted);
+}
+
+/**
+ * InstallRequirement runs the install command of a plugin's missing program
+ * in a terminal the user can watch. The frontend shows the exact command and
+ * asks first; confirmed is that command, and Larvyn refuses to run anything
+ * else, in case the manifest changed after the user saw it.
+ */
+export function InstallRequirement(id: string, program: string, confirmed: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(1418661512, id, program, confirmed);
 }
 
 /**

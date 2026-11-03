@@ -34,6 +34,9 @@ type Plugin struct {
 	// NeedsApproval is set when the user turned the plugin on but it now
 	// asks for permissions they never granted, usually after an update.
 	NeedsApproval bool `json:"needsApproval"`
+	// Missing are the required programs that are not installed. They don't
+	// stop the plugin, but its stack items can't start without them.
+	Missing []Missing `json:"missing"`
 	// Linked is set when the plugin folder is a symlink, as while developing
 	// a plugin; uninstalling removes only the link.
 	Linked bool `json:"linked"`
@@ -73,6 +76,9 @@ func load(dir, name string) Plugin {
 	p := Plugin{Dir: dir, Folder: name}
 	m, err := ReadManifest(dir)
 	p.Manifest = m
+	if err == nil {
+		p.Missing = missing(m)
+	}
 	switch {
 	case errors.Is(err, os.ErrNotExist) && m.ID == "":
 		err = errors.New("no " + ManifestFile + " in this folder")

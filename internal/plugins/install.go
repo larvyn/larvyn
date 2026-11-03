@@ -31,7 +31,7 @@ func (s *PluginService) Inspect(dir string) (Plugin, error) {
 	if err != nil {
 		return Plugin{}, err
 	}
-	p := Plugin{Manifest: m, Dir: dir}
+	p := Plugin{Manifest: m, Dir: dir, Missing: missing(m)}
 	applyState(&p, store.Plugins()[m.ID])
 	return p, nil
 }
@@ -149,10 +149,11 @@ func (s *PluginService) Uninstall(folder string) error {
 	return store.Update(func(d *store.State) { delete(d.Plugins, folder) })
 }
 
-// find returns the installed plugin with this id.
+// find returns the installed plugin with this id: the one in the folder
+// named after it. A broken folder carrying the same id doesn't count.
 func find(id string) (Plugin, error) {
 	for _, p := range Load() {
-		if p.Manifest.ID == id {
+		if p.Folder == id && p.Manifest.ID == id {
 			return p, nil
 		}
 	}
