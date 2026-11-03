@@ -336,16 +336,17 @@ func replaceableAppURL(value, previous string) bool {
 	return false
 }
 
-// sameSite reports whether two URLs name the same host and port, whatever
-// their scheme: APP_URL still names Flock's site after HTTPS was switched in
-// Flock's own app, which changes only the scheme.
+// sameSite reports whether two URLs are the same but for their scheme: host,
+// port and path. APP_URL still names Flock's site after HTTPS was switched in
+// Flock's own app, which changes only the scheme; one with a path of the
+// user's (http://acme.test/staging) is theirs.
 func sameSite(a, b string) bool {
 	ua, errA := url.Parse(strings.TrimSpace(a))
 	ub, errB := url.Parse(strings.TrimSpace(b))
 	if errA != nil || errB != nil || ua.Host == "" {
 		return false
 	}
-	return strings.EqualFold(ua.Host, ub.Host)
+	return strings.EqualFold(ua.Host, ub.Host) && strings.TrimRight(ua.Path, "/") == strings.TrimRight(ub.Path, "/")
 }
 
 func sameURL(a, b string) bool {

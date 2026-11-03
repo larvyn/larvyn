@@ -135,6 +135,7 @@ func TestSameSite(t *testing.T) {
 		{"http://acme.test", "https://acme.test", true},
 		{"https://ACME.test/", "http://acme.test", true},
 		{"http://acme.test:8080", "http://acme.test", false},
+		{"http://acme.test/staging", "http://acme.test", false},
 		{"http://localhost", "http://acme.test", false},
 		{"", "http://acme.test", false},
 	} {

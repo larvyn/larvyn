@@ -59,10 +59,19 @@ export function FlockCard({ id, appUrl, siteUrl, served, revision }: { id: strin
     }
   }, [id, revision])
 
+  // A poll waits for the previous one: started over it, it would supersede it
+  // and a slow daemon could keep every answer from landing.
+  const polling = useRef(false)
+  const poll = () => {
+    if (polling.current) return
+    polling.current = true
+    load().finally(() => (polling.current = false))
+  }
+
   // Keep up with Flock while the card is on screen.
   useEffect(() => {
     if (!f?.state) return
-    const t = setInterval(load, 5000)
+    const t = setInterval(poll, 5000)
     return () => clearInterval(t)
   }, [id, !!f?.state, served, siteUrl])
 
@@ -70,7 +79,7 @@ export function FlockCard({ id, appUrl, siteUrl, served, revision }: { id: strin
   const installing = f?.php?.find((v) => v.job?.state === 'running')
   useEffect(() => {
     if (!installing) return
-    const t = setInterval(load, 1000)
+    const t = setInterval(poll, 1000)
     return () => clearInterval(t)
   }, [!!installing])
 
