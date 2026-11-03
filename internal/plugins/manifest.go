@@ -113,10 +113,12 @@ func knownPermission(name string) bool {
 }
 
 var (
-	pluginIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`)
-	itemIDPattern    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	versionPattern   = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
-	domainPattern    = regexp.MustCompile(`^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$`)
+	pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`)
+	itemIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	versionPattern  = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+	// A domain (optionally *.example.com) or a local host, each with an
+	// optional port: api.example.com, localhost:8025, 127.0.0.1:1025.
+	domainPattern    = regexp.MustCompile(`^((\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}|localhost|127\.0\.0\.1)(:[0-9]{1,5})?$`)
 	comparatorPrefix = regexp.MustCompile(`^(>=|<=|>|<|=)?`)
 )
 
@@ -199,7 +201,7 @@ func (m Manifest) check(dir string) error {
 	}
 	for _, d := range m.Network {
 		if !domainPattern.MatchString(d) {
-			return fmt.Errorf("network domain %q is not a domain like api.example.com", d)
+			return fmt.Errorf("network domain %q is not a host like api.example.com or localhost:8025", d)
 		}
 	}
 

@@ -1,0 +1,69 @@
+<!doctype html>
+<!--
+  Mailpit inbox. Plain HTML and JS, no build step. It may only connect to
+  localhost:8025, the domain its manifest lists under "network": Larvyn's
+  sandbox blocks every other connection.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mail</title>
+<style>
+  :root { color-scheme: dark; font: 13px/1.4 system-ui, sans-serif; }
+  body { margin: 0; padding: 12px; background: #09090b; color: #e4e4e7; }
+  h1 { font-size: 14px; margin: 0 0 10px; display: flex; justify-content: space-between; }
+  button { background: #27272a; color: inherit; border: 1px solid #3f3f46; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 8px 0; border-bottom: 1px solid #27272a; }
+  .subject { font-weight: 600; }
+  .meta, .empty { color: #a1a1aa; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Mail <button id="refresh">Refresh</button></h1>
+<ul id="list"></ul>
+<p class="empty" id="empty" hidden></p>
+<script>
+const API = "http://localhost:8025/api/v1/messages?limit=50";
+
+function show(text) {
+  document.getElementById("list").replaceChildren();
+  const p = document.getElementById("empty");
+  p.textContent = text;
+  p.hidden = false;
+}
+
+async function load() {
+  let data;
+  try {
+    data = await (await fetch(API)).json();
+  } catch {
+    show("Mailpit isn't running. Start it from the stack, and point MAIL_HOST=127.0.0.1 and MAIL_PORT=1025 at it in .env.");
+    return;
+  }
+  const messages = data.messages || [];
+  if (messages.length === 0) {
+    show("No mail yet.");
+    return;
+  }
+  document.getElementById("empty").hidden = true;
+  document.getElementById("list").replaceChildren(...messages.map((m) => {
+    const li = document.createElement("li");
+    const subject = document.createElement("div");
+    subject.className = "subject";
+    subject.textContent = m.Subject || "(no subject)";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const to = (m.To || []).map((a) => a.Address).join(", ");
+    meta.textContent = `${m.From?.Address ?? ""} → ${to} · ${new Date(m.Created).toLocaleString()}`;
+    li.append(subject, meta);
+    return li;
+  }));
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
