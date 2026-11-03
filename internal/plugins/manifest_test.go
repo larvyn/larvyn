@@ -184,13 +184,13 @@ func TestCompatible(t *testing.T) {
 }
 
 func TestNetworkHosts(t *testing.T) {
-	for _, h := range []string{"api.example.com", "*.example.com", "localhost", "localhost:8025", "127.0.0.1:1025", "example.com:443"} {
-		if !domainPattern.MatchString(h) {
+	for _, h := range []string{"api.example.com", "*.example.com", "localhost", "localhost:8025", "127.0.0.1:1025", "example.com:443", "localhost:65535", "localhost:1"} {
+		if !validHost(h) {
 			t.Errorf("%q should be accepted", h)
 		}
 	}
-	for _, h := range []string{"https://example.com", "example", "192.168.1.5", "localhost:", "*", "ex ample.com"} {
-		if domainPattern.MatchString(h) {
+	for _, h := range []string{"https://example.com", "example", "192.168.1.5", "localhost:", "*", "ex ample.com", "localhost:99999", "localhost:65536", "localhost:0"} {
+		if validHost(h) {
 			t.Errorf("%q should be refused", h)
 		}
 	}
