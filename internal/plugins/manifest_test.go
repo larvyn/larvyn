@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"larvyn/internal/updater"
 )
 
 const validManifest = `{
@@ -150,6 +152,27 @@ func TestInvalidManifests(t *testing.T) {
 				t.Errorf("error = %v, want it to mention %q", err, c.want)
 			}
 		})
+	}
+}
+
+// A plugin made for a newer Larvyn uses fields this one doesn't know: the
+// error must say to update Larvyn, using the plugin's own version range.
+func TestNewerPluginSaysUpdateLarvyn(t *testing.T) {
+	old := updater.Version
+	updater.Version = "v0.1.0-beta.9"
+	defer func() { updater.Version = old }()
+	dir := t.TempDir()
+	writePlugin(t, dir, edit(t, func(m map[string]any) {
+		m["larvyn"] = ">=0.2.0"
+		m["env"] = []string{"MAIL_HOST"}
+	}))
+	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), "needs Larvyn >=0.2.0; this is v0.1.0-beta.9, update Larvyn") {
+		t.Errorf("error = %v", err)
+	}
+	// Without a newer range, the unknown field is named, with a hint.
+	writePlugin(t, dir, edit(t, func(m map[string]any) { m["env"] = []string{"MAIL_HOST"} }))
+	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), `unknown field "env" (it may need a newer Larvyn)`) {
+		t.Errorf("error = %v", err)
 	}
 }
 

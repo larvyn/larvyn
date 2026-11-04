@@ -180,6 +180,19 @@ func ParseManifest(data []byte, dir string) (Manifest, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&m); err != nil {
+		// A field this Larvyn doesn't know usually means the plugin was made
+		// for a newer one: say that, from its own larvyn range, rather than
+		// "unknown field".
+		var loose Manifest
+		if json.Unmarshal(data, &loose) == nil {
+			m = loose
+			if checkRange(loose.Larvyn) == nil && !Compatible(loose.Larvyn, updater.Version) {
+				return m, fmt.Errorf("needs Larvyn %s; this is %s, update Larvyn", loose.Larvyn, updater.Version)
+			}
+		}
+		if strings.Contains(err.Error(), "unknown field") {
+			return m, fmt.Errorf("%s: %w (it may need a newer Larvyn)", ManifestFile, err)
+		}
 		return m, fmt.Errorf("%s: %w", ManifestFile, err)
 	}
 	return m, m.check(dir)
