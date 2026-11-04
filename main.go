@@ -6,6 +6,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"log"
 	"path/filepath"
 	"strings"
@@ -83,6 +84,20 @@ func init() {
 			out = append(out, si)
 		}
 		return out
+	}
+	// Plugin views control the stack (stack.control) through the stack
+	// service, like the sidebar does.
+	plugins.StackControl = func(projectID, key, action string) (terminal.SessionInfo, error) {
+		s := &stack.StackService{}
+		switch action {
+		case "start":
+			return s.Start(projectID, key)
+		case "restart":
+			return s.Restart(projectID, key)
+		case "stop":
+			return terminal.SessionInfo{}, s.Stop(projectID, key)
+		}
+		return terminal.SessionInfo{}, fmt.Errorf("unknown stack action %q", action)
 	}
 	stack.Inspect = func(p store.Project) stack.Facts {
 		info := project.Inspect(p)

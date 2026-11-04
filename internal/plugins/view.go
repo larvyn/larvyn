@@ -22,6 +22,7 @@ import (
 
 	"larvyn/internal/dotenv"
 	"larvyn/internal/store"
+	"larvyn/internal/terminal"
 )
 
 // Tier 1: plugin views. A view is an HTML page from the plugin's folder,
@@ -354,6 +355,16 @@ func asciiLower(b []byte) []byte {
 type ViewResult struct {
 	Result any    `json:"result"`
 	Notify string `json:"notify,omitempty"`
+	// Session is a terminal the call started, for the frontend to show.
+	Session *terminal.SessionInfo `json:"session,omitempty"`
+}
+
+// StackControl starts ("start", "restart") or stops ("stop") a project's
+// stack item. main sets it from the stack service, so this package does not
+// depend on it. A plugin's own item still needs its first-run confirmation:
+// the stack returns its ConfirmError.
+var StackControl = func(projectID, key, action string) (terminal.SessionInfo, error) {
+	return terminal.SessionInfo{}, errors.New("the stack is not available")
 }
 
 // maxStorage caps what a plugin keeps through storage.set.
@@ -426,6 +437,41 @@ func (s *PluginService) Call(pluginID, projectID, method string, params map[stri
 			return envGet(p, proj)
 		}
 		return envSet(p, proj, params["values"])
+
+	case "terminal.run":
+		// Only a command declared in larvyn.json, by id: everything a plugin
+		// can run stays visible in its manifest.
+		if err := need("terminal.run"); err != nil {
+			return ViewResult{}, err
+		}
+		return runDeclared(s, p, projectID, str("id"))
+
+	case "artisan.run":
+		if err := need("artisan.run"); err != nil {
+			return ViewResult{}, err
+		}
+		return runArtisan(p, projectID, params["args"])
+
+	case "stack.start", "stack.stop", "stack.restart":
+		if err := need("stack.control"); err != nil {
+			return ViewResult{}, err
+		}
+		key := str("key")
+		if key == "" {
+			return ViewResult{}, errors.New(method + " needs a key")
+		}
+		// Another plugin's stack items are that plugin's to run.
+		if strings.HasPrefix(key, "plugin:") && !strings.HasPrefix(key, SessionKeyPrefix(p.Manifest.ID)) {
+			return ViewResult{}, errors.New("a plugin can only control its own stack items and the project's services")
+		}
+		sess, err := StackControl(projectID, key, strings.TrimPrefix(method, "stack."))
+		if err != nil {
+			return ViewResult{}, err
+		}
+		if method == "stack.stop" {
+			return ViewResult{Result: true}, nil
+		}
+		return ViewResult{Result: map[string]string{"sessionId": sess.ID}, Session: &sess}, nil
 
 	case "network.fetch":
 		if err := need("network"); err != nil {
@@ -541,6 +587,71 @@ func backupEnv(projectID, pluginID string, raw []byte) error {
 		}
 		return f.Close()
 	}
+}
+
+// runDeclared runs one of the plugin's commands from a view, asking first
+// the same way ⌘K does.
+func runDeclared(s *PluginService, p Plugin, projectID, id string) (ViewResult, error) {
+	for _, c := range p.Manifest.Contributes.Commands {
+		if c.ID != id {
+			continue
+		}
+		if store.Plugins()[p.Manifest.ID].Confirmed["command:"+id] != c.Run {
+			return ViewResult{}, ConfirmError{PluginID: p.Manifest.ID, PluginName: p.Manifest.Name, Kind: "command", Key: id, Title: c.Title, Line: c.Run}
+		}
+		sess, err := s.RunCommand(projectID, p.Manifest.ID, id, c.Run)
+		if err != nil {
+			return ViewResult{}, err
+		}
+		return ViewResult{Result: map[string]string{"sessionId": sess.ID}, Session: &sess}, nil
+	}
+	return ViewResult{}, fmt.Errorf("plugin %s has no command %q in larvyn.json", p.Manifest.ID, id)
+}
+
+var artisanCommandPattern = regexp.MustCompile(`^[a-z][a-z0-9:_-]*$`)
+
+// runArtisan runs php artisan with args in the project, after the user
+// confirmed that exact line once.
+func runArtisan(p Plugin, projectID string, raw any) (ViewResult, error) {
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 || len(list) > 50 {
+		return ViewResult{}, errors.New(`artisan.run needs {args: ["command", ...]} with 1 to 50 arguments`)
+	}
+	args := make([]string, len(list))
+	for i, a := range list {
+		s, ok := a.(string)
+		if !ok || len(s) > 1000 || strings.ContainsAny(s, "\x00\n\r") {
+			return ViewResult{}, errors.New("artisan.run arguments must be strings of one line")
+		}
+		args[i] = s
+	}
+	if !artisanCommandPattern.MatchString(args[0]) {
+		return ViewResult{}, fmt.Errorf("%q is not an Artisan command name", args[0])
+	}
+	proj, ok := store.FindProject(projectID)
+	if !ok {
+		return ViewResult{}, errors.New("no project is open")
+	}
+	line := commandLine(append([]string{"php", "artisan"}, args...))
+	runMu.Lock()
+	defer runMu.Unlock()
+	// Checked again under the lock, in step with the plugin being turned off.
+	p, err := find(p.Manifest.ID)
+	if err != nil {
+		return ViewResult{}, err
+	}
+	if err := allow(p, "artisan.run"); err != nil {
+		return ViewResult{}, err
+	}
+	if store.Plugins()[p.Manifest.ID].Confirmed["artisan:"+line] != line {
+		return ViewResult{}, ConfirmError{PluginID: p.Manifest.ID, PluginName: p.Manifest.Name, Kind: "artisan", Key: line, Title: "php artisan " + args[0], Line: line}
+	}
+	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: proj.ID, Kind: "run", Key: SessionKeyPrefix(p.Manifest.ID) + "artisan",
+		Title: "artisan " + args[0], Cwd: proj.Path, Argv: append([]string{store.PHP(), "artisan"}, args...)})
+	if err != nil {
+		return ViewResult{}, err
+	}
+	return ViewResult{Result: map[string]string{"sessionId": sess.ID}, Session: &sess}, nil
 }
 
 // storageFile keeps a plugin's data outside its folder, so updates keep it.

@@ -24,7 +24,7 @@ function askRun(pluginName: string, title: string, line: string) {
   })
 }
 
-function showSession(sess: SessionInfo) {
+export function showSession(sess: SessionInfo) {
   useStore.setState((s) => ({
     sessions: s.sessions.some((x) => x.id === sess.id) ? s.sessions : [...s.sessions, sess],
     drawer: { ...s.drawer, open: true, active: sess.id },
@@ -43,17 +43,19 @@ export async function runPluginCommand(projectId: string, c: PluginCommand) {
 
 const CONFIRM = 'plugin-confirm:'
 
-/** Runs start; a plugin's item whose command line was never confirmed comes
- * back with it: ask, record the answer, and run start again. */
-async function withConfirm(start: () => Promise<SessionInfo>) {
+/** Runs start; a command line that was never confirmed comes back with it
+ * (a plugin's stack item, or a command or Artisan line a view asked for):
+ * ask, record the answer, and run start again. Returns null if the user
+ * said no. */
+export async function withConfirm<T>(start: () => Promise<T>): Promise<T | null> {
   try {
     return await start()
   } catch (e) {
     const msg = errMsg(e)
     if (!msg.startsWith(CONFIRM)) throw e
-    const req = JSON.parse(msg.slice(CONFIRM.length)) as { pluginId: string; pluginName: string; key: string; title: string; line: string }
+    const req = JSON.parse(msg.slice(CONFIRM.length)) as { pluginId: string; pluginName: string; kind?: string; key: string; title: string; line: string }
     if (!(await askRun(req.pluginName, req.title, req.line))) return null
-    await PluginService.ConfirmStackItem(req.pluginId, req.key, req.line)
+    await PluginService.ConfirmRun(req.pluginId, req.kind ?? 'stack', req.key, req.line)
     return await start()
   }
 }
