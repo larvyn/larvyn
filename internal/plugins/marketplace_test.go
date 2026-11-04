@@ -326,3 +326,22 @@ func TestBadIndexAndDownloadLinks(t *testing.T) {
 		t.Errorf("an index over 8 MB: %v", err)
 	}
 }
+
+func TestUpdateKeepsPluginOff(t *testing.T) {
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0")
+	s := &PluginService{}
+	if p, err := s.InstallListing("acme.horizon", "1.0.0", horizonPerms); err != nil || !p.Enabled {
+		t.Fatalf("a new install is on: %+v, %v", p, err)
+	}
+	s.Disable("acme.horizon")
+	m.publish(t, srv, "1.1.0")
+	if p, err := s.InstallListing("acme.horizon", "1.1.0", horizonPerms); err != nil || p.Enabled || p.Manifest.Version != "1.1.0" {
+		t.Errorf("an update keeps it off: %+v, %v", p, err)
+	}
+	s.Enable("acme.horizon", horizonPerms)
+	m.publish(t, srv, "1.2.0")
+	if p, _ := s.InstallListing("acme.horizon", "1.2.0", horizonPerms); !p.Enabled {
+		t.Error("an update keeps it on")
+	}
+}

@@ -52,7 +52,8 @@ func readInstallable(dir string) (Manifest, error) {
 	return m, nil
 }
 
-// Install copies the plugin in dir into the plugins folder and turns it on.
+// Install copies the plugin in dir into the plugins folder and turns it on,
+// or, for an update, leaves it on or off as it was.
 // granted must hold every permission the plugin asks for: the user saw them
 // in the install dialog. Installing over an existing copy updates it.
 func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
@@ -60,7 +61,8 @@ func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
 }
 
 // install installs the plugin in dir from source ("" or "marketplace").
-// What the user decided per project and per command survives an update.
+// What the user decided survives an update: whether it's on, the projects
+// it's off in and the commands they confirmed.
 func install(dir string, granted []string, source string) (Plugin, error) {
 	m, err := readInstallable(dir)
 	if err != nil {
@@ -88,9 +90,12 @@ func install(dir string, granted []string, source string) (Plugin, error) {
 		if d.Plugins == nil {
 			d.Plugins = map[string]store.PluginState{}
 		}
-		old := d.Plugins[m.ID]
+		// An update keeps a plugin the user turned off everywhere off; a new
+		// install turns it on, and so does a fixed version of one a
+		// revocation turned off.
+		old, updating := d.Plugins[m.ID]
 		d.Plugins[m.ID] = store.PluginState{
-			Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
+			Enabled: !updating || old.Enabled || old.Revoked != "", Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
 			Confirmed: old.Confirmed, OffIn: old.OffIn, Source: source,
 		}
 	})
