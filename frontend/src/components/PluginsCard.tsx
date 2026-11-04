@@ -268,8 +268,8 @@ export function PluginsCard() {
         </div>
       ))}
       <div style={{ padding: '8px 14px', fontSize: 11.5, color: 'var(--text-3)' }}>
-        Plugins load from <span className="mono">{folder}</span>. Commands, stack items and views from plugins arrive in the next Larvyn updates; see the plugin plan on GitHub
-        (#56).
+        Plugins load from <span className="mono">{folder}</span>. Their commands are in ⌘K under Plugins, their stack items in the sidebar's Stack, and their views in the
+        sidebar under Plugins.
       </div>
     </div>
   )

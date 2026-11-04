@@ -180,6 +180,19 @@ func ParseManifest(data []byte, dir string) (Manifest, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&m); err != nil {
+		// A field this Larvyn doesn't know usually means the plugin was made
+		// for a newer one: say that, from its own larvyn range, rather than
+		// "unknown field".
+		var loose Manifest
+		if json.Unmarshal(data, &loose) == nil {
+			m = loose
+			if checkRange(loose.Larvyn) == nil && !Compatible(loose.Larvyn, updater.Version) {
+				return m, incompatible(loose.Larvyn, updater.Version)
+			}
+		}
+		if strings.Contains(err.Error(), "unknown field") {
+			return m, fmt.Errorf("%s: %w (it may need a newer Larvyn)", ManifestFile, err)
+		}
 		return m, fmt.Errorf("%s: %w", ManifestFile, err)
 	}
 	return m, m.check(dir)
@@ -382,11 +395,30 @@ func checkRange(r string) error {
 // >=0.1.0-beta.10, compares the full version, so a plugin can require the
 // beta that added what it uses.
 func Compatible(r, current string) bool {
+	ok, _ := checkVersion(r, current)
+	return ok
+}
+
+// incompatible explains why current is outside range r. Only a Larvyn that
+// is too old is told to update: when an upper bound excludes it (<0.4.0 on
+// 0.4.0), updating won't help, the plugin needs an update instead.
+func incompatible(r, current string) error {
+	if _, tooOld := checkVersion(r, current); tooOld {
+		return fmt.Errorf("needs Larvyn %s; this is %s, update Larvyn", r, current)
+	}
+	return fmt.Errorf("works with Larvyn %s only; this is %s, so the plugin needs an update", r, current)
+}
+
+// checkVersion reports whether current is in range r and, when it is not,
+// whether a failing bound is one a newer Larvyn would meet (>=, > or a
+// higher exact version).
+func checkVersion(r, current string) (ok, tooOld bool) {
 	current = strings.TrimPrefix(current, "v")
 	if current == "dev" || current == "" {
-		return true
+		return true, false
 	}
 	release, _, _ := strings.Cut(current, "-")
+	ok = true
 	for _, c := range strings.Fields(r) {
 		op := comparatorPrefix.FindString(c)
 		want := c[len(op):]
@@ -395,22 +427,27 @@ func Compatible(r, current string) bool {
 			have = current
 		}
 		cmp := updater.CompareVersions(have, want)
-		ok := false
+		holds := false
 		switch op {
 		case ">=":
-			ok = cmp >= 0
+			holds = cmp >= 0
 		case ">":
-			ok = cmp > 0
+			holds = cmp > 0
 		case "<=":
-			ok = cmp <= 0
+			holds = cmp <= 0
 		case "<":
-			ok = cmp < 0
+			holds = cmp < 0
 		default:
-			ok = cmp == 0
+			holds = cmp == 0
 		}
-		if !ok {
-			return false
+		if !holds {
+			ok = false
+			// Below a lower bound (or an exact version above it): a newer
+			// Larvyn can meet it.
+			if op == ">=" || op == ">" || ((op == "" || op == "=") && cmp < 0) {
+				tooOld = true
+			}
 		}
 	}
-	return true
+	return ok, tooOld
 }
