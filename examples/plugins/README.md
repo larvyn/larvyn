@@ -21,6 +21,8 @@ ln -s "$PWD/examples/plugins/larvyn.horizon" ~/Library/Application\ Support/larv
 
 A linked plugin starts off. Turn it on in Settings, which asks you to approve its permissions.
 
+To share a plugin, use the **Export** button (the archive icon) on its row in Settings → Plugins. It saves `<id>-<version>.zip`, which holds one folder named after the plugin, without `.git`, `node_modules` or symlinks. Whoever gets it unzips it and installs that folder.
+
 > **Status:** Larvyn installs these plugins and runs all three kinds of contribution:
 > - **commands**, in ⌘K under Plugins;
 > - **stack items**, in the sidebar's Stack;

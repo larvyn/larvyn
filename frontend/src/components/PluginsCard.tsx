@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Download, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
+import { AlertTriangle, Download, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
 import { PluginService, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
@@ -169,6 +169,16 @@ export function PluginsCard() {
     }
   }
 
+  /** Saves the plugin as a .zip, ready to share or attach to a release. */
+  const exportZip = async (p: Plugin) => {
+    try {
+      const path = await PluginService.Export(p.folder)
+      if (path) toast('success', `${p.manifest.name || p.manifest.id} exported`, path)
+    } catch (e) {
+      toast('error', 'Could not export the plugin', errMsg(e))
+    }
+  }
+
   const uninstall = async (p: Plugin) => {
     const ok = await confirmDialog({
       title: `Uninstall ${p.manifest.name || p.manifest.id}?`,
@@ -249,6 +259,9 @@ export function PluginsCard() {
               ))}
           </div>
           <Toggle on={p.enabled} disabled={!!p.error} title={p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off' : 'Turn on'} onChange={(on) => toggle(p, on)} />
+          <button className="icon-btn" title="Export as .zip, to share it" onClick={() => exportZip(p)}>
+            <FileArchive />
+          </button>
           <button className="icon-btn" title="Uninstall" onClick={() => uninstall(p)}>
             <Trash2 />
           </button>
