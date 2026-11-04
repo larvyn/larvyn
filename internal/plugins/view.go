@@ -357,6 +357,12 @@ func storageCall(pluginID, method, key string, value any) (ViewResult, error) {
 		tmp.Close()
 		return ViewResult{}, err
 	}
+	// Flushed before the rename, so a crash can't leave an empty file in
+	// place of the old one.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return ViewResult{}, err
+	}
 	if err := tmp.Close(); err != nil {
 		return ViewResult{}, err
 	}
