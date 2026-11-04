@@ -55,6 +55,12 @@ func readInstallable(dir string) (Manifest, error) {
 // granted must hold every permission the plugin asks for: the user saw them
 // in the install dialog. Installing over an existing copy updates it.
 func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
+	return install(dir, granted, "")
+}
+
+// install installs the plugin in dir from source ("" or "marketplace").
+// What the user decided per project and per command survives an update.
+func install(dir string, granted []string, source string) (Plugin, error) {
 	m, err := readInstallable(dir)
 	if err != nil {
 		return Plugin{}, err
@@ -72,7 +78,11 @@ func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
 		if d.Plugins == nil {
 			d.Plugins = map[string]store.PluginState{}
 		}
-		d.Plugins[m.ID] = store.PluginState{Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix()}
+		old := d.Plugins[m.ID]
+		d.Plugins[m.ID] = store.PluginState{
+			Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
+			Confirmed: old.Confirmed, OffIn: old.OffIn, Source: source,
+		}
 	})
 	if err != nil {
 		return Plugin{}, err
@@ -89,6 +99,9 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 	}
 	if p.Error != "" {
 		return p, errors.New(p.Error)
+	}
+	if p.Revoked != "" {
+		return p, fmt.Errorf("%s %s was revoked: %s", p.Manifest.Name, p.Manifest.Version, p.Revoked)
 	}
 	if missing := missingPermissions(p.Manifest, granted); len(missing) > 0 {
 		return p, fmt.Errorf("not turned on: permissions %v were not granted", missing)

@@ -44,6 +44,10 @@ type Plugin struct {
 	Linked bool `json:"linked"`
 	// OffIn are the projects the plugin is turned off in.
 	OffIn []string `json:"offIn"`
+	// Source is "marketplace" when it was installed from the marketplace.
+	Source string `json:"source"`
+	// Revoked is why the registry revoked this version; it can't run.
+	Revoked string `json:"revoked,omitempty"`
 }
 
 // Dir is the folder plugins are installed in, one folder per plugin named
@@ -102,8 +106,8 @@ func load(dir, name string) Plugin {
 
 // applyState fills in what the user decided about p.
 func applyState(p *Plugin, st store.PluginState) {
-	p.Granted, p.OffIn = st.Granted, st.OffIn
-	if !st.Enabled || p.Error != "" {
+	p.Granted, p.OffIn, p.Source, p.Revoked = st.Granted, st.OffIn, st.Source, st.Revoked
+	if !st.Enabled || p.Error != "" || p.Revoked != "" {
 		return
 	}
 	if missing := missingPermissions(p.Manifest, st.Granted); len(missing) > 0 {

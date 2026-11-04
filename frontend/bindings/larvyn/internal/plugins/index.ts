@@ -10,6 +10,7 @@ export type {
     Backend,
     Command,
     Contributes,
+    Listing,
     Manifest,
     Missing,
     Permission,

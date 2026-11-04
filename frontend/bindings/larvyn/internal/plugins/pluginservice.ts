@@ -90,6 +90,14 @@ export function Inspect(dir: string): $CancellablePromise<$models.Plugin> {
 }
 
 /**
+ * InspectListing downloads a marketplace plugin and reads it without
+ * installing it, for the permission dialog.
+ */
+export function InspectListing(id: string, version: string): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(3914607858, id, version);
+}
+
+/**
  * InspectZip reads the plugin in a .zip without installing it, for the
  * permission dialog.
  */
@@ -104,6 +112,14 @@ export function InspectZip(zipPath: string): $CancellablePromise<$models.Plugin>
  */
 export function Install(dir: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
     return $Call.ByID(2489704325, dir, granted);
+}
+
+/**
+ * InstallListing installs the version of a marketplace plugin the user saw
+ * in the permission dialog; granted must hold every permission it asks for.
+ */
+export function InstallListing(id: string, version: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(1841209407, id, version, granted);
 }
 
 /**
@@ -129,6 +145,14 @@ export function InstallZip(zipPath: string, granted: string[] | null): $Cancella
  */
 export function List(): $CancellablePromise<$models.Plugin[] | null> {
     return $Call.ByID(3080848682);
+}
+
+/**
+ * Marketplace lists the marketplace's plugins, marking the installed ones
+ * and their updates. It also applies the registry's revocations.
+ */
+export function Marketplace(): $CancellablePromise<$models.Listing[] | null> {
+    return $Call.ByID(2254798081);
 }
 
 /**

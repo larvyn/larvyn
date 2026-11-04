@@ -32,6 +32,43 @@ export interface Contributes {
 }
 
 /**
+ * Listing is one plugin in the marketplace. Name, permissions and network
+ * come from the larvyn.json in its zip, read when the registry built the
+ * index; Larvyn checks the zip again before installing it.
+ */
+export interface Listing {
+    "id": string;
+    "name": string;
+    "version": string;
+    "description": string;
+    "author": string;
+    "larvyn": string;
+    "permissions": string[] | null;
+    "network": string[] | null;
+    "repo": string;
+    "download": string;
+    "sha256": string;
+    "size": number;
+
+    /**
+     * Installed is the installed version, "" when it isn't installed.
+     */
+    "installed": string;
+
+    /**
+     * Update is set when the installed copy came from the marketplace and
+     * this version is newer. Plugins installed from a folder or a .zip are
+     * never updated from here, so a local copy is never overwritten.
+     */
+    "update": boolean;
+
+    /**
+     * Error says why this version can't be installed on this Larvyn.
+     */
+    "error"?: string;
+}
+
+/**
  * Manifest is a plugin's larvyn.json.
  */
 export interface Manifest {
@@ -144,6 +181,16 @@ export interface Plugin {
      * OffIn are the projects the plugin is turned off in.
      */
     "offIn": string[] | null;
+
+    /**
+     * Source is "marketplace" when it was installed from the marketplace.
+     */
+    "source": string;
+
+    /**
+     * Revoked is why the registry revoked this version; it can't run.
+     */
+    "revoked"?: string;
 }
 
 /**
