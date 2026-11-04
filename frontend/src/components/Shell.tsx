@@ -52,6 +52,7 @@ import {
   type View,
 } from '../lib/store'
 import { PLUGINS_CHANGED, toggleService } from './pluginRun'
+import { usePluginViews, viewKey } from './PluginView'
 import { cx, initials, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
@@ -83,7 +84,7 @@ export function TitleBar() {
             </span>
           )}
           <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
-          <span>{NAV_ITEMS.find((n) => n.view === view)?.label ?? 'Settings'}</span>
+          <span>{NAV_ITEMS.find((n) => n.view === view)?.label ?? (view.startsWith('plugin:') ? 'Plugin' : 'Settings')}</span>
         </div>
       )}
       <button className="searchbar" onClick={() => openPalette()}>
@@ -189,6 +190,7 @@ export function Sidebar() {
   const sessions = useStore((s) => s.sessions)
   const logErrors = useStore((s) => (id ? s.logErrors[id] ?? 0 : 0))
   const [stack, setStack] = useState<StackItem[]>([])
+  const pluginViews = usePluginViews()
   const mine = sessions.filter((s) => s.projectId === id)
   const sessKey = mine.map((s) => s.id + s.running).join()
 
@@ -247,6 +249,17 @@ export function Sidebar() {
             })}
           </div>
         ))}
+        {(pluginViews?.length ?? 0) > 0 && (
+          <div className="nav-group">
+            <div className="nav-label">Plugins</div>
+            {pluginViews!.map((v) => (
+              <button key={viewKey(v)} className={cx('nav-item', view === viewKey(v) && 'active')} title={`From the ${v.pluginName} plugin`} onClick={() => setView(viewKey(v))}>
+                <Puzzle />
+                {v.title}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {stack.some((s) => s.available || s.session) && (
         <div className="side-stack">

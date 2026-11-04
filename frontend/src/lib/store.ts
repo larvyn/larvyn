@@ -26,6 +26,8 @@ export type View =
   | 'files'
   | 'deps'
   | 'settings'
+  // A plugin's view: plugin:<plugin id>:<view id>.
+  | `plugin:${string}`
 
 export interface Toast {
   id: number

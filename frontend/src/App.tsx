@@ -26,6 +26,7 @@ import { Settings } from './views/Settings'
 import { NewProject, Welcome } from './views/Welcome'
 import { Onboarding } from './views/Onboarding'
 import { Loading } from './components/ui'
+import { PluginView } from './components/PluginView'
 
 // The editor pulls in CodeMirror: load it only when Files is opened.
 const LazyFiles = lazy(() => import('./views/Files').then((m) => ({ default: m.Files })))
@@ -131,7 +132,7 @@ export default function App() {
       </>
     )
 
-  const View = VIEWS[view] ?? Overview
+  const View = VIEWS[view as keyof typeof VIEWS] ?? Overview
   return (
     <div className="app">
       <TitleBar />
@@ -140,7 +141,7 @@ export default function App() {
         {activeId && !onboarding ? <Sidebar /> : <div />}
         <main className="main">
           <ErrorBoundary resetKey={activeId + view}>
-            {onboarding ? <Onboarding /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
+            {onboarding ? <Onboarding /> : activeId && view.startsWith('plugin:') ? <PluginView key={activeId + view} view={view} /> : activeId || view === 'settings' ? <View key={view === 'terminals' ? 'terms' : activeId + view} /> : <Welcome />}
           </ErrorBoundary>
           {activeId && !onboarding && <Drawer />}
         </main>
