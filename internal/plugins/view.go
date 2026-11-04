@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +55,29 @@ var viewTypes = map[string]string{
 	".txt": "text/plain; charset=utf-8",
 }
 
+// KitPath is Larvyn's stylesheet for plugin views. "_kit" can't be a
+// plugin id, so it never shadows a plugin's files.
+const KitPath = ViewPrefix + "_kit/larvyn.css"
+
+//go:embed kit/larvyn.css
+var kitCSS []byte
+
+var accentPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// serveKit serves the stylesheet, with the accent colour from Settings.
+func serveKit(w http.ResponseWriter) {
+	css := kitCSS
+	if a := store.CurrentSettings().Accent; accentPattern.MatchString(a) {
+		css = append(append([]byte{}, kitCSS...), []byte("\n:root { --lv-accent: "+a+"; }\n")...)
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/css; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Access-Control-Allow-Origin", "*")
+	h.Set("Cache-Control", "no-store")
+	_, _ = w.Write(css)
+}
+
 // PluginView is a view for the sidebar.
 type PluginView struct {
 	PluginID   string `json:"pluginId"`
@@ -82,6 +107,8 @@ func (s *PluginService) Views() []PluginView {
 func ViewMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == KitPath:
+			serveKit(w)
 		case strings.HasPrefix(r.URL.Path, ViewPrefix):
 			serveView(w, r)
 		// Larvyn's page calls the runtime with POST only (fetch in

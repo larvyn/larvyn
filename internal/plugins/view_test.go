@@ -92,6 +92,24 @@ func TestServeView(t *testing.T) {
 	}
 }
 
+func TestServeKit(t *testing.T) {
+	store.Update(func(d *store.State) { d.Settings.Accent = "#4C8DFF" })
+	defer store.Update(func(d *store.State) { d.Settings.Accent = "#FF2D20" })
+	rec := get(KitPath)
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "text/css; charset=utf-8" || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("kit: %d %v", rec.Code, rec.Header())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, ".lv-btn") || !strings.HasSuffix(strings.TrimSpace(body), "--lv-accent: #4C8DFF; }") {
+		t.Errorf("the kit must end with the accent from Settings: %s", body[len(body)-80:])
+	}
+	// A bad accent never reaches the CSS.
+	store.Update(func(d *store.State) { d.Settings.Accent = "red; } body { display: none" })
+	if body := get(KitPath).Body.String(); strings.Contains(body, "body { display: none") {
+		t.Error("an accent that is not #rrggbb must be ignored")
+	}
+}
+
 func TestServeViewRefuses(t *testing.T) {
 	s, _ := installView(t, viewManifest(t))
 	outside := filepath.Join(t.TempDir(), "secret.txt")

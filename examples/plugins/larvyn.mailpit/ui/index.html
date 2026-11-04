@@ -19,108 +19,64 @@
 <head>
 <meta charset="utf-8">
 <title>Mail</title>
+<link rel="stylesheet" href="/plugin-view/_kit/larvyn.css">
 <style>
-  :root {
-    color-scheme: dark;
-    --bg: #08080a; --bg-2: #0f0f12; --bg-3: #16161a; --bg-4: #1d1d22;
-    --line: rgba(255, 255, 255, 0.06); --line-2: rgba(255, 255, 255, 0.1);
-    --text: #ededf0; --text-2: #a1a1aa; --text-3: #71717a;
-    --accent: #ff2d20; --green: #3ddc84; --yellow: #f5c542;
-    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-  }
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  html, body { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--text); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; }
-  button { font: inherit; color: inherit; cursor: pointer; }
-
-  header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 15px; font-weight: 620; margin: 0; letter-spacing: -0.01em; }
-  .count { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--bg-4); color: var(--text-2); }
-  .count.hot { background: rgba(255, 45, 32, 0.15); color: #ff6a5f; }
-  .spacer { flex: 1; }
-  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3); }
-  .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
-  .status.on i { background: var(--green); box-shadow: 0 0 0 3px rgba(61, 220, 132, 0.15); }
-  .status.off i { background: var(--yellow); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--bg-3); border: 1px solid var(--line-2); font-size: 12px; }
-  .btn:hover { background: var(--bg-4); }
-  .btn svg { width: 13px; height: 13px; }
-  .btn.spin svg { animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .search { height: 28px; width: 220px; padding: 0 10px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line-2); color: var(--text); font: inherit; font-size: 12px; outline: none; }
-  .search:focus { border-color: rgba(255, 45, 32, 0.5); }
+  /* Only what is specific to this view: the rest is Larvyn's plugin kit. */
+  body { display: flex; flex-direction: column; }
+  .lv-input.search { width: 220px; }
+  .lv-btn svg { width: 13px; height: 13px; }
 
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 360px) 1fr; }
   main.single { grid-template-columns: 1fr; }
-  .list { overflow-y: auto; border-right: 1px solid var(--line); }
-  .item { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: start; width: 100%; text-align: left; padding: 11px 14px; background: none; border: 0; border-bottom: 1px solid var(--line); }
-  .item:hover { background: var(--bg-2); }
-  .item.active { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
+  .list { overflow-y: auto; border-right: 1px solid var(--lv-line); }
+  .item { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: start; width: 100%; text-align: left; padding: 11px 14px; background: none; border: 0; border-bottom: 1px solid var(--lv-line); }
+  .item:hover { background: var(--lv-bg-2); }
+  .item.active { background: var(--lv-bg-3); box-shadow: inset 2px 0 0 var(--lv-accent); }
+  .item > div { min-width: 0; }
   .avatar { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-size: 12px; font-weight: 650; color: #fff; }
   .item .who { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item.unread .who::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: 2px; }
+  .item.unread .who::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--lv-accent); margin-left: 6px; vertical-align: 2px; }
   .item .subject { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item.unread .subject { font-weight: 600; }
-  .item .snippet { font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item .when { font-size: 11px; color: var(--text-3); white-space: nowrap; }
-  .item > div { min-width: 0; }
+  .item .snippet { font-size: 11.5px; color: var(--lv-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .when { font-size: 11px; color: var(--lv-text-3); white-space: nowrap; }
 
   .detail { overflow-y: auto; }
-  .detail .head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
-  .detail h2 { margin: 0 0 12px; font-size: 17px; font-weight: 620; letter-spacing: -0.01em; }
-  .meta { display: grid; grid-template-columns: 52px 1fr; gap: 4px 10px; font-size: 12px; }
-  .meta dt { color: var(--text-3); }
-  .meta dd { margin: 0; color: var(--text-2); word-break: break-all; }
+  .detail .head { padding: 20px 24px 16px; border-bottom: 1px solid var(--lv-line); }
+  .detail h2 { margin: 0 0 12px; font-size: 17px; font-weight: 620; }
   .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--text-2); font-family: var(--mono); }
-  .body { padding: 20px 24px 32px; margin: 0; font: 12.5px/1.65 var(--mono); color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .body { padding: 20px 24px 32px; margin: 0; font: 12.5px/1.65 var(--lv-mono); color: var(--lv-text); white-space: pre-wrap; word-break: break-word; }
+  .center { display: grid; place-items: center; padding: 40px 24px; text-align: center; height: 100%; color: var(--lv-text-3); }
 
-  .center { display: grid; place-items: center; padding: 40px 24px; text-align: center; height: 100%; }
-  .card { max-width: 440px; }
-  .card .ico { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 13px; display: grid; place-items: center; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--text-2); }
-  .card .ico svg { width: 20px; height: 20px; }
-  .card h3 { margin: 0 0 6px; font-size: 14.5px; font-weight: 620; }
-  .card p { margin: 0 0 14px; color: var(--text-2); font-size: 12.5px; }
-  .card pre { margin: 0; padding: 12px 14px; text-align: left; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 9px; font: 12px/1.7 var(--mono); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
-  .card pre b { color: var(--text); font-weight: 500; }
-  .muted { color: var(--text-3); }
-
-  .banner { display: flex; align-items: center; gap: 10px; padding: 9px 18px; background: rgba(245, 197, 66, 0.08); border-bottom: 1px solid rgba(245, 197, 66, 0.2); color: #f5d77a; font-size: 12.5px; }
-  .banner code, .settings code { font-family: var(--mono); font-size: 11.5px; }
-  .banner .btn { margin-left: auto; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn.primary:hover { background: #ff4436; }
-  .btn:disabled { opacity: 0.5; cursor: default; }
-  .btn.on { background: var(--bg-4); }
-  .settings { padding: 16px 18px 18px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+  .lv-banner .err { color: #ff8a84; }
+  .settings { padding: 16px 18px 18px; border-bottom: 1px solid var(--lv-line); background: var(--lv-bg-2); }
   .settings h3 { margin: 0 0 4px; font-size: 13px; font-weight: 620; }
-  .settings > p { margin: 0 0 12px; color: var(--text-3); font-size: 12px; }
+  .settings > p { margin: 0 0 12px; color: var(--lv-text-3); font-size: 12px; }
   .env { display: grid; grid-template-columns: 130px 1fr 1fr 18px; gap: 6px 14px; align-items: center; font-size: 12px; max-width: 560px; margin-bottom: 14px; }
-  .env .th { color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .env .ok { color: var(--green); }
-  .env .bad { color: var(--yellow); }
-  .settings .note { margin-top: 10px; font-size: 11.5px; color: var(--text-3); max-width: 560px; }
-  .settings .done { color: var(--green); }
+  .env .th { color: var(--lv-text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .env .ok { color: var(--lv-green); }
+  .env .bad { color: var(--lv-yellow); }
+  .settings .note { margin-top: 10px; font-size: 11.5px; color: var(--lv-text-3); max-width: 560px; }
+  .settings .done { color: var(--lv-green); }
 </style>
 </head>
 <body>
-<header>
+<header class="lv-header">
   <h1>Mail</h1>
-  <span class="count" id="count" hidden></span>
-  <span class="status" id="status"><i></i><span>Connecting…</span></span>
-  <span class="spacer"></span>
-  <input class="search" id="search" type="search" placeholder="Search mail…" hidden>
-  <button class="btn" id="gear" title="App mail settings">
+  <span class="lv-badge" id="count" hidden></span>
+  <span class="lv-status" id="status">Connecting…</span>
+  <span class="lv-spacer"></span>
+  <input class="lv-input search" id="search" type="search" placeholder="Search mail…" hidden>
+  <button class="lv-btn sm" id="gear" title="App mail settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     Settings
   </button>
-  <button class="btn" id="refresh" title="Refresh">
+  <button class="lv-btn sm" id="refresh" title="Refresh">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
     Refresh
   </button>
 </header>
-<div class="banner" id="banner" hidden></div>
+<div class="lv-banner warn" id="banner" hidden></div>
 <section class="settings" id="settings" hidden></section>
 <main id="main" class="single"></main>
 
@@ -182,20 +138,19 @@ function size(n) {
 function setStatus(on, text) {
   online = on;
   const s = $("status");
-  s.className = "status " + (on ? "on" : "off");
-  s.lastElementChild.textContent = text;
+  s.className = "lv-status " + (on ? "on" : "warn");
+  s.textContent = text;
 }
 
 function showCard(icon, title, text, code) {
   const main = $("main");
   main.className = "single";
-  const wrap = el("div", "center");
-  const card = el("div", "card");
-  const ico = el("div", "ico");
+  const card = el("div", "lv-empty");
+  const ico = el("div", "lv-ico");
   ico.innerHTML = icon;
   card.append(ico, el("h3", null, title), el("p", null, text));
   if (code) {
-    const pre = el("pre");
+    const pre = el("pre", "lv-code");
     // Each line is [highlighted part, rest].
     for (const [k, v] of code) {
       const line = el("div");
@@ -204,8 +159,7 @@ function showCard(icon, title, text, code) {
     }
     card.append(pre);
   }
-  wrap.append(card);
-  main.replaceChildren(wrap);
+  main.replaceChildren(card);
 }
 
 function renderList() {
@@ -244,7 +198,7 @@ async function render() {
   }
   const head = el("div", "head");
   head.append(el("h2", null, msg.Subject || "(no subject)"));
-  const meta = el("dl", "meta");
+  const meta = el("dl", "lv-kv");
   const row = (k, v) => v && meta.append(el("dt", null, k), el("dd", null, v));
   row("From", addr(msg.From));
   row("To", (msg.To || []).map(addr).join(", "));
@@ -252,9 +206,9 @@ async function render() {
   row("Date", new Date(msg.Date).toLocaleString());
   head.append(meta);
   const tags = el("div", "tags");
-  if (msg.Size) tags.append(el("span", "tag", size(msg.Size)));
-  for (const a of msg.Attachments || []) tags.append(el("span", "tag", "📎 " + a.FileName));
-  if (msg.HTML) tags.append(el("span", "tag", "HTML shown as text"));
+  if (msg.Size) tags.append(el("span", "lv-badge mono", size(msg.Size)));
+  for (const a of msg.Attachments || []) tags.append(el("span", "lv-badge mono", "📎 " + a.FileName));
+  if (msg.HTML) tags.append(el("span", "lv-badge", "HTML shown as text"));
   if (tags.childElementCount) head.append(tags);
   // Text only: the HTML part is turned into plain text, never rendered.
   const text = msg.Text || (msg.HTML ? new DOMParser().parseFromString(msg.HTML, "text/html").body.textContent : "");
@@ -275,7 +229,7 @@ function renderCount() {
   const c = $("count");
   const unread = messages.filter((m) => !m.Read).length;
   c.hidden = messages.length === 0;
-  c.className = "count" + (unread ? " hot" : "");
+  c.className = "lv-badge" + (unread ? " accent" : "");
   c.textContent = unread ? `${unread} new` : `${messages.length}`;
 }
 
@@ -358,13 +312,12 @@ function alertLine(text) {
   const banner = $("banner");
   banner.querySelector(".err")?.remove();
   const err = el("span", "err", text);
-  err.style.color = "#f87171";
-  banner.insertBefore(err, banner.querySelector(".btn"));
+  banner.insertBefore(err, banner.querySelector(".lv-btn"));
   banner.hidden = false;
 }
 
 function fixButton(label) {
-  const b = el("button", "btn primary", label);
+  const b = el("button", "lv-btn primary sm", label);
   b.addEventListener("click", () => pointAtMailpit(b));
   return b;
 }
