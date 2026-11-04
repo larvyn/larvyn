@@ -65,6 +65,8 @@ The permissions marked sensitive are shown in red when a user installs the plugi
 
 ## Views and `window.larvyn`
 
+> To build a view with Vite and TypeScript, start from [`examples/plugin-starter`](../plugin-starter). It includes a typed `window.larvyn` client.
+
 A view is an HTML page from the plugin's folder. Larvyn shows it in a sandboxed iframe, which runs scripts but has no access to Larvyn's page, its storage or its Go side. Its Content-Security-Policy keeps it to its own files:
 - Scripts and styles may be inline or files in the plugin.
 - Images and fonts may be files in the plugin, or `data:` URLs.
