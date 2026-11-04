@@ -63,6 +63,11 @@ func TestViewTerminalRun(t *testing.T) {
 	call := func() (ViewResult, error) {
 		return s.Call("acme.horizon", proj.ID, "terminal.run", map[string]any{"id": "hello"})
 	}
+	// With no project open, the call fails before asking anything.
+	if _, err := s.Call("acme.horizon", "", "terminal.run", map[string]any{"id": "hello"}); err == nil || errors.As(err, new(ConfirmError)) {
+		t.Errorf("no project must fail without a confirmation: %v", err)
+	}
+
 	ce := confirmOf(t, func() error { _, err := call(); return err }())
 	if ce.Kind != "command" || ce.Key != "hello" || ce.Line != "echo view-ran" {
 		t.Fatalf("confirmation: %+v", ce)
@@ -81,11 +86,6 @@ func TestViewTerminalRun(t *testing.T) {
 		t.Fatalf("result: %+v", r)
 	}
 	waitOutput(t, r.Session.ID, "view-ran")
-
-	// With no project open, the call fails before asking anything.
-	if _, err := s.Call("acme.horizon", "", "terminal.run", map[string]any{"id": "hello"}); err == nil || errors.As(err, new(ConfirmError)) {
-		t.Errorf("no project must fail without a confirmation: %v", err)
-	}
 
 	// Only commands from larvyn.json: no free-form lines.
 	if _, err := s.Call("acme.horizon", proj.ID, "terminal.run", map[string]any{"id": "rm -rf /"}); err == nil || !strings.Contains(err.Error(), "no command") {
