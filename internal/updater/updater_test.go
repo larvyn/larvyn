@@ -24,6 +24,11 @@ func TestCompareVersions(t *testing.T) {
 		{"v1.0.0", "v1.0", 0},
 		{"v0.1.0-beta.4", "v0.1.0-beta.4", 0},
 		{"v0.1.0-rc.1", "v0.1.0-beta.9", 1},
+		{"v1.0.0+build.5", "v1.0.0", 0},
+		{"v1.0.0+exp-sha.5114f85", "v1.0.0+build.1", 0},
+		{"v1.0.1+build.1", "v1.0.0", 1},
+		{"v0.1.0-beta.10+build.1", "v0.1.0-beta.9", 1},
+		{"v0.1.0-beta.2+abc", "v0.1.0-beta.2", 0},
 	}
 	for _, c := range cases {
 		if got := CompareVersions(c.a, c.b); got != c.want {
@@ -70,5 +75,16 @@ func TestUntar(t *testing.T) {
 	}
 	if untar(tgz(t, map[string]string{"../escape": "x"}), t.TempDir()) == nil {
 		t.Fatal("path traversal was extracted")
+	}
+}
+
+func TestNewest(t *testing.T) {
+	// The order GitHub returned when beta.9 and beta.10 shared a creation time.
+	list := []ghRelease{{Tag: "v0.1.0-beta.9"}, {Tag: "v0.1.0-beta.11", Draft: true}, {Tag: "v0.1.0-beta.8"}, {Tag: "v0.1.0-beta.10"}}
+	if r, ok := newest(list); !ok || r.Tag != "v0.1.0-beta.10" {
+		t.Errorf("newest = %q, %v; want v0.1.0-beta.10", r.Tag, ok)
+	}
+	if _, ok := newest([]ghRelease{{Tag: "v1.0.0", Draft: true}}); ok {
+		t.Error("drafts only: want none")
 	}
 }
