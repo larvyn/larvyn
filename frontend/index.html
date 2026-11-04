@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Frames may only show Larvyn's own pages, which today means plugin
+         views. A view can't navigate itself to another site to carry data
+         away in the URL. -->
+    <meta http-equiv="Content-Security-Policy" content="frame-src 'self'; child-src 'self'" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Larvyn</title>
     <!-- The splash shows from the first frame, before the scripts and the
