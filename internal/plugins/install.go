@@ -120,8 +120,11 @@ func (s *PluginService) Disable(id string) error {
 			d.Plugins[id] = st
 		}
 	})
+	if err != nil {
+		return err
+	}
 	stopSessions(id, "")
-	return err
+	return nil
 }
 
 // SetOnInProject turns a plugin on or off in one project. Turning it off
@@ -149,10 +152,13 @@ func (s *PluginService) SetOnInProject(id, projectID string, on bool) error {
 		}
 		d.Plugins[id] = st
 	})
+	if err != nil {
+		return err
+	}
 	if !on {
 		stopSessions(id, projectID)
 	}
-	return err
+	return nil
 }
 
 // Uninstall deletes the plugin folder with this name (only the link, for a
