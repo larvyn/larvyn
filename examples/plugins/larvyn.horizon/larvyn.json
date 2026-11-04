@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "larvyn.horizon",
   "name": "Horizon",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Restart, pause and check Laravel Horizon from ⌘K. (Larvyn already adds Horizon to the stack when the app uses laravel/horizon.)",
   "author": "Larvyn",
   "homepage": "https://laravel.com/docs/horizon",

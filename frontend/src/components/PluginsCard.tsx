@@ -8,6 +8,12 @@ import { cx, errMsg } from '../lib/util'
 import { SearchInput, Toggle, confirmDialog } from './ui'
 import { pluginsChanged } from './pluginRun'
 
+/** A plugin's icon.svg, or the puzzle piece when it has none. Dimmed while
+ * the plugin is off. */
+function PluginIcon({ icon, off }: { icon?: string; off?: boolean }) {
+  return icon ? <img className={cx('plugin-icon', off && 'off')} src={icon} alt="" /> : <div className={cx('plugin-icon', 'none', off && 'off')}><Puzzle /></div>
+}
+
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** What a plugin adds, e.g. "4 commands · 1 stack item". */
@@ -302,9 +308,7 @@ export function PluginsCard() {
       )
     return shown.map((l) => (
       <div key={l.id} className="check-row">
-        <div className={`ic ${l.installed ? 'ok' : 'wait'}`}>
-          <Puzzle />
-        </div>
+        <PluginIcon icon={l.icon} />
         <div className="t">
           <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {l.name}
@@ -353,9 +357,7 @@ export function PluginsCard() {
       )}
       {plugins?.map((p) => (
         <div key={p.dir} className="check-row">
-          <div className={`ic ${p.enabled ? 'ok' : p.error || p.needsApproval ? 'bad' : 'wait'}`}>
-            <Puzzle />
-          </div>
+          <PluginIcon icon={p.icon} off={!p.enabled} />
           <div className="t">
             <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {p.manifest.name || p.manifest.id}

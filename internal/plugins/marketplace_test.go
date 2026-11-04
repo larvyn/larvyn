@@ -200,3 +200,31 @@ func TestRevokedPluginTurnsOff(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestPluginIcon(t *testing.T) {
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0")
+	s := &PluginService{}
+	dir := filepath.Join(Dir(), "acme.horizon")
+	writePlugin(t, dir, validManifest)
+	if p, _ := find("acme.horizon"); p.Icon != "" {
+		t.Errorf("no icon.svg, no icon: %q", p.Icon)
+	}
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64"/></svg>`
+	os.WriteFile(filepath.Join(dir, IconFile), []byte(svg), 0o644)
+	if p, _ := find("acme.horizon"); !strings.HasPrefix(p.Icon, "data:image/svg+xml;base64,") {
+		t.Errorf("icon: %q", p.Icon)
+	}
+	os.WriteFile(filepath.Join(dir, IconFile), []byte("GIF89a not an svg"), 0o644)
+	if p, _ := find("acme.horizon"); p.Icon != "" {
+		t.Errorf("a file that isn't an SVG: %q", p.Icon)
+	}
+
+	// The marketplace shows an inline SVG, never a remote URL.
+	for icon, want := range map[string]bool{"data:image/svg+xml;base64,PHN2Zy8+": true, "https://tracker.example/icon.svg": false} {
+		m.plugins[0].Icon = icon
+		if got := listing(t, s).Icon != ""; got != want {
+			t.Errorf("listing icon %q shown = %v", icon, got)
+		}
+	}
+}

@@ -51,6 +51,11 @@ export interface Listing {
     "size": number;
 
     /**
+     * Icon is the zip's icon.svg as a data: URL, "" without one.
+     */
+    "icon"?: string;
+
+    /**
      * Installed is the installed version, "" when it isn't installed.
      */
     "installed": string;
@@ -191,6 +196,12 @@ export interface Plugin {
      * Revoked is why the registry revoked this version; it can't run.
      */
     "revoked"?: string;
+
+    /**
+     * Icon is the plugin's icon.svg as a data: URL, "" without one. The
+     * window shows it in an <img>, where an SVG's scripts never run.
+     */
+    "icon"?: string;
 }
 
 /**

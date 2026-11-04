@@ -32,7 +32,7 @@ func (s *PluginService) Inspect(dir string) (Plugin, error) {
 	if err != nil {
 		return Plugin{}, err
 	}
-	p := Plugin{Manifest: m, Dir: dir, Missing: missing(m)}
+	p := Plugin{Manifest: m, Dir: dir, Missing: missing(m), Icon: iconOf(dir)}
 	applyState(&p, store.Plugins()[m.ID])
 	return p, nil
 }

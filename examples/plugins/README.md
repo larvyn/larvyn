@@ -47,6 +47,12 @@ Every plugin has a `larvyn.json`:
 | `requires` | no | The programs it needs on PATH: `program`, an `install` command for `mac`, `linux` and `windows`, and a `url` with install instructions. If a program is missing, Larvyn says so when the plugin is installed and in its row. It offers to run the install command in a visible terminal, after the user confirms the exact command. |
 | `description`, `author`, `homepage` | no | Shown in the plugin list. `homepage` must be an http(s) link. |
 
+### Icon
+
+Put an `icon.svg` next to `larvyn.json` and Larvyn shows it in Settings → Plugins and in the marketplace. Without one, the plugin gets a puzzle piece. It's a file rather than a manifest field, so Larvyn versions that don't know about icons still install the plugin.
+
+Make it a square, 64 × 64 works well, and draw the background into the SVG: Larvyn shows it as an image, with rounded corners, at 28 px. It must be at most 64 KB. Scripts in it never run.
+
 ### Permissions
 
 The permissions marked sensitive are shown in red when a user installs the plugin.
