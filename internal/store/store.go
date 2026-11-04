@@ -17,10 +17,13 @@ import (
 
 // Project is a folder Larvyn manages, usually a Laravel application.
 type Project struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Path         string `json:"path"`
-	Color        string `json:"color"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	Color string `json:"color"`
+	// Icon is the name of the icon shown in the project's badge, or "" to
+	// show its initials.
+	Icon         string `json:"icon,omitempty"`
 	Port         int    `json:"port"`
 	Pinned       bool   `json:"pinned"`
 	AddedAt      int64  `json:"addedAt"`

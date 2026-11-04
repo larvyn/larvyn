@@ -9,6 +9,12 @@ export interface Project {
     "name": string;
     "path": string;
     "color": string;
+
+    /**
+     * Icon is the name of the icon shown in the project's badge, or "" to
+     * show its initials.
+     */
+    "icon"?: string;
     "port": number;
     "pinned": boolean;
     "addedAt": number;

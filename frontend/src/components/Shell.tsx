@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Window } from '@wailsio/runtime'
 import {
+  Pencil,
   Bot,
   Box,
   Braces,
@@ -53,11 +54,12 @@ import {
 } from '../lib/store'
 import { PLUGINS_CHANGED, toggleService } from './pluginRun'
 import { usePluginViews, viewKey } from './PluginView'
-import { cx, initials, mod } from '../lib/util'
+import { cx, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
 import { FeedbackButton, TitleFeedback } from './Feedback'
 import { askRemoveProject } from './removeProject'
+import { BadgeContent, badgeStyle, customizeProject, ProjectBadge } from './ProjectBadge'
 
 export function TitleBar() {
   const platform = useStore((s) => s.platform)
@@ -122,11 +124,15 @@ export function Rail() {
           <button
             key={p.id}
             className={cx('rail-item', p.id === activeId && 'active')}
-            style={{ background: p.color }}
-            title={`${p.name}\n${p.path}`}
+            style={badgeStyle(p)}
+            title={`${p.name}\n${p.path}\nRight-click to customize`}
             onClick={() => selectProject(p.id)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              customizeProject(p)
+            }}
           >
-            {initials(p.name)}
+            <BadgeContent project={p} size={18} />
             {running > 0 && <span className="dot" />}
             {bells > 0 && <span className="bell">{bells}</span>}
           </button>
@@ -216,8 +222,11 @@ export function Sidebar() {
     <div className={cx('sidebar', !open && 'collapsed')}>
       <div className="side-head">
         <h2>
-          <span style={{ width: 9, height: 9, borderRadius: 3, background: project.color, flexShrink: 0 }} />
+          <ProjectBadge project={project} size={18} />
           <span className="ellipsis grow">{project.name}</span>
+          <button className="icon-btn sm side-remove side-edit" title="Customize name, color and icon" onClick={() => customizeProject(project)}>
+            <Pencil />
+          </button>
           <button className="icon-btn sm danger side-remove" title="Remove from Larvyn (your files stay)" onClick={() => askRemoveProject(project)}>
             <Trash2 />
           </button>
