@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Window } from '@wailsio/runtime'
 import {
   Pencil,
@@ -210,6 +210,35 @@ export function Sidebar() {
     window.addEventListener(PLUGINS_CHANGED, load)
     return () => window.removeEventListener(PLUGINS_CHANGED, load)
   }, [id, sessKey, info?.hasVendor, info?.siteUrl])
+
+  // A Laravel view has nothing to show in a project that isn't Laravel (e.g.
+  // after switching from one that is): go to its overview instead.
+  useEffect(() => {
+    if (info?.isLaravel !== false) return
+    if (NAV_ITEMS.some((n) => n.view === view && !navShown(n, false))) setView('overview')
+  }, [id, info?.isLaravel, view])
+
+  // After switching projects, a view the new project doesn't have (a Laravel
+  // view in a project that isn't Laravel, a plugin view that is off there)
+  // goes to the overview. It is checked once per switch, when the project's
+  // info and plugin views are in.
+  const checkFor = useRef<string | null>(null)
+  useEffect(() => {
+    checkFor.current = id
+  }, [id])
+  useEffect(() => {
+    if (!id || checkFor.current !== id || !info) return
+    let valid = true
+    if (view.startsWith('plugin:')) {
+      if (pluginViews === null) return
+      valid = pluginViews.some((v) => viewKey(v) === view)
+    } else {
+      const item = NAV_ITEMS.find((n) => n.view === view)
+      if (item) valid = navShown(item, info.isLaravel)
+    }
+    checkFor.current = null
+    if (!valid) setView('overview')
+  }, [id, info, pluginViews, view])
 
   if (!project) return <div className="sidebar collapsed" />
   const agents = mine.filter((s) => s.kind === 'agent' && s.running).length
