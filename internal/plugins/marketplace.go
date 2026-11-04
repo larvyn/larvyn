@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -140,10 +141,12 @@ func revokedReason(id, version string) string {
 	return reasonIn(revoked, id, version)
 }
 
+// reasonIn is why list revokes this version, or "" when it doesn't. A
+// revocation without a reason still revokes: "" means not revoked.
 func reasonIn(list []Revocation, id, version string) string {
 	for _, r := range list {
 		if r.ID == id && (len(r.Versions) == 0 || slices.Contains(r.Versions, version)) {
-			return r.Reason
+			return cmp.Or(strings.TrimSpace(r.Reason), "Revoked by the plugin registry.")
 		}
 	}
 	return ""
