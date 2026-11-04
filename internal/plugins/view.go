@@ -2,15 +2,18 @@ package plugins
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +56,91 @@ var viewTypes = map[string]string{
 	".txt": "text/plain; charset=utf-8",
 }
 
+// KitPath is Larvyn's stylesheet for plugin views. "_kit" can't be a
+// plugin id, so it never shadows a plugin's files.
+const KitPath = ViewPrefix + "_kit/larvyn.css"
+
+//go:embed kit/larvyn.css
+var kitCSS []byte
+
+var accentPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// serveKit serves the stylesheet, with the accent colour from Settings and
+// the colours that stay readable with it: text on the accent, and the accent
+// as text or focus ring on the dark background.
+func serveKit(w http.ResponseWriter) {
+	css := kitCSS
+	if a := store.CurrentSettings().Accent; accentPattern.MatchString(a) {
+		rgb := parseHex(a)
+		on, text := onAccent(rgb), readableOnDark(rgb)
+		css = append(append([]byte{}, kitCSS...), []byte(fmt.Sprintf("\n:root { --lv-accent: %s; --lv-on-accent: %s; --lv-accent-text: %s; }\n", a, on, text))...)
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/css; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Access-Control-Allow-Origin", "*")
+	h.Set("Cache-Control", "no-store")
+	_, _ = w.Write(css)
+}
+
+// kitBackground is --lv-bg, which the accent text is measured against.
+var kitBackground = [3]float64{8, 8, 10}
+
+func parseHex(s string) [3]float64 {
+	var c [3]float64
+	for i := range c {
+		v, _ := strconv.ParseUint(s[1+2*i:3+2*i], 16, 8)
+		c[i] = float64(v)
+	}
+	return c
+}
+
+func hex(c [3]float64) string {
+	return fmt.Sprintf("#%02x%02x%02x", int(c[0]+0.5), int(c[1]+0.5), int(c[2]+0.5))
+}
+
+// luminance is the WCAG relative luminance of an sRGB colour (0-255).
+func luminance(c [3]float64) float64 {
+	var l [3]float64
+	for i, v := range c {
+		v /= 255
+		if v <= 0.03928 {
+			l[i] = v / 12.92
+		} else {
+			l[i] = math.Pow((v+0.055)/1.055, 2.4)
+		}
+	}
+	return 0.2126*l[0] + 0.7152*l[1] + 0.0722*l[2]
+}
+
+func contrast(a, b [3]float64) float64 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// onAccent is white or black, whichever reads better on the accent.
+func onAccent(c [3]float64) string {
+	if contrast(c, [3]float64{255, 255, 255}) >= contrast(c, [3]float64{0, 0, 0}) {
+		return "#ffffff"
+	}
+	return "#000000"
+}
+
+// readableOnDark is the accent, mixed toward white just enough to reach
+// 4.5:1 on the kit's background, for accent-coloured text and focus rings.
+func readableOnDark(c [3]float64) string {
+	for t := 0.0; t <= 1; t += 0.05 {
+		m := [3]float64{c[0] + (255-c[0])*t, c[1] + (255-c[1])*t, c[2] + (255-c[2])*t}
+		if contrast(m, kitBackground) >= 4.5 {
+			return hex(m)
+		}
+	}
+	return "#ffffff"
+}
+
 // PluginView is a view for the sidebar.
 type PluginView struct {
 	PluginID   string `json:"pluginId"`
@@ -82,6 +170,8 @@ func (s *PluginService) Views() []PluginView {
 func ViewMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == KitPath:
+			serveKit(w)
 		case strings.HasPrefix(r.URL.Path, ViewPrefix):
 			serveView(w, r)
 		// Larvyn's page calls the runtime with POST only (fetch in
@@ -345,6 +435,10 @@ func envGet(p Plugin, proj store.Project) (ViewResult, error) {
 
 // envSet writes listed keys into the project's .env, after a backup in
 // Larvyn's backups folder. Values are single lines.
+// envMu makes each .env change one step: two plugin writes at once can't
+// both start from the same file and lose one of the changes.
+var envMu sync.Mutex
+
 func envSet(p Plugin, proj store.Project, raw any) (ViewResult, error) {
 	in, ok := raw.(map[string]any)
 	if !ok || len(in) == 0 {
@@ -377,6 +471,8 @@ func envSet(p Plugin, proj store.Project, raw any) (ViewResult, error) {
 		values[k] = s
 	}
 	path := filepath.Join(proj.Path, ".env")
+	envMu.Lock()
+	defer envMu.Unlock()
 	before, err := os.ReadFile(path)
 	if err != nil {
 		// Fixed messages: the OS error carries the project's path, which a

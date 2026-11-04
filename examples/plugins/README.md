@@ -86,3 +86,30 @@ Larvyn checks each call against the plugin's granted permissions, in Go, before 
 | `project.env.get` | `project.env.keys` | — | the keys listed in `env`, each as its value or `null` |
 | `project.env.set` | `project.env.keys` | `{ values: { KEY: "value" } }` | writes listed keys only, one line each, after backing `.env` up |
 | `network.fetch` | `network` | `{ url }` | a GET request made by Larvyn, only to the hosts in `network` (redirects included). Returns `{ status, contentType, body }`. The limit is 2 MB. |
+
+## Looking like Larvyn
+
+Add one line to a view's `<head>`:
+
+```html
+<link rel="stylesheet" href="/plugin-view/_kit/larvyn.css">
+```
+
+Larvyn serves this stylesheet to every view. It sets Larvyn's dark theme on the page and adds `lv-` classes. `--lv-accent` follows the accent colour picked in Settings, and the colour variables (`--lv-bg-2`, `--lv-text-3`, `--lv-green`…) can be used directly.
+
+| Class | For |
+|---|---|
+| `lv-page`, `lv-header`, `lv-body`, `lv-pad` | a page: a header bar above a scrolling body |
+| `lv-btn` (`primary`, `ghost`, `danger`, `sm`, `on`, `spin`) | buttons |
+| `lv-input`, `lv-select`, `lv-textarea` | form fields |
+| `lv-badge` (`accent`, `green`, `yellow`, `blue`, `red`, `mono`) | small labels |
+| `lv-status` (`on`, `warn`, `err`) | a status dot with text |
+| `lv-card`, `lv-card-head`, `lv-card-body` | cards |
+| `lv-list`, `lv-item` (`active`) | lists of rows |
+| `lv-kv` | a `<dl>` of labels and values |
+| `lv-code`, `kbd` | code blocks and keys |
+| `lv-banner` (`warn`, `ok`, `err`) | a strip under the header |
+| `lv-empty`, `lv-ico` | empty states |
+| `lv-spinner`, `lv-row`, `lv-stack`, `lv-spacer`, `lv-muted`, `lv-small`, `lv-mono`, `lv-ellipsis` | small helpers |
+
+`larvyn.hello` and `larvyn.mailpit` are built on it.

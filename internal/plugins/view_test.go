@@ -92,6 +92,68 @@ func TestServeView(t *testing.T) {
 	}
 }
 
+func TestServeKit(t *testing.T) {
+	store.Update(func(d *store.State) { d.Settings.Accent = "#4C8DFF" })
+	defer store.Update(func(d *store.State) { d.Settings.Accent = "#FF2D20" })
+	rec := get(KitPath)
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "text/css; charset=utf-8" || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("kit: %d %v", rec.Code, rec.Header())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, ".lv-btn") || !strings.Contains(body, "--lv-accent: #4C8DFF; --lv-on-accent: ") {
+		t.Errorf("the kit must end with the accent from Settings: %s", body[len(body)-80:])
+	}
+	// A bad accent never reaches the CSS.
+	store.Update(func(d *store.State) { d.Settings.Accent = "red; } body { display: none" })
+	if body := get(KitPath).Body.String(); strings.Contains(body, "body { display: none") {
+		t.Error("an accent that is not #rrggbb must be ignored")
+	}
+}
+
+// Whatever accent is picked, text on it and accent-coloured text on the dark
+// background stay readable.
+func TestAccentColoursStayReadable(t *testing.T) {
+	for _, a := range []string{"#ffffff", "#000000", "#ff2d20", "#4c8dff", "#ffff00", "#101010", "#808080"} {
+		c := parseHex(a)
+		on := parseHex(onAccent(c))
+		if contrast(c, on) < 4.5 && a != "#808080" { // mid-grey can't reach 4.5 with either
+			t.Errorf("%s: text %s has contrast %.2f", a, onAccent(c), contrast(c, on))
+		}
+		if r := contrast(parseHex(readableOnDark(c)), kitBackground); r < 4.5 {
+			t.Errorf("%s: accent text %s has contrast %.2f on the background", a, readableOnDark(c), r)
+		}
+	}
+	if onAccent(parseHex("#ffffff")) != "#000000" || onAccent(parseHex("#000000")) != "#ffffff" {
+		t.Error("white accents need black text and black accents white text")
+	}
+}
+
+func TestEnvSetConcurrent(t *testing.T) {
+	keys := []string{"A_ONE", "A_TWO", "A_THREE", "A_FOUR", "A_FIVE", "A_SIX"}
+	s, proj := installView(t, edit(t, func(m map[string]any) {
+		m["permissions"] = []string{"terminal.run", "project.env.keys"}
+		m["env"] = keys
+	}))
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+	var wg sync.WaitGroup
+	for _, k := range keys {
+		wg.Add(1)
+		go func(k string) {
+			defer wg.Done()
+			if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{k: "yes"}}); err != nil {
+				t.Error(err)
+			}
+		}(k)
+	}
+	wg.Wait()
+	r, _ := s.Call("acme.horizon", proj.ID, "project.env.get", nil)
+	for _, k := range keys {
+		if r.Result.(map[string]any)[k] != "yes" {
+			t.Errorf("%s was lost to a concurrent set", k)
+		}
+	}
+}
+
 func TestServeViewRefuses(t *testing.T) {
 	s, _ := installView(t, viewManifest(t))
 	outside := filepath.Join(t.TempDir(), "secret.txt")

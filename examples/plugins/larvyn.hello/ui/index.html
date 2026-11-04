@@ -1,39 +1,52 @@
 <!doctype html>
 <!--
-  The smallest plugin view. Larvyn runs it in a sandboxed iframe, so it can't
-  reach Larvyn's page or your files. Everything goes through window.larvyn,
-  and Larvyn checks each call against the permissions in larvyn.json.
+  The smallest plugin view, and the one to copy. Larvyn runs it in a
+  sandboxed iframe, so it can't reach Larvyn's page or your files.
+  Everything goes through window.larvyn, and Larvyn checks each call
+  against the permissions in larvyn.json.
+
+  The look comes from Larvyn's plugin kit (one <link>, lv- classes), so the
+  view matches Larvyn and follows its accent colour.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Hello</title>
-<style>
-  :root { color-scheme: dark; font: 13px/1.4 system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: #09090b; color: #e4e4e7; }
-  code { color: #a1a1aa; }
-  button { background: #FF2D20; color: #fff; border: 0; border-radius: 4px; padding: 6px 12px; cursor: pointer; }
-</style>
+<link rel="stylesheet" href="/plugin-view/_kit/larvyn.css">
 </head>
-<body>
-<h1 id="title">Hello!</h1>
-<p id="path"></p>
-<button id="wave" hidden>Say hello</button>
+<body class="lv-page">
+<header class="lv-header">
+  <h1>Hello</h1>
+  <span class="lv-badge accent">plugin</span>
+</header>
+<main class="lv-body lv-pad">
+  <div class="lv-card" style="max-width: 520px">
+    <div class="lv-card-head"><h3 id="title">Hello!</h3></div>
+    <div class="lv-card-body lv-stack">
+      <dl class="lv-kv" id="info">
+        <dt>Project</dt><dd id="name" class="lv-muted">Open this view inside Larvyn to see your project.</dd>
+        <dt>Folder</dt><dd id="path" class="lv-mono lv-small">—</dd>
+      </dl>
+      <div class="lv-row">
+        <button class="lv-btn primary sm" id="wave" disabled>Say hello</button>
+        <span class="lv-muted lv-small">Shows a Larvyn notification (the ui.notify permission).</span>
+      </div>
+    </div>
+  </div>
+</main>
 <script>
 async function main() {
-  if (!window.larvyn) {
-    document.getElementById("path").textContent = "Open this view inside Larvyn to see your project.";
-    return;
-  }
+  if (!window.larvyn) return;
   // Needs "project.read".
   const project = await window.larvyn.call("project.info");
   document.getElementById("title").textContent = `Hello, ${project.name}!`;
-  document.getElementById("path").innerHTML = `<code></code>`;
-  document.querySelector("#path code").textContent = project.path;
+  document.getElementById("name").textContent = project.name;
+  document.getElementById("name").className = "";
+  document.getElementById("path").textContent = project.path;
 
   // Needs "ui.notify". Without it in larvyn.json, Larvyn refuses the call.
   const wave = document.getElementById("wave");
-  wave.hidden = false;
+  wave.disabled = false;
   wave.addEventListener("click", () => window.larvyn.call("ui.notify", { message: `Hello from ${project.name}` }));
 }
 main();
