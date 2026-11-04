@@ -153,7 +153,8 @@ export function Rail() {
   )
 }
 
-const NAV: { group: string; items: { view: View; label: string; icon: any; hint?: string }[] }[] = [
+// laravel: only shown in Laravel projects (every item of the Laravel group is).
+const NAV: { group: string; items: { view: View; label: string; icon: any; hint?: string; laravel?: boolean }[] }[] = [
   {
     group: 'Workspace',
     items: [
@@ -181,11 +182,14 @@ const NAV: { group: string; items: { view: View; label: string; icon: any; hint?
       { view: 'files', label: 'Files', icon: FolderTree },
       { view: 'git', label: 'Source control', icon: GitBranch },
       { view: 'env', label: 'Environment', icon: Braces },
-      { view: 'deps', label: 'Dependencies', icon: Package },
+      { view: 'deps', label: 'Dependencies', icon: Package, laravel: true },
     ],
   },
 ]
-export const NAV_ITEMS = NAV.flatMap((g) => g.items)
+export const NAV_ITEMS = NAV.flatMap((g) => g.items.map((it) => ({ ...it, laravel: it.laravel || g.group === 'Laravel' })))
+
+/** Whether a nav item shows for a project; while its info loads, everything does. */
+export const navShown = (it: { laravel?: boolean }, isLaravel?: boolean) => !it.laravel || isLaravel !== false
 
 export function Sidebar() {
   const { id, project, info } = useActive()
@@ -244,7 +248,7 @@ export function Sidebar() {
         {NAV.filter((g) => g.group !== 'Laravel' || !info || info.isLaravel).map((g) => (
           <div className="nav-group" key={g.group}>
             <div className="nav-label">{g.group}</div>
-            {g.items.map((it) => {
+            {g.items.filter((it) => navShown(it, info?.isLaravel)).map((it) => {
               const c = counts[it.view]
               return (
                 <button key={it.view} className={cx('nav-item', view === it.view && 'active')} onClick={() => setView(it.view)}>

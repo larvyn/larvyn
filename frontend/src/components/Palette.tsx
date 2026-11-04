@@ -42,7 +42,7 @@ import {
   useActive,
   useStore,
 } from '../lib/store'
-import { NAV_ITEMS } from './Shell'
+import { NAV_ITEMS, navShown } from './Shell'
 import { askCloseProject } from './closeProject'
 import { splitArgs } from '../lib/util'
 import { ProjectBadge } from './ProjectBadge'
@@ -186,7 +186,7 @@ export function Palette() {
 
           {project && (
             <Command.Group heading="Go to">
-              {NAV_ITEMS.map((n) => (
+              {NAV_ITEMS.filter((n) => navShown(n, info?.isLaravel)).map((n) => (
                 <Command.Item key={n.view} value={'go ' + n.label} onSelect={act(() => setView(n.view))}>
                   <n.icon />
                   {n.label}
