@@ -326,3 +326,23 @@ func TestBadIndexAndDownloadLinks(t *testing.T) {
 		t.Errorf("an index over 8 MB: %v", err)
 	}
 }
+
+func TestOfficial(t *testing.T) {
+	for link, want := range map[string]bool{
+		"https://github.com/larvyn/plugin-examples/releases/download/larvyn.hello-v0.1.1/larvyn.hello-0.1.1.zip": true,
+		"https://github.com/larvynx/evil/releases/download/v1/x.zip":                                             false,
+		"https://github.com/someone/larvyn/releases/download/v1/x.zip":                                           false,
+		"http://github.com/larvyn/plugin-examples/x.zip":                                                         false,
+		"https://github.com.evil.example/larvyn/x.zip":                                                           false,
+		"https://user@github.com/larvyn/x.zip":                                                                   false,
+	} {
+		if got := official(link); got != want {
+			t.Errorf("official(%q) = %v", link, got)
+		}
+	}
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0") // served from 127.0.0.1
+	if l := listing(t, &PluginService{}); l.Official {
+		t.Error("a plugin downloaded from elsewhere is not official")
+	}
+}

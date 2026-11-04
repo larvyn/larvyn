@@ -53,6 +53,9 @@ type Plugin struct {
 	// Icon is the plugin's icon.svg as a data: URL, "" without one. The
 	// window shows it in an <img>, where an SVG's scripts never run.
 	Icon string `json:"icon,omitempty"`
+	// Official is set by InspectListing for a plugin Larvyn publishes, for
+	// the install dialog.
+	Official bool `json:"official,omitempty"`
 }
 
 // IconFile is the plugin's optional icon, next to its larvyn.json. A file

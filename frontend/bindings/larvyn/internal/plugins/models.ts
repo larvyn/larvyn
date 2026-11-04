@@ -71,6 +71,13 @@ export interface Listing {
      * Error says why this version can't be installed on this Larvyn.
      */
     "error"?: string;
+
+    /**
+     * Official is set when Larvyn publishes the plugin: its download is a
+     * release on github.com/larvyn/. Larvyn works this out from the link
+     * itself, so a listing can't claim it.
+     */
+    "official": boolean;
 }
 
 /**
@@ -202,6 +209,12 @@ export interface Plugin {
      * window shows it in an <img>, where an SVG's scripts never run.
      */
     "icon"?: string;
+
+    /**
+     * Official is set by InspectListing for a plugin Larvyn publishes, for
+     * the install dialog.
+     */
+    "official"?: boolean;
 }
 
 /**
