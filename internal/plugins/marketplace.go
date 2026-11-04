@@ -98,12 +98,13 @@ func (s *PluginService) Marketplace() ([]Listing, error) {
 	}
 	for i := range ix.Plugins {
 		l := &ix.Plugins[i]
-		if p, ok := installed[l.ID]; ok {
-			l.Installed = p.Manifest.Version
-			l.Update = p.Source == "marketplace" && !p.Linked && updater.CompareVersions(l.Version, p.Manifest.Version) > 0
-		}
 		if !Compatible(l.Larvyn, updater.Version) {
 			l.Error = incompatible(l.Larvyn, updater.Version).Error()
+		}
+		if p, ok := installed[l.ID]; ok {
+			l.Installed = p.Manifest.Version
+			// A version this Larvyn can't run is not an update.
+			l.Update = l.Error == "" && p.Source == "marketplace" && !p.Linked && updater.CompareVersions(l.Version, p.Manifest.Version) > 0
 		}
 	}
 	return ix.Plugins, nil

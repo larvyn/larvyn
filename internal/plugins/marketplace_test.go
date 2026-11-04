@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"larvyn/internal/store"
+	"larvyn/internal/updater"
 )
 
 // market serves a marketplace index and the zips it lists. Changing its
@@ -111,6 +112,16 @@ func TestMarketplaceInstallAndUpdate(t *testing.T) {
 	}
 	if l := listing(t, s); l.Installed != "1.1.0" || l.Update {
 		t.Errorf("up to date: %+v", l)
+	}
+
+	// A newer version this Larvyn can't run is not offered as an update.
+	m.publish(t, srv, "1.2.0")
+	m.plugins[0].Larvyn = ">=99.0.0"
+	old := updater.Version
+	updater.Version = "v0.1.0-beta.11" // "dev" runs everything
+	t.Cleanup(func() { updater.Version = old })
+	if l := listing(t, s); l.Update || l.Error == "" {
+		t.Errorf("incompatible version: %+v", l)
 	}
 }
 

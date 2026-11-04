@@ -116,10 +116,11 @@ export function PluginsCard() {
         setMarketErr('')
       })
       .catch((e) => setMarketErr(errMsg(e)))
-  const reload = () => Promise.all([loadMarket(), load()])
+  // The installed list at once, then again after the marketplace answers:
+  // it may turn off a revoked plugin.
+  const reload = () => load().then(loadMarket).then(load)
   useEffect(() => {
-    // The marketplace first: it may turn off a revoked plugin.
-    loadMarket().then(load)
+    reload()
     PluginService.Permissions().then((l) => setPerms(l ?? []))
     PluginService.Folder().then(setFolder)
   }, [])
@@ -316,7 +317,7 @@ export function PluginsCard() {
           <ExternalLink />
         </button>
         {l.update ? (
-          <button className="btn sm primary" onClick={() => installListing(l)}>
+          <button className="btn sm primary" disabled={!!l.error} title={l.error} onClick={() => installListing(l)}>
             <ArrowUpCircle /> Update
           </button>
         ) : l.installed ? (
@@ -391,7 +392,7 @@ export function PluginsCard() {
               ))}
           </div>
           {updateFor(p) && (
-            <button className="btn sm primary" onClick={() => installListing(updateFor(p)!)}>
+            <button className="btn sm primary" disabled={!!updateFor(p)!.error} title={updateFor(p)!.error} onClick={() => installListing(updateFor(p)!)}>
               <ArrowUpCircle /> Update to {updateFor(p)!.version}
             </button>
           )}
