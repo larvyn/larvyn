@@ -8,10 +8,17 @@ import { cx, errMsg } from '../lib/util'
 import { SearchInput, Toggle, confirmDialog } from './ui'
 import { pluginsChanged } from './pluginRun'
 
-/** A plugin's icon.svg, or the puzzle piece when it has none. Dimmed while
- * the plugin is off. */
+/** A plugin's icon.svg, or the puzzle piece when it has none or it doesn't
+ * render. Dimmed while the plugin is off. */
 function PluginIcon({ icon, off }: { icon?: string; off?: boolean }) {
-  return icon ? <img className={cx('plugin-icon', off && 'off')} src={icon} alt="" /> : <div className={cx('plugin-icon', 'none', off && 'off')}><Puzzle /></div>
+  const [broken, setBroken] = useState('')
+  return icon && broken !== icon ? (
+    <img className={cx('plugin-icon', off && 'off')} src={icon} alt="" onError={() => setBroken(icon)} />
+  ) : (
+    <div className={cx('plugin-icon', 'none', off && 'off')}>
+      <Puzzle />
+    </div>
+  )
 }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
