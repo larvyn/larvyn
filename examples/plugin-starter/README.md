@@ -5,6 +5,7 @@ A Larvyn plugin with one sidebar view, built with Vite and TypeScript. `src/larv
 ## Start
 
 ```sh
+mkdir -p ~/Code
 cp -r examples/plugin-starter ~/Code/my-plugin
 cd ~/Code/my-plugin
 npm install

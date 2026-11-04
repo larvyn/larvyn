@@ -60,9 +60,16 @@ func TestPluginStarterKnowsEveryMethod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := string(src)
+	// A Windows checkout may have CRLF line endings.
+	body := strings.ReplaceAll(string(src), "\r\n", "\n")
 	start := strings.Index(body, "func (s *PluginService) Call(")
+	if start < 0 {
+		t.Fatal("PluginService.Call is not in view.go; did it move?")
+	}
 	end := strings.Index(body[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("could not find the end of PluginService.Call")
+	}
 	cases := regexp.MustCompile(`case ("[a-z.]+"(?:, "[a-z.]+")*):`).FindAllStringSubmatch(body[start:start+end], -1)
 
 	client, err := os.ReadFile(filepath.Join(starterDir, "src", "larvyn.ts"))
