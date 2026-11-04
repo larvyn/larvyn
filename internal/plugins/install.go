@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -65,6 +66,9 @@ func install(dir string, granted []string, source string) (Plugin, error) {
 	if err != nil {
 		return Plugin{}, err
 	}
+	if why := revokedReason(m.ID, m.Version); why != "" {
+		return Plugin{}, fmt.Errorf("not installed: %s %s was revoked: %s", m.Name, m.Version, why)
+	}
 	if missing := missingPermissions(m, granted); len(missing) > 0 {
 		return Plugin{}, fmt.Errorf("not installed: permissions %v were not granted", missing)
 	}
@@ -100,8 +104,9 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 	if p.Error != "" {
 		return p, errors.New(p.Error)
 	}
-	if p.Revoked != "" {
-		return p, fmt.Errorf("%s %s was revoked: %s", p.Manifest.Name, p.Manifest.Version, p.Revoked)
+	// The recorded reason, or the newest list if it arrived since.
+	if why := cmp.Or(p.Revoked, revokedReason(id, p.Manifest.Version)); why != "" {
+		return p, fmt.Errorf("%s %s was revoked: %s", p.Manifest.Name, p.Manifest.Version, why)
 	}
 	if missing := missingPermissions(p.Manifest, granted); len(missing) > 0 {
 		return p, fmt.Errorf("not turned on: permissions %v were not granted", missing)

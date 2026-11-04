@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"sync"
 	"time"
 
 	"larvyn/internal/store"
@@ -110,6 +111,36 @@ func (s *PluginService) Marketplace() ([]Listing, error) {
 	return ix.Plugins, nil
 }
 
+// Revocation is best-effort and never needs the network to turn a plugin
+// on. Larvyn enforces the newest revocation list it has seen: it fetches
+// the list when it starts and whenever the marketplace loads, and keeps it
+// for the rest of the run. With that list, a revoked version is turned off,
+// can't be turned on, and can't be installed, from any source. Before the
+// first list arrives, or offline, nothing is refused: a plugin a
+// revocation should stop is stopped when a list next arrives, and a
+// revocation already recorded for an installed plugin (Revoked in its
+// state) keeps refusing it meanwhile.
+var (
+	revokedMu sync.Mutex
+	revoked   []Revocation
+)
+
+// revokedReason is why the newest known list revokes this version, or "".
+func revokedReason(id, version string) string {
+	revokedMu.Lock()
+	defer revokedMu.Unlock()
+	return reasonIn(revoked, id, version)
+}
+
+func reasonIn(list []Revocation, id, version string) string {
+	for _, r := range list {
+		if r.ID == id && (len(r.Versions) == 0 || slices.Contains(r.Versions, version)) {
+			return r.Reason
+		}
+	}
+	return ""
+}
+
 // CheckRevoked applies the registry's revocations; Larvyn calls it when it
 // starts. Without a network it does nothing.
 func CheckRevoked() {
@@ -122,14 +153,10 @@ func CheckRevoked() {
 // and records why, and clears the reason once a version is no longer
 // revoked (the plugin stays off until the user turns it on).
 func applyRevoked(list []Revocation) {
-	reason := func(p Plugin) string {
-		for _, r := range list {
-			if r.ID == p.Manifest.ID && (len(r.Versions) == 0 || slices.Contains(r.Versions, p.Manifest.Version)) {
-				return r.Reason
-			}
-		}
-		return ""
-	}
+	reason := func(p Plugin) string { return reasonIn(list, p.Manifest.ID, p.Manifest.Version) }
+	revokedMu.Lock()
+	revoked = list
+	revokedMu.Unlock()
 	runMu.Lock()
 	defer runMu.Unlock()
 	var stop []string
@@ -214,9 +241,7 @@ func downloadListing(id, version string) (string, func(), error) {
 	if l.Version != version {
 		return "", nil, fmt.Errorf("the marketplace now has %s %s, not %s; look again", id, l.Version, version)
 	}
-	if slices.ContainsFunc(ix.Revoked, func(r Revocation) bool {
-		return r.ID == id && (len(r.Versions) == 0 || slices.Contains(r.Versions, version))
-	}) {
+	if reasonIn(ix.Revoked, id, version) != "" {
 		return "", nil, fmt.Errorf("%s %s was revoked", id, version)
 	}
 	req, _ := http.NewRequest("GET", l.Download, nil)
