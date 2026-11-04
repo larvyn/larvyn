@@ -85,6 +85,10 @@ export function Palette() {
   useEffect(() => {
     if (!open) return
     let current = true
+    // Nothing from another project or an earlier opening may be picked
+    // while these load, or if they fail.
+    setStack([])
+    setPluginCmds([])
     if (id)
       StackService.Items(id)
         .then((x) => current && setStack(x ?? []))
