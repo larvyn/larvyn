@@ -70,6 +70,13 @@ type PluginState struct {
 	// OffIn are the projects the user turned the plugin off in. It is on in
 	// every other project.
 	OffIn []string `json:"offIn,omitempty"`
+	// Source is "marketplace" for a plugin installed from the marketplace,
+	// "" for one installed from a folder or a .zip. Only marketplace
+	// installs are offered updates.
+	Source string `json:"source,omitempty"`
+	// Revoked is the registry's reason for revoking the installed version.
+	// A revoked plugin is off and can't be turned on.
+	Revoked string `json:"revoked,omitempty"`
 }
 
 // State is what state.json holds.

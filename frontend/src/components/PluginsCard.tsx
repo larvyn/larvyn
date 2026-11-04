@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Download, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
-import { PluginService, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
+import { AlertTriangle, ArrowUpCircle, Download, ExternalLink, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Store, Trash2 } from 'lucide-react'
+import { PluginService, type Listing, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { fail, toast, useStore } from '../lib/store'
-import { errMsg } from '../lib/util'
-import { Toggle, confirmDialog } from './ui'
+import { cx, errMsg } from '../lib/util'
+import { SearchInput, Toggle, confirmDialog } from './ui'
 import { pluginsChanged } from './pluginRun'
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -19,7 +19,7 @@ function summary(p: Plugin) {
 }
 
 /** The list of what a plugin may do, sensitive permissions in red. */
-function PermissionList({ p, all }: { p: Plugin; all: Permission[] }) {
+function PermissionList({ p, all, market }: { p: Plugin; all: Permission[]; market: boolean }) {
   const asked = p.manifest.permissions ?? []
   const label = (name: string) => all.find((x) => x.name === name)
   // Reading secrets and reaching the network together can send them away.
@@ -30,7 +30,7 @@ function PermissionList({ p, all }: { p: Plugin; all: Permission[] }) {
         <span className="badge yellow">
           <ShieldAlert /> Unverified
         </span>
-        <span style={{ fontSize: 12 }}>Installed from a folder, not reviewed by Larvyn. Only install plugins you trust.</span>
+        <span style={{ fontSize: 12 }}>{market ? 'From the marketplace' : 'Installed from a folder'}, not reviewed by Larvyn. Only install plugins you trust.</span>
       </div>
       {asked.length === 0 ? (
         <div>It asks for no permissions.</div>
@@ -81,21 +81,26 @@ function PermissionList({ p, all }: { p: Plugin; all: Permission[] }) {
 }
 
 /** Asks the user to approve a plugin's permissions. */
-const approve = (p: Plugin, all: Permission[], action: string) =>
+const approve = (p: Plugin, all: Permission[], action: string, market = p.source === 'marketplace') =>
   confirmDialog({
     title: `${action} ${p.manifest.name} ${p.manifest.version}?`,
-    message: <PermissionList p={p} all={all} />,
+    message: <PermissionList p={p} all={all} market={market} />,
     confirm: `Allow and ${action.toLowerCase()}`,
     danger: true,
   })
 
-/** Settings > Plugins: the installed plugins, installing one from a folder,
- * turning plugins on and off, and uninstalling them. See #56. */
+/** Settings > Plugins. Installed: every installed plugin, wherever it came
+ * from, with its toggles, updates, export and uninstall. Marketplace: the
+ * plugins listed at github.com/larvyn/plugins. See #56. */
 export function PluginsCard() {
   const project = useStore((s) => s.projects.find((p) => p.id === s.activeId))
   const [plugins, setPlugins] = useState<Plugin[] | null>(null)
   const [perms, setPerms] = useState<Permission[]>([])
   const [folder, setFolder] = useState('')
+  const [tab, setTab] = useState<'installed' | 'market'>('installed')
+  const [market, setMarket] = useState<Listing[] | null>(null)
+  const [marketErr, setMarketErr] = useState('')
+  const [q, setQ] = useState('')
 
   const load = () =>
     PluginService.List()
@@ -104,15 +109,25 @@ export function PluginsCard() {
         pluginsChanged()
       })
       .catch(fail('Could not list the plugins'))
+  const loadMarket = () =>
+    PluginService.Marketplace()
+      .then((l) => {
+        setMarket(l ?? [])
+        setMarketErr('')
+      })
+      .catch((e) => setMarketErr(errMsg(e)))
+  // The installed list at once, then again after the marketplace answers:
+  // it may turn off a revoked plugin.
+  const reload = () => load().then(loadMarket).then(load)
   useEffect(() => {
-    load()
+    reload()
     PluginService.Permissions().then((l) => setPerms(l ?? []))
     PluginService.Folder().then(setFolder)
   }, [])
 
   /** Checks a plugin, asks for its permissions, then installs it. The same
    * steps for a folder and a .zip (which Larvyn unpacks safely first). */
-  const installFrom = async (src: string, inspect: (s: string) => Promise<Plugin>, installIt: (s: string, granted: string[]) => Promise<Plugin>) => {
+  const installFrom = async (src: string, inspect: (s: string) => Promise<Plugin>, installIt: (s: string, granted: string[]) => Promise<Plugin>, fromMarket = false) => {
     let p: Plugin
     try {
       p = await inspect(src)
@@ -121,15 +136,25 @@ export function PluginsCard() {
       return
     }
     const existing = plugins?.find((x) => x.manifest.id === p.manifest.id)
-    if (!(await approve(p, perms, existing ? 'Update' : 'Install'))) return
+    if (!(await approve(p, perms, existing ? 'Update' : 'Install', fromMarket))) return
     try {
       await installIt(src, p.manifest.permissions ?? [])
-      toast('success', `${p.manifest.name} installed`)
+      toast('success', `${p.manifest.name} ${existing ? 'updated' : 'installed'}`)
     } catch (e) {
       toast('error', 'Could not install the plugin', errMsg(e))
     }
-    load()
+    reload()
   }
+
+  /** Downloads a marketplace plugin, checks it against the index, then asks
+   * for its permissions like any other install. */
+  const installListing = (l: Listing) =>
+    installFrom(
+      l.id,
+      (id) => PluginService.InspectListing(id, l.version),
+      (id, granted) => PluginService.InstallListing(id, l.version, granted),
+      true,
+    )
 
   const install = async () => {
     const dir = await ProjectService.PickFolder('Choose a plugin folder').catch(() => '')
@@ -197,6 +222,9 @@ export function PluginsCard() {
     }
   }
 
+  const updates = (market ?? []).filter((l) => l.update)
+  const updateFor = (p: Plugin) => updates.find((l) => l.id === p.manifest.id)
+
   const uninstall = async (p: Plugin) => {
     const ok = await confirmDialog({
       title: `Uninstall ${p.manifest.name || p.manifest.id}?`,
@@ -208,7 +236,7 @@ export function PluginsCard() {
     })
     if (!ok) return
     await PluginService.Uninstall(p.folder).catch(fail('Could not uninstall the plugin'))
-    load()
+    reload()
   }
 
   return (
@@ -218,26 +246,108 @@ export function PluginsCard() {
           <Puzzle /> Plugins
         </h3>
         <span className="badge">preview</span>
+        <div className="tabs">
+          <button className={cx('tab', tab === 'installed' && 'active')} onClick={() => setTab('installed')}>
+            Installed
+            {updates.length > 0 && <span className="badge blue">{updates.length}</span>}
+          </button>
+          <button className={cx('tab', tab === 'market' && 'active')} onClick={() => setTab('market')}>
+            <Store /> Marketplace
+          </button>
+        </div>
         <span className="spacer" />
-        <button className="btn sm ghost" title="Reload the plugins folder" onClick={load}>
+        <button className="btn sm ghost" title="Reload" onClick={reload}>
           <RefreshCw />
         </button>
-        <button className="btn sm ghost" onClick={() => SystemService.OpenFolder(folder).catch(fail('Could not open the folder'))}>
-          <FolderOpen /> Open folder
-        </button>
-        <button className="btn sm" onClick={installZip} title="Install a plugin someone shared as a .zip">
-          <FileArchive /> Install .zip
-        </button>
-        <button className="btn sm primary" onClick={install}>
-          <FolderPlus /> Install from folder
-        </button>
+        {tab === 'installed' ? (
+          <>
+            <button className="btn sm ghost" onClick={() => SystemService.OpenFolder(folder).catch(fail('Could not open the folder'))}>
+              <FolderOpen /> Open folder
+            </button>
+            <button className="btn sm" onClick={installZip} title="Install a plugin someone shared as a .zip">
+              <FileArchive /> Install .zip
+            </button>
+            <button className="btn sm" onClick={install}>
+              <FolderPlus /> Install from folder
+            </button>
+          </>
+        ) : (
+          <SearchInput value={q} onChange={setQ} placeholder="Search plugins…" width={200} />
+        )}
       </div>
+      {tab === 'market' ? marketList() : installedList()}
+    </div>
+  )
+
+  function marketList() {
+    if (marketErr)
+      return (
+        <div className="check-row">
+          <div className="t">
+            <b>Could not load the marketplace</b>
+            <span>{marketErr}</span>
+          </div>
+        </div>
+      )
+    if (!market) return <div className="skeleton" style={{ height: 20, margin: 14 }} />
+    const needle = q.trim().toLowerCase()
+    const shown = market.filter((l) => !needle || [l.name, l.id, l.description, l.author].some((x) => x?.toLowerCase().includes(needle)))
+    if (shown.length === 0)
+      return (
+        <div className="check-row">
+          <div className="t">
+            <b>No plugins found</b>
+          </div>
+        </div>
+      )
+    return shown.map((l) => (
+      <div key={l.id} className="check-row">
+        <div className={`ic ${l.installed ? 'ok' : 'wait'}`}>
+          <Puzzle />
+        </div>
+        <div className="t">
+          <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {l.name}
+            <span className="badge mono">{l.version}</span>
+            {l.author && <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>{l.author}</span>}
+          </b>
+          {l.error ? <span style={{ color: 'var(--yellow)' }}>{l.error}</span> : <span>{l.description}</span>}
+        </div>
+        <button className="icon-btn" title="Source code" onClick={() => SystemService.OpenURL(l.repo)}>
+          <ExternalLink />
+        </button>
+        {l.update ? (
+          <button className="btn sm primary" disabled={!!l.error} title={l.error} onClick={() => installListing(l)}>
+            <ArrowUpCircle /> Update
+          </button>
+        ) : l.installed ? (
+          <button className="btn sm ghost" disabled>
+            Installed
+          </button>
+        ) : (
+          <button className="btn sm primary" disabled={!!l.error} onClick={() => installListing(l)}>
+            <Download /> Install
+          </button>
+        )}
+      </div>
+    ))
+  }
+
+  function installedList() {
+    return (
+      <>
       {!plugins && <div className="skeleton" style={{ height: 20, margin: 14 }} />}
       {plugins?.length === 0 && (
         <div className="check-row">
           <div className="t">
             <b>No plugins yet</b>
-            <span>Install one from a folder, such as the examples at github.com/larvyn/plugin-examples. Plugins can add commands, stack items and sidebar views.</span>
+            <span>
+              Find one in the{' '}
+              <a href="#" onClick={(e) => (e.preventDefault(), setTab('market'))}>
+                Marketplace
+              </a>
+              .
+            </span>
           </div>
         </div>
       )}
@@ -262,7 +372,9 @@ export function PluginsCard() {
               </span>
               {p.linked && <span className="badge blue">linked</span>}
             </b>
-            {p.error ? (
+            {p.revoked ? (
+              <span style={{ color: 'var(--red)' }}>Revoked: {p.revoked}</span>
+            ) : p.error ? (
               <span style={{ color: 'var(--yellow)' }}>{p.error}</span>
             ) : p.needsApproval ? (
               <span style={{ color: 'var(--yellow)' }}>Off: it now asks for more permissions. Turn it on to review them.</span>
@@ -279,6 +391,11 @@ export function PluginsCard() {
                 </span>
               ))}
           </div>
+          {updateFor(p) && (
+            <button className="btn sm primary" disabled={!!updateFor(p)!.error} title={updateFor(p)!.error} onClick={() => installListing(updateFor(p)!)}>
+              <ArrowUpCircle /> Update to {updateFor(p)!.version}
+            </button>
+          )}
           {p.enabled && project && (
             <label className="row" style={{ gap: 6, fontSize: 12, color: 'var(--text-3)' }}>
               {project.name}
@@ -289,7 +406,7 @@ export function PluginsCard() {
               />
             </label>
           )}
-          <Toggle on={p.enabled} disabled={!!p.error} title={p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off everywhere' : 'Turn on'} onChange={(on) => toggle(p, on)} />
+          <Toggle on={p.enabled} disabled={!!p.error || !!p.revoked} title={p.revoked ? 'Revoked' : p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off everywhere' : 'Turn on'} onChange={(on) => toggle(p, on)} />
           <button className="icon-btn" title="Export as .zip, to share it" onClick={() => exportZip(p)}>
             <FileArchive />
           </button>
@@ -302,6 +419,7 @@ export function PluginsCard() {
         Plugins load from <span className="mono">{folder}</span>. Their commands are in ⌘K under Plugins, their stack items in the sidebar's Stack, and their views in the
         sidebar under Plugins.
       </div>
-    </div>
-  )
+      </>
+    )
+  }
 }

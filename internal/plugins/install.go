@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -55,9 +56,24 @@ func readInstallable(dir string) (Manifest, error) {
 // granted must hold every permission the plugin asks for: the user saw them
 // in the install dialog. Installing over an existing copy updates it.
 func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
+	return install(dir, granted, "")
+}
+
+// install installs the plugin in dir from source ("" or "marketplace").
+// What the user decided per project and per command survives an update.
+func install(dir string, granted []string, source string) (Plugin, error) {
 	m, err := readInstallable(dir)
 	if err != nil {
 		return Plugin{}, err
+	}
+	// The newest list, or the reason recorded for the installed copy when
+	// this is the same version (offline, the list may not have arrived).
+	why := revokedReason(m.ID, m.Version)
+	if cur, err := find(m.ID); why == "" && err == nil && cur.Manifest.Version == m.Version {
+		why = cur.Revoked
+	}
+	if why != "" {
+		return Plugin{}, fmt.Errorf("not installed: %s %s was revoked: %s", m.Name, m.Version, why)
 	}
 	if missing := missingPermissions(m, granted); len(missing) > 0 {
 		return Plugin{}, fmt.Errorf("not installed: permissions %v were not granted", missing)
@@ -72,7 +88,11 @@ func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
 		if d.Plugins == nil {
 			d.Plugins = map[string]store.PluginState{}
 		}
-		d.Plugins[m.ID] = store.PluginState{Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix()}
+		old := d.Plugins[m.ID]
+		d.Plugins[m.ID] = store.PluginState{
+			Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
+			Confirmed: old.Confirmed, OffIn: old.OffIn, Source: source,
+		}
 	})
 	if err != nil {
 		return Plugin{}, err
@@ -89,6 +109,10 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 	}
 	if p.Error != "" {
 		return p, errors.New(p.Error)
+	}
+	// The recorded reason, or the newest list if it arrived since.
+	if why := cmp.Or(p.Revoked, revokedReason(id, p.Manifest.Version)); why != "" {
+		return p, fmt.Errorf("%s %s was revoked: %s", p.Manifest.Name, p.Manifest.Version, why)
 	}
 	if missing := missingPermissions(p.Manifest, granted); len(missing) > 0 {
 		return p, fmt.Errorf("not turned on: permissions %v were not granted", missing)

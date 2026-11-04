@@ -112,6 +112,8 @@ func init() {
 func main() {
 	updater.Version = version
 	updater.Cleanup()
+	// Turn off plugins the marketplace revoked since the last start.
+	go plugins.CheckRevoked()
 	proc.StartShellEnvImport()
 	app := application.New(application.Options{
 		Name:        "Larvyn",
