@@ -89,8 +89,14 @@ func Set(path string, values map[string]string) ([]byte, error) {
 }
 
 // Quote returns v as a dotenv value: bare when it is safe, otherwise in
-// double quotes.
+// quotes. A value with $ goes in single quotes, where phpdotenv never
+// expands ${NAME}; in double quotes it would, so a value could pull another
+// key (a secret) into this one. Callers must refuse values with both $ and
+// a single quote, which no quoting keeps literal.
 func Quote(v string) string {
+	if strings.Contains(v, "$") && !strings.ContainsAny(v, "'\n\r") {
+		return "'" + v + "'"
+	}
 	if v == "" || strings.ContainsAny(v, " \t#\"'$\\=") {
 		return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
 	}

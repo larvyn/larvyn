@@ -3,6 +3,7 @@ package dotenv
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -41,10 +42,25 @@ func TestSet(t *testing.T) {
 	if string(b) != want {
 		t.Errorf("got:\n%s\nwant:\n%s", b, want)
 	}
-	if st, _ := os.Stat(path); st.Mode().Perm() != 0o640 {
+	// Windows has no POSIX mode bits to keep.
+	if st, _ := os.Stat(path); runtime.GOOS != "windows" && st.Mode().Perm() != 0o640 {
 		t.Errorf("mode changed to %v", st.Mode().Perm())
 	}
 	if got := Read(path)["MAIL_FROM_NAME"]; got != "My Shop" {
 		t.Errorf("quoted value reads back as %q", got)
+	}
+}
+
+func TestQuoteNeverExpands(t *testing.T) {
+	for in, want := range map[string]string{
+		"smtp":                     "smtp",
+		"My Shop":                  `"My Shop"`,
+		"${DB_PASSWORD}.evil.test": "'${DB_PASSWORD}.evil.test'",
+		"$HOME":                    "'$HOME'",
+		"":                         `""`,
+	} {
+		if got := Quote(in); got != want {
+			t.Errorf("Quote(%q) = %s, want %s", in, got, want)
+		}
 	}
 }

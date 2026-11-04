@@ -369,18 +369,25 @@ func envSet(p Plugin, proj store.Project, raw any) (ViewResult, error) {
 		if strings.ContainsAny(s, "\n\r") || len(s) > 1000 {
 			return ViewResult{}, fmt.Errorf("%s must be one line of at most 1000 characters", k)
 		}
+		// dotenv.Quote keeps a $ literal with single quotes, which can't
+		// hold a ' too: refused rather than written where ${...} expands.
+		if strings.Contains(s, "$") && strings.Contains(s, "'") {
+			return ViewResult{}, fmt.Errorf("%s may not contain both $ and '", k)
+		}
 		values[k] = s
 	}
 	path := filepath.Join(proj.Path, ".env")
 	before, err := os.ReadFile(path)
 	if err != nil {
-		return ViewResult{}, fmt.Errorf("the project has no .env: %w", err)
+		// Fixed messages: the OS error carries the project's path, which a
+		// plugin with only env access shouldn't learn.
+		return ViewResult{}, errors.New("the project has no .env")
 	}
 	if err := backupEnv(proj.ID, p.Manifest.ID, before); err != nil {
-		return ViewResult{}, fmt.Errorf("could not back up .env: %w", err)
+		return ViewResult{}, errors.New("could not back up .env, so it was not changed")
 	}
 	if _, err := dotenv.Set(path, values); err != nil {
-		return ViewResult{}, err
+		return ViewResult{}, errors.New("could not update .env")
 	}
 	return ViewResult{Result: true}, nil
 }

@@ -347,9 +347,20 @@ async function pointAtMailpit(btn) {
   }
 }
 
+// Shows an error where the user clicked: the settings note when the panel
+// is open, otherwise the banner (its button stays, to try again).
 function alertLine(text) {
   const p = $("settings").querySelector(".note");
-  if (p) p.textContent = text;
+  if (!$("settings").hidden && p) {
+    p.textContent = text;
+    return;
+  }
+  const banner = $("banner");
+  banner.querySelector(".err")?.remove();
+  const err = el("span", "err", text);
+  err.style.color = "#f87171";
+  banner.insertBefore(err, banner.querySelector(".btn"));
+  banner.hidden = false;
 }
 
 function fixButton(label) {

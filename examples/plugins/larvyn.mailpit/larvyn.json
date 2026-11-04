@@ -10,7 +10,8 @@
   "permissions": [
     "terminal.run",
     "network",
-    "project.env.keys"
+    "project.env.keys",
+    "ui.notify"
   ],
   "network": [
     "localhost:8025"
