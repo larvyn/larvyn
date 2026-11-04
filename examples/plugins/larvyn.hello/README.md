@@ -1,3 +1,5 @@
+<img src="icon.svg" width="64" height="64" alt="">
+
 # Hello
 
 The smallest plugin with a view: it shows the open project and says hello. Copy it to start your own.

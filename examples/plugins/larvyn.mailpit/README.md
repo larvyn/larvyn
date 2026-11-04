@@ -1,3 +1,5 @@
+<img src="icon.svg" width="64" height="64" alt="">
+
 # Mailpit
 
 Catch the mail your Laravel app sends. Mailpit runs in your project's stack, its inbox appears in Larvyn's sidebar, and one click points your app's mail settings at it.
