@@ -351,3 +351,21 @@ func TestEnvSetNoExpansionNoPaths(t *testing.T) {
 		t.Errorf("error must not reveal the project path: %v", err)
 	}
 }
+
+func TestEnvBackupsNeverCollide(t *testing.T) {
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := backupEnv("proj", "acme.x", []byte(fmt.Sprint(i))); err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if got, _ := filepath.Glob(filepath.Join(store.HomeDir(), "backups", "proj-.env-*-acme.x")); len(got) != 20 {
+		t.Errorf("want 20 separate backups, got %d", len(got))
+	}
+}

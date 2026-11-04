@@ -121,6 +121,11 @@ func writeFile(path string, data []byte) error {
 		tmp.Close()
 		return err
 	}
+	// Flushed before the rename, so a crash can't leave .env empty.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}

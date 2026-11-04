@@ -399,7 +399,26 @@ func backupEnv(projectID, pluginID string, raw []byte) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-.env-%d-%s", projectID, time.Now().UnixNano(), pluginID)), raw, 0o600)
+	// Created exclusively: two changes in the same nanosecond get two
+	// backups instead of the second truncating the first.
+	for stamp := time.Now().UnixNano(); ; stamp++ {
+		f, err := os.OpenFile(filepath.Join(dir, fmt.Sprintf("%s-.env-%d-%s", projectID, stamp, pluginID)), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(raw); err != nil {
+			f.Close()
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			f.Close()
+			return err
+		}
+		return f.Close()
+	}
 }
 
 // storageFile keeps a plugin's data outside its folder, so updates keep it.

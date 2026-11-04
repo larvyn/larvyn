@@ -6,7 +6,7 @@
   "description": "Catch the mail your app sends: runs Mailpit in the stack, shows the inbox in the sidebar, and points the app's mail settings at it.",
   "author": "Larvyn",
   "homepage": "https://mailpit.axllent.org",
-  "larvyn": ">=0.1.0",
+  "larvyn": ">=0.1.0-beta.10",
   "permissions": [
     "terminal.run",
     "network",

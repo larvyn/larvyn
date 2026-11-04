@@ -197,6 +197,10 @@ func TestCompatible(t *testing.T) {
 		{">0.1.0", "v0.1.0", false},
 		{"<=0.1.0", "v0.1.0", true},
 		{">=9.0.0", "dev", true},
+		{">=0.1.0-beta.10", "v0.1.0-beta.9", false}, // a prerelease bound compares betas
+		{">=0.1.0-beta.10", "v0.1.0-beta.10", true},
+		{">=0.1.0-beta.10", "v0.1.0", true},
+		{">=0.1.0-beta.10", "v0.2.0-beta.1", true},
 	}
 	for _, c := range cases {
 		if err := checkRange(c.r); err != nil {

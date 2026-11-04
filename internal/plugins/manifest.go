@@ -376,17 +376,25 @@ func checkRange(r string) error {
 }
 
 // Compatible reports whether Larvyn version current is in range r, which
-// must have passed checkRange. Larvyn's own prerelease tag is ignored, so
-// 0.2.0-beta.3 counts as 0.2.0, and development builds match every range.
+// must have passed checkRange. Development builds match every range.
+// Against a plain version Larvyn's own prerelease tag is ignored, so
+// 0.2.0-beta.3 counts as 0.2.0; a comparator with a prerelease, such as
+// >=0.1.0-beta.10, compares the full version, so a plugin can require the
+// beta that added what it uses.
 func Compatible(r, current string) bool {
 	current = strings.TrimPrefix(current, "v")
 	if current == "dev" || current == "" {
 		return true
 	}
-	current, _, _ = strings.Cut(current, "-")
+	release, _, _ := strings.Cut(current, "-")
 	for _, c := range strings.Fields(r) {
 		op := comparatorPrefix.FindString(c)
-		cmp := updater.CompareVersions(current, c[len(op):])
+		want := c[len(op):]
+		have := release
+		if strings.Contains(want, "-") {
+			have = current
+		}
+		cmp := updater.CompareVersions(have, want)
 		ok := false
 		switch op {
 		case ">=":
