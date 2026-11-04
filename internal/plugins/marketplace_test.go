@@ -237,3 +237,16 @@ func TestRevokedRefusedFromEverySource(t *testing.T) {
 		t.Errorf("offline without a list: %v", err)
 	}
 }
+
+func TestRevocationWithoutReason(t *testing.T) {
+	list := []Revocation{{ID: "acme.horizon", Reason: "  "}}
+	if why := reasonIn(list, "acme.horizon", "1.0.0"); why == "" {
+		t.Error("a revocation without a reason must still revoke")
+	}
+	if why := reasonIn([]Revocation{{ID: "acme.horizon", Reason: "bad"}}, "acme.horizon", "1.0.0"); why != "bad" {
+		t.Errorf("reason = %q", why)
+	}
+	if why := reasonIn(list, "acme.other", "1.0.0"); why != "" {
+		t.Errorf("no match: %q", why)
+	}
+}
