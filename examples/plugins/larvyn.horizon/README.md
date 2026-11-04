@@ -1,8 +1,10 @@
+<img src="icon.svg" width="64" height="64" alt="">
+
 # Horizon
 
 Restart, pause and check [Laravel Horizon](https://laravel.com/docs/horizon) from ⌘K.
 
-**Version** 0.1.0 · **Needs** Larvyn 0.1.0 or newer · **By** Larvyn
+**Version** 0.1.1 · **Needs** Larvyn 0.1.0 or newer · **By** Larvyn
 
 Larvyn already adds Horizon to the stack when your app uses `laravel/horizon`. This plugin adds the commands you run while it's up.
 
@@ -10,7 +12,7 @@ Larvyn already adds Horizon to the stack when your app uses `laravel/horizon`. T
 
 In Larvyn, open **Settings → Plugins → Marketplace** and install **Horizon**.
 
-Or download `larvyn.horizon-0.1.0.zip` from [Releases](https://github.com/larvyn/plugin-examples/releases/tag/larvyn.horizon-v0.1.0) and use **Settings → Plugins → Install .zip**.
+Or download `larvyn.horizon-0.1.1.zip` from [Releases](https://github.com/larvyn/plugin-examples/releases/tag/larvyn.horizon-v0.1.1) and use **Settings → Plugins → Install .zip**.
 
 ## What it adds
 

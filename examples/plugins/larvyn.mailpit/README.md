@@ -1,14 +1,16 @@
+<img src="icon.svg" width="64" height="64" alt="">
+
 # Mailpit
 
 Catch the mail your Laravel app sends. Mailpit runs in your project's stack, its inbox appears in Larvyn's sidebar, and one click points your app's mail settings at it.
 
-**Version** 0.2.0 · **Needs** Larvyn 0.1.0-beta.10 or newer · **By** Larvyn · [mailpit.axllent.org](https://mailpit.axllent.org)
+**Version** 0.2.1 · **Needs** Larvyn 0.1.0-beta.10 or newer · **By** Larvyn · [mailpit.axllent.org](https://mailpit.axllent.org)
 
 ## Install
 
 In Larvyn, open **Settings → Plugins → Marketplace** and install **Mailpit**.
 
-Or download `larvyn.mailpit-0.2.0.zip` from [Releases](https://github.com/larvyn/plugin-examples/releases/tag/larvyn.mailpit-v0.2.0) and use **Settings → Plugins → Install .zip**.
+Or download `larvyn.mailpit-0.2.1.zip` from [Releases](https://github.com/larvyn/plugin-examples/releases/tag/larvyn.mailpit-v0.2.1) and use **Settings → Plugins → Install .zip**.
 
 ## What it adds
 

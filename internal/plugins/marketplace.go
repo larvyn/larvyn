@@ -39,6 +39,8 @@ type Listing struct {
 	Download    string   `json:"download"`
 	Sha256      string   `json:"sha256"`
 	Size        int64    `json:"size"`
+	// Icon is the zip's icon.svg as a data: URL, "" without one.
+	Icon string `json:"icon,omitempty"`
 
 	// Installed is the installed version, "" when it isn't installed.
 	Installed string `json:"installed"`
@@ -112,6 +114,11 @@ func (s *PluginService) Marketplace() ([]Listing, error) {
 	}
 	for i := range ix.Plugins {
 		l := &ix.Plugins[i]
+		// Only an inline SVG: a remote icon URL would tell its host who
+		// opened the marketplace.
+		if !strings.HasPrefix(l.Icon, "data:image/svg+xml;base64,") || len(l.Icon) > maxIconBytes*4/3+64 {
+			l.Icon = ""
+		}
 		if !Compatible(l.Larvyn, updater.Version) {
 			l.Error = incompatible(l.Larvyn, updater.Version).Error()
 		}

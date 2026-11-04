@@ -5,6 +5,8 @@
 package plugins
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -48,6 +50,31 @@ type Plugin struct {
 	Source string `json:"source"`
 	// Revoked is why the registry revoked this version; it can't run.
 	Revoked string `json:"revoked,omitempty"`
+	// Icon is the plugin's icon.svg as a data: URL, "" without one. The
+	// window shows it in an <img>, where an SVG's scripts never run.
+	Icon string `json:"icon,omitempty"`
+}
+
+// IconFile is the plugin's optional icon, next to its larvyn.json. A file
+// rather than a manifest field, so older Larvyn versions, which refuse
+// unknown fields, still install the plugin.
+const IconFile = "icon.svg"
+
+const maxIconBytes = 64 << 10
+
+// iconOf reads dir's icon.svg as a data: URL. A missing, linked, large or
+// non-SVG file means no icon.
+func iconOf(dir string) string {
+	path := filepath.Join(dir, IconFile)
+	fi, err := os.Lstat(path)
+	if err != nil || !fi.Mode().IsRegular() || fi.Size() > maxIconBytes {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || !bytes.Contains(data[:min(len(data), 1024)], []byte("<svg")) {
+		return ""
+	}
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 // Dir is the folder plugins are installed in, one folder per plugin named
@@ -81,7 +108,7 @@ func Load() []Plugin {
 }
 
 func load(dir, name string) Plugin {
-	p := Plugin{Dir: dir, Folder: name}
+	p := Plugin{Dir: dir, Folder: name, Icon: iconOf(dir)}
 	m, err := ReadManifest(dir)
 	p.Manifest = m
 	if err == nil {
