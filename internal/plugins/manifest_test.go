@@ -164,14 +164,24 @@ func TestNewerPluginSaysUpdateLarvyn(t *testing.T) {
 	dir := t.TempDir()
 	writePlugin(t, dir, edit(t, func(m map[string]any) {
 		m["larvyn"] = ">=0.2.0"
-		m["env"] = []string{"MAIL_HOST"}
+		m["futureField"] = true
 	}))
 	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), "needs Larvyn >=0.2.0; this is v0.1.0-beta.9, update Larvyn") {
 		t.Errorf("error = %v", err)
 	}
+	// An upper bound this Larvyn is past: updating Larvyn won't help.
+	updater.Version = "v0.4.0"
+	writePlugin(t, dir, edit(t, func(m map[string]any) {
+		m["larvyn"] = ">=0.1.0 <0.4.0"
+		m["futureField"] = true
+	}))
+	if _, err := ReadManifest(dir); err == nil || strings.Contains(err.Error(), "update Larvyn") || !strings.Contains(err.Error(), "the plugin needs an update") {
+		t.Errorf("too new a Larvyn must not be told to update: %v", err)
+	}
+	updater.Version = "v0.1.0-beta.9"
 	// Without a newer range, the unknown field is named, with a hint.
-	writePlugin(t, dir, edit(t, func(m map[string]any) { m["env"] = []string{"MAIL_HOST"} }))
-	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), `unknown field "env" (it may need a newer Larvyn)`) {
+	writePlugin(t, dir, edit(t, func(m map[string]any) { m["futureField"] = true }))
+	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), `unknown field "futureField" (it may need a newer Larvyn)`) {
 		t.Errorf("error = %v", err)
 	}
 }
@@ -203,6 +213,25 @@ func TestEntrySymlinkOutside(t *testing.T) {
 	}
 	if _, err := ReadManifest(dir); err == nil || !strings.Contains(err.Error(), "outside the plugin folder") {
 		t.Errorf("error = %v", err)
+	}
+}
+
+func TestCheckVersionTooOld(t *testing.T) {
+	for _, c := range []struct {
+		r, v       string
+		ok, tooOld bool
+	}{
+		{">=0.2.0", "v0.1.0", false, true},
+		{"<0.4.0", "v0.4.0", false, false},
+		{">=0.1.0 <0.4.0", "v0.5.0", false, false},
+		{"=0.3.0", "v0.2.0", false, true},
+		{"=0.3.0", "v0.4.0", false, false},
+		{">=0.1.0", "v0.2.0", true, false},
+	} {
+		ok, tooOld := checkVersion(c.r, c.v)
+		if ok != c.ok || tooOld != c.tooOld {
+			t.Errorf("checkVersion(%q, %q) = %v, %v; want %v, %v", c.r, c.v, ok, tooOld, c.ok, c.tooOld)
+		}
 	}
 }
 
