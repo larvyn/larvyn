@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,11 +36,36 @@ import (
 // ViewPrefix + <plugin id> + "/" + <file>.
 const ViewPrefix = "/plugin-view/"
 
-// viewCSP keeps a view to its own files. The sandbox directive applies the
-// iframe sandbox even if the page is opened some other way.
-const viewCSP = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
-	"img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'none'; " +
-	"form-action 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'; sandbox allow-scripts"
+// viewCSP keeps a view to Larvyn's own files (the plugin's, and the kit) and
+// inline code. The sandbox directive applies the iframe sandbox even if the
+// page is opened some other way.
+//
+// The app's origin is named, not left to 'self': the view runs with an
+// opaque origin (the sandbox), and WebKit then doesn't match 'self' to the
+// URL it was loaded from, so <link> and <script src> to the view's own files
+// were blocked while inline code ran.
+func viewCSP(r *http.Request) string {
+	self := "'self' " + appOrigin(r)
+	return "default-src 'none'; script-src " + self + " 'unsafe-inline'; style-src " + self + " 'unsafe-inline'; " +
+		"img-src " + self + " data: blob:; font-src " + self + " data:; media-src " + self + " blob:; connect-src 'none'; " +
+		"form-action 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'; sandbox allow-scripts"
+}
+
+// appOrigin is the origin Larvyn's page is served from: the request's own
+// when it says (wails dev serves from http://localhost:<port>), otherwise
+// Wails' address for this system.
+func appOrigin(r *http.Request) string {
+	if r.URL.Scheme != "" && r.Host != "" && hostPattern.MatchString(r.Host) {
+		return r.URL.Scheme + "://" + r.Host
+	}
+	if runtime.GOOS == "windows" {
+		return "http://wails.localhost"
+	}
+	return "wails://localhost"
+}
+
+// hostPattern keeps anything but a plain host[:port] out of the CSP header.
+var hostPattern = regexp.MustCompile(`^[A-Za-z0-9.-]+(:[0-9]{1,5})?$`)
 
 // viewTypes are the content types of the files a view uses. They are fixed
 // here because mime.TypeByExtension reads the OS database (the registry on
@@ -233,7 +259,7 @@ func serveView(w http.ResponseWriter, r *http.Request) {
 	}
 	h := w.Header()
 	h.Set("Content-Type", ctype)
-	h.Set("Content-Security-Policy", viewCSP)
+	h.Set("Content-Security-Policy", viewCSP(r))
 	h.Set("X-Content-Type-Options", "nosniff")
 	// The sandboxed iframe has an opaque origin, and module scripts and
 	// fonts are fetched in CORS mode even from the view's own folder. These

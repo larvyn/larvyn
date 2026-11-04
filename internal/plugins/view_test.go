@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -73,7 +74,7 @@ func TestServeView(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 	csp := rec.Header().Get("Content-Security-Policy")
-	for _, want := range []string{"connect-src 'none'", "sandbox allow-scripts", "frame-src 'none'", "form-action 'none'"} {
+	for _, want := range []string{"connect-src 'none'", "sandbox allow-scripts", "frame-src 'none'", "form-action 'none'", "style-src 'self' "} {
 		if !strings.Contains(csp, want) {
 			t.Errorf("CSP lacks %q: %s", want, csp)
 		}
@@ -151,6 +152,29 @@ func TestEnvSetConcurrent(t *testing.T) {
 		if r.Result.(map[string]any)[k] != "yes" {
 			t.Errorf("%s was lost to a concurrent set", k)
 		}
+	}
+}
+
+// The view's sandbox gives it an opaque origin, where WebKit doesn't match
+// 'self': the CSP must name the app's origin so its own CSS and JS load.
+func TestViewCSPNamesTheAppOrigin(t *testing.T) {
+	want := "wails://localhost"
+	if runtime.GOOS == "windows" {
+		want = "http://wails.localhost"
+	}
+	r := httptest.NewRequest("GET", "/plugin-view/x/ui/index.html", nil)
+	r.URL.Scheme, r.Host = "", ""
+	if csp := viewCSP(r); !strings.Contains(csp, "style-src 'self' "+want+" 'unsafe-inline'") || !strings.Contains(csp, "script-src 'self' "+want) {
+		t.Errorf("CSP lacks the app origin %s: %s", want, csp)
+	}
+	r = httptest.NewRequest("GET", "http://localhost:34115/plugin-view/x/ui/index.html", nil)
+	if csp := viewCSP(r); !strings.Contains(csp, "style-src 'self' http://localhost:34115 ") {
+		t.Errorf("the request's own origin (wails dev) must be used: %s", csp)
+	}
+	r = httptest.NewRequest("GET", "/x", nil)
+	r.URL.Scheme, r.Host = "wails", "evil; script-src *"
+	if csp := viewCSP(r); strings.Contains(csp, "evil") {
+		t.Errorf("a malformed host must not reach the CSP: %s", csp)
 	}
 }
 
