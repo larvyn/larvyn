@@ -66,12 +66,19 @@ func ExportTo(p Plugin, dest string) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".larvyn-export-*")
+	parent, err := filepath.EvalSymlinks(filepath.Dir(dest))
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(parent, ".larvyn-export-*")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	if err := writeZip(tmp, root, p.Folder); err != nil {
+	// Saved inside the plugin's own folder, the zip being written and an
+	// earlier export at the same path would otherwise end up in the zip.
+	skip := map[string]bool{tmp.Name(): true, filepath.Join(parent, filepath.Base(dest)): true}
+	if err := writeZip(tmp, root, p.Folder, skip); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -85,7 +92,7 @@ func ExportTo(p Plugin, dest string) error {
 	return os.Rename(tmp.Name(), dest)
 }
 
-func writeZip(w io.Writer, root, top string) error {
+func writeZip(w io.Writer, root, top string, skip map[string]bool) error {
 	zw := zip.NewWriter(w)
 	files, size := 0, int64(0)
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -102,7 +109,9 @@ func writeZip(w io.Writer, root, top string) error {
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() {
+		// A .git file (a linked worktree) holds a local path; it is skipped
+		// like the .git folder.
+		if !d.Type().IsRegular() || d.Name() == ".git" || skip[path] {
 			return nil // symlinks, sockets, devices
 		}
 		info, err := d.Info()
@@ -129,7 +138,9 @@ func writeZip(w io.Writer, root, top string) error {
 			return err
 		}
 		defer in.Close()
-		_, err = io.Copy(out, io.LimitReader(in, info.Size()))
+		// CopyN fails if the file shrank since it was measured, rather than
+		// storing it cut short.
+		_, err = io.CopyN(out, in, info.Size())
 		return err
 	})
 	if err != nil {

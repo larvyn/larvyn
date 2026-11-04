@@ -65,6 +65,35 @@ func TestExportTo(t *testing.T) {
 	}
 }
 
+// Exporting into the plugin's own folder, twice, must not put the zip (or
+// its temporary file) inside itself; a .git file is left out too.
+func TestExportIntoPluginFolder(t *testing.T) {
+	reset(t)
+	dir := filepath.Join(Dir(), "acme.horizon")
+	writePlugin(t, dir, validManifest)
+	os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /Users/me/secret/repo/.git/worktrees/x"), 0o644)
+	p, _ := byFolder("acme.horizon")
+	dest := filepath.Join(dir, "export.zip")
+	for i := 0; i < 2; i++ {
+		if err := ExportTo(p, dest); err != nil {
+			t.Fatal(err)
+		}
+	}
+	zr, err := zip.OpenReader(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if strings.HasSuffix(f.Name, ".zip") || strings.Contains(f.Name, ".larvyn-export-") || strings.HasSuffix(f.Name, "/.git") {
+			t.Errorf("the zip holds %s", f.Name)
+		}
+	}
+	if len(zr.File) != 2 {
+		t.Errorf("want the 2 plugin files, got %d", len(zr.File))
+	}
+}
+
 func TestExportRefuses(t *testing.T) {
 	reset(t)
 	for _, f := range []string{"", "../x", ".cache", `a\b`, "acme.nope"} {
