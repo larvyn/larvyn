@@ -97,12 +97,23 @@ func latestRelease() (ghRelease, error) {
 	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
 		return ghRelease{}, err
 	}
-	for _, r := range list {
-		if !r.Draft && r.Tag != "" {
-			return r, nil
-		}
+	if r, ok := newest(list); ok {
+		return r, nil
 	}
 	return ghRelease{}, errors.New("no releases published yet")
+}
+
+// newest is the release with the highest version. GitHub's order can't be
+// trusted: releases made from the same commit share a creation time, so
+// beta.9 can come before beta.10.
+func newest(list []ghRelease) (ghRelease, bool) {
+	var best ghRelease
+	for _, r := range list {
+		if !r.Draft && r.Tag != "" && (best.Tag == "" || CompareVersions(r.Tag, best.Tag) > 0) {
+			best = r
+		}
+	}
+	return best, best.Tag != ""
 }
 
 // updateAsset is the release file for this platform, as install.sh/.ps1 use.

@@ -72,3 +72,14 @@ func TestUntar(t *testing.T) {
 		t.Fatal("path traversal was extracted")
 	}
 }
+
+func TestNewest(t *testing.T) {
+	// The order GitHub returned when beta.9 and beta.10 shared a creation time.
+	list := []ghRelease{{Tag: "v0.1.0-beta.9"}, {Tag: "v0.1.0-beta.11", Draft: true}, {Tag: "v0.1.0-beta.8"}, {Tag: "v0.1.0-beta.10"}}
+	if r, ok := newest(list); !ok || r.Tag != "v0.1.0-beta.10" {
+		t.Errorf("newest = %q, %v; want v0.1.0-beta.10", r.Tag, ok)
+	}
+	if _, ok := newest([]ghRelease{{Tag: "v1.0.0", Draft: true}}); ok {
+		t.Error("drafts only: want none")
+	}
+}
