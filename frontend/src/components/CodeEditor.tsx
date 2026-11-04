@@ -3,7 +3,8 @@ import { basicSetup } from 'codemirror'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { indentWithTab } from '@codemirror/commands'
-import { syntaxHighlighting } from '@codemirror/language'
+import { LanguageDescription, syntaxHighlighting } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
 import { php } from '@codemirror/lang-php'
 import { javascript } from '@codemirror/lang-javascript'
@@ -14,8 +15,9 @@ import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
 import { xml } from '@codemirror/lang-xml'
 
-/** Picks the syntax mode from the file name (.blade.php is PHP mixed with HTML). */
-export function languageFor(path: string): Extension {
+/** Picks the syntax mode from the file name (.blade.php is PHP mixed with HTML).
+ * null means it isn't one of the bundled modes: see loadLanguage. */
+export function languageFor(path: string): Extension | null {
   const name = path.toLowerCase().split('/').pop() ?? ''
   const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : name
   switch (ext) {
@@ -54,7 +56,31 @@ export function languageFor(path: string): Extension {
     case 'dist':
       return xml()
     default:
-      return []
+      return null
+  }
+}
+
+/** File names CodeMirror's language list doesn't know, and what they are. */
+function alias(name: string): string | null {
+  if (name === '.env' || name.startsWith('.env.') || name.endsWith('.env')) return 'Properties files'
+  if (name === 'go.mod' || name === 'go.work') return 'Go'
+  return null
+}
+
+/**
+ * Finds the mode for every other language CodeMirror has (Go, Rust, Python,
+ * shell, Dockerfile, TOML, SQL…). Each one is its own chunk, loaded the first
+ * time a file of that language opens. Resolves to null for plain text.
+ */
+export async function loadLanguage(path: string): Promise<Extension | null> {
+  const name = path.split(/[\\/]/).pop() ?? ''
+  const a = alias(name.toLowerCase())
+  const desc = a ? LanguageDescription.matchLanguageName(languages, a, false) : LanguageDescription.matchFilename(languages, name)
+  if (!desc) return null
+  try {
+    return await desc.load()
+  } catch {
+    return null
   }
 }
 
@@ -138,7 +164,7 @@ export function CodeEditor(props: Props) {
               },
             },
           ]),
-          lang.current.of(languageFor(props.path)),
+          lang.current.of(languageFor(props.path) ?? []),
           ro.current.of(EditorState.readOnly.of(!!props.readOnly)),
           syntaxHighlighting(oneDarkHighlightStyle),
           theme,
@@ -149,6 +175,16 @@ export function CodeEditor(props: Props) {
       }),
     )
     v.focus()
+    // Any other language loads on demand; a document opened meanwhile wins.
+    let current = true
+    if (!languageFor(props.path)) {
+      loadLanguage(props.path).then((ext) => {
+        if (ext && current && view.current === v) v.dispatch({ effects: lang.current.reconfigure(ext) })
+      })
+    }
+    return () => {
+      current = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.docKey])
 
