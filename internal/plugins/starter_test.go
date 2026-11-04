@@ -40,7 +40,7 @@ func TestPluginStarterInstalls(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(p.Dir, "node_modules")); !os.IsNotExist(err) {
 		t.Error("node_modules must not be copied on install")
 	}
-	views := s.Views()
+	views := s.Views("")
 	if len(views) != 1 {
 		t.Fatalf("views: %+v", views)
 	}

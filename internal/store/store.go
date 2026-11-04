@@ -67,6 +67,9 @@ type PluginState struct {
 	// "stack:<key>") to the exact command line the user confirmed before its
 	// first run. A different command line asks again.
 	Confirmed map[string]string `json:"confirmed,omitempty"`
+	// OffIn are the projects the user turned the plugin off in. It is on in
+	// every other project.
+	OffIn []string `json:"offIn,omitempty"`
 }
 
 // State is what state.json holds.

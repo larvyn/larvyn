@@ -80,7 +80,7 @@ export function Palette() {
     if (open) {
       setQ(initialQuery)
       if (id) StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => {})
-      PluginService.Commands().then((x) => setPluginCmds(x ?? [])).catch(() => {})
+      PluginService.Commands(id ?? '').then((x) => setPluginCmds(x ?? [])).catch(() => {})
     }
   }, [open])
 

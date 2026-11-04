@@ -92,6 +92,7 @@ const approve = (p: Plugin, all: Permission[], action: string) =>
 /** Settings > Plugins: the installed plugins, installing one from a folder,
  * turning plugins on and off, and uninstalling them. See #56. */
 export function PluginsCard() {
+  const project = useStore((s) => s.projects.find((p) => p.id === s.activeId))
   const [plugins, setPlugins] = useState<Plugin[] | null>(null)
   const [perms, setPerms] = useState<Permission[]>([])
   const [folder, setFolder] = useState('')
@@ -147,6 +148,13 @@ export function PluginsCard() {
     } catch (e) {
       toast('error', 'Could not change the plugin', errMsg(e))
     }
+    load()
+  }
+
+  /** Turns a plugin on or off in the open project only. */
+  const toggleHere = async (p: Plugin, on: boolean) => {
+    if (!project) return
+    await PluginService.SetOnInProject(p.manifest.id, project.id, on).catch(fail('Could not change the plugin'))
     load()
   }
 
@@ -271,7 +279,17 @@ export function PluginsCard() {
                 </span>
               ))}
           </div>
-          <Toggle on={p.enabled} disabled={!!p.error} title={p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off' : 'Turn on'} onChange={(on) => toggle(p, on)} />
+          {p.enabled && project && (
+            <label className="row" style={{ gap: 6, fontSize: 12, color: 'var(--text-3)' }}>
+              {project.name}
+              <Toggle
+                on={!p.offIn?.includes(project.id)}
+                title={p.offIn?.includes(project.id) ? `Turn on in ${project.name}` : `Turn off in ${project.name} only`}
+                onChange={(on) => toggleHere(p, on)}
+              />
+            </label>
+          )}
+          <Toggle on={p.enabled} disabled={!!p.error} title={p.error ? 'Fix the error to turn it on' : p.enabled ? 'Turn off everywhere' : 'Turn on'} onChange={(on) => toggle(p, on)} />
           <button className="icon-btn" title="Export as .zip, to share it" onClick={() => exportZip(p)}>
             <FileArchive />
           </button>

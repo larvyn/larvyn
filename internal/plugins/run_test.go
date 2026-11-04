@@ -36,7 +36,7 @@ func installRun(t *testing.T, run string) (*PluginService, store.Project) {
 	store.Update(func(d *store.State) { d.Projects = append(d.Projects, proj) })
 	t.Cleanup(func() {
 		store.Update(func(d *store.State) { d.Projects = nil })
-		stopSessions("acme.horizon")
+		stopSessions("acme.horizon", "")
 	})
 	return s, proj
 }
@@ -55,7 +55,7 @@ func waitOutput(t *testing.T, id, want string) {
 
 func TestCommandNeedsConfirmationOnce(t *testing.T) {
 	s, proj := installRun(t, "echo plugin-ran")
-	cmds := s.Commands()
+	cmds := s.Commands("")
 	if len(cmds) != 1 || !cmds[0].NeedsConfirm || cmds[0].Run != "echo plugin-ran" || cmds[0].PluginName != "Horizon" {
 		t.Fatalf("commands: %+v", cmds)
 	}
@@ -73,7 +73,7 @@ func TestCommandNeedsConfirmationOnce(t *testing.T) {
 		t.Errorf("session: %+v", sess)
 	}
 	waitOutput(t, sess.ID, "plugin-ran")
-	if s.Commands()[0].NeedsConfirm {
+	if s.Commands("")[0].NeedsConfirm {
 		t.Error("a confirmed command should not ask again")
 	}
 	if _, err := s.RunCommand(proj.ID, "acme.horizon", "hello", ""); err != nil {
@@ -89,7 +89,7 @@ func TestChangedCommandAsksAgain(t *testing.T) {
 	// The plugin's files change after the user confirmed (an update, or a
 	// linked plugin being edited).
 	writePlugin(t, filepath.Join(Dir(), "acme.horizon"), runManifest(t, "echo two"))
-	if c := s.Commands(); !c[0].NeedsConfirm {
+	if c := s.Commands(""); !c[0].NeedsConfirm {
 		t.Error("a changed command must be confirmed again")
 	}
 	if _, err := s.RunCommand(proj.ID, "acme.horizon", "hello", ""); err == nil {
@@ -102,7 +102,7 @@ func TestOffPluginRunsNothing(t *testing.T) {
 	if err := s.Disable("acme.horizon"); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Commands()) != 0 || len(StackItems()) != 0 {
+	if len(s.Commands("")) != 0 || len(StackItems("")) != 0 {
 		t.Error("a plugin that is off contributes nothing")
 	}
 	if _, err := s.RunCommand(proj.ID, "acme.horizon", "hello", "echo plugin-ran"); err == nil || !strings.Contains(err.Error(), "off") {
@@ -148,7 +148,7 @@ func TestDisableStopsWhatThePluginRuns(t *testing.T) {
 
 func TestStackItems(t *testing.T) {
 	s, _ := installRun(t, "echo x")
-	items := StackItems()
+	items := StackItems("")
 	if len(items) != 1 {
 		t.Fatalf("items: %+v", items)
 	}
@@ -162,7 +162,7 @@ func TestStackItems(t *testing.T) {
 	if err := s.ConfirmStackItem("acme.horizon", "watch", it.Line); err != nil {
 		t.Fatal(err)
 	}
-	if StackItems()[0].NeedsConfirm {
+	if StackItems("")[0].NeedsConfirm {
 		t.Error("confirmed item still needs confirmation")
 	}
 }
@@ -175,7 +175,7 @@ func TestStackItemMissingProgram(t *testing.T) {
 		contributes(m)["stack"] = []any{map[string]any{"key": "watch", "title": "Watcher", "argv": []string{"mailpit"}}}
 	}))
 	(&PluginService{}).Enable("acme.horizon", horizonPerms)
-	if items := StackItems(); len(items) != 1 || items[0].Missing != "mailpit" {
+	if items := StackItems(""); len(items) != 1 || items[0].Missing != "mailpit" {
 		t.Errorf("items: %+v", items)
 	}
 }
@@ -197,15 +197,15 @@ func TestGuardStackStart(t *testing.T) {
 	s, _ := installRun(t, "echo x")
 	started := 0
 	start := func() (terminal.SessionInfo, error) { started++; return terminal.SessionInfo{}, nil }
-	if _, err := GuardStackStart("acme.horizon", "watch", start); err == nil || started != 0 {
+	if _, err := GuardStackStart("acme.horizon", "", "watch", start); err == nil || started != 0 {
 		t.Fatalf("an unconfirmed item must not start: %v", err)
 	}
 	s.ConfirmStackItem("acme.horizon", "watch", "mailpit --listen 127.0.0.1:8025")
-	if _, err := GuardStackStart("acme.horizon", "watch", start); err != nil || started != 1 {
+	if _, err := GuardStackStart("acme.horizon", "", "watch", start); err != nil || started != 1 {
 		t.Fatalf("a confirmed item starts: %v", err)
 	}
 	s.Disable("acme.horizon")
-	if _, err := GuardStackStart("acme.horizon", "watch", start); err == nil || started != 1 {
+	if _, err := GuardStackStart("acme.horizon", "", "watch", start); err == nil || started != 1 {
 		t.Errorf("a plugin that is off must not start: %v", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -119,7 +120,38 @@ func (s *PluginService) Disable(id string) error {
 			d.Plugins[id] = st
 		}
 	})
-	stopSessions(id)
+	stopSessions(id, "")
+	return err
+}
+
+// SetOnInProject turns a plugin on or off in one project. Turning it off
+// stops what it runs there.
+func (s *PluginService) SetOnInProject(id, projectID string, on bool) error {
+	if _, ok := store.FindProject(projectID); !ok {
+		return errors.New("project not found")
+	}
+	runMu.Lock()
+	defer runMu.Unlock()
+	if _, err := find(id); err != nil {
+		return err
+	}
+	err := store.Update(func(d *store.State) {
+		if d.Plugins == nil {
+			d.Plugins = map[string]store.PluginState{}
+		}
+		st := d.Plugins[id]
+		st.OffIn = slices.DeleteFunc(slices.Clone(st.OffIn), func(x string) bool { return x == projectID })
+		if !on {
+			st.OffIn = append(st.OffIn, projectID)
+		}
+		if len(st.OffIn) == 0 {
+			st.OffIn = nil
+		}
+		d.Plugins[id] = st
+	})
+	if !on {
+		stopSessions(id, projectID)
+	}
 	return err
 }
 
@@ -137,7 +169,7 @@ func (s *PluginService) Uninstall(folder string) error {
 	dir := filepath.Join(Dir(), folder)
 	runMu.Lock()
 	defer runMu.Unlock()
-	defer stopSessions(folder)
+	defer stopSessions(folder, "")
 	fi, err := os.Lstat(dir)
 	switch {
 	case errors.Is(err, os.ErrNotExist):

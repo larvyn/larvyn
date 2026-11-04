@@ -6,8 +6,10 @@ import { errMsg } from '../lib/util'
 import { Empty } from './ui'
 import { PLUGINS_CHANGED, showSession, withConfirm } from './pluginRun'
 
-/** The views of the plugins that are on, kept fresh when plugins change. */
+/** The views of the plugins that are on in the open project, kept fresh
+ * when plugins or the project change. */
 export function usePluginViews() {
+  const projectId = useStore((s) => s.activeId)
   // null until the first load: a view must not say it is unavailable while
   // the list is still on its way.
   const [views, setViews] = useState<View[] | null>(null)
@@ -17,14 +19,17 @@ export function usePluginViews() {
     let seq = 0
     const load = () => {
       const mine = ++seq
-      PluginService.Views()
+      PluginService.Views(projectId ?? '')
         .then((v) => mine === seq && setViews(v ?? []))
         .catch(() => mine === seq && setViews([]))
     }
     load()
     window.addEventListener(PLUGINS_CHANGED, load)
-    return () => window.removeEventListener(PLUGINS_CHANGED, load)
-  }, [])
+    return () => {
+      seq++
+      window.removeEventListener(PLUGINS_CHANGED, load)
+    }
+  }, [projectId])
   return views
 }
 
