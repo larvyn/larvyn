@@ -1,12 +1,18 @@
-# Runs the Go tests on Linux, Windows and macOS and type-checks the frontend
-# on every push and pull request.
+# Runs the Go tests and type-checks the frontend. Pull requests test on Linux
+# only; pushes to master also test on Windows and macOS. The source repo is
+# private, so Actions minutes are billed, and macOS minutes cost about 10x
+# Linux ones (Windows about 2x): running the full matrix on every PR used up
+# the month's included usage in four days. Changes that touch only Markdown
+# skip the tests.
 
 name: test
 
 on:
   push:
     branches: [master]
+    paths-ignore: ['**.md']
   pull_request:
+    paths-ignore: ['**.md']
 
 concurrency:
   group: test-${{ github.ref }}
@@ -19,7 +25,7 @@ jobs:
       matrix:
         # macos-15-intel rather than macos-latest (arm64), which lacked runner
         # capacity for days; see release.yml.
-        os: [ubuntu-24.04, windows-latest, macos-15-intel]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-24.04"]') || fromJSON('["ubuntu-24.04", "windows-latest", "macos-15-intel"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
