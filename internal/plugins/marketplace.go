@@ -68,7 +68,10 @@ type index struct {
 
 func fetchIndex() (index, error) {
 	var ix index
-	req, _ := http.NewRequest("GET", IndexURL, nil)
+	req, err := http.NewRequest("GET", IndexURL, nil)
+	if err != nil {
+		return ix, err
+	}
 	req.Header.Set("User-Agent", "larvyn/"+updater.Version)
 	res, err := marketClient.Do(req)
 	if err != nil {
@@ -78,7 +81,15 @@ func fetchIndex() (index, error) {
 	if res.StatusCode != 200 {
 		return ix, fmt.Errorf("the marketplace answered %s", res.Status)
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&ix); err != nil {
+	const maxIndex = 8 << 20
+	body, err := io.ReadAll(io.LimitReader(res.Body, maxIndex+1))
+	if err == nil && len(body) > maxIndex {
+		err = fmt.Errorf("larger than %d MB", maxIndex>>20)
+	}
+	if err == nil {
+		err = json.Unmarshal(body, &ix)
+	}
+	if err != nil {
 		return ix, fmt.Errorf("the marketplace index is damaged: %w", err)
 	}
 	if ix.APIVersion != 1 {
@@ -255,7 +266,10 @@ func downloadListing(id, version string) (string, func(), error) {
 	if reasonIn(ix.Revoked, id, version) != "" {
 		return "", nil, fmt.Errorf("%s %s was revoked", id, version)
 	}
-	req, _ := http.NewRequest("GET", l.Download, nil)
+	req, err := http.NewRequest("GET", l.Download, nil)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s has a bad download link: %w", id, err)
+	}
 	req.Header.Set("User-Agent", "larvyn/"+updater.Version)
 	res, err := marketClient.Do(req)
 	if err != nil {

@@ -278,3 +278,51 @@ func TestRevocationWithoutReason(t *testing.T) {
 		t.Errorf("no match: %q", why)
 	}
 }
+
+// Offline, a reinstall of the version recorded as revoked stays refused;
+// another version installs.
+func TestReinstallOfRecordedRevocation(t *testing.T) {
+	reset(t)
+	applyRevoked(nil)
+	s := &PluginService{}
+	dir := filepath.Join(t.TempDir(), "acme.horizon")
+	writePlugin(t, dir, validManifest) // 1.0.0
+	if _, err := s.Install(dir, horizonPerms); err != nil {
+		t.Fatal(err)
+	}
+	store.Update(func(d *store.State) {
+		st := d.Plugins["acme.horizon"]
+		st.Enabled, st.Revoked = false, "bad"
+		d.Plugins["acme.horizon"] = st
+	})
+	if _, err := s.Install(dir, horizonPerms); err == nil {
+		t.Error("the same revoked version must not install again")
+	}
+	if p, _ := find("acme.horizon"); p.Enabled || p.Revoked != "bad" {
+		t.Errorf("the revocation must stay: %+v", p)
+	}
+	writePlugin(t, dir, edit(t, func(m map[string]any) { m["version"] = "1.0.1" }))
+	if p, err := s.Install(dir, horizonPerms); err != nil || !p.Enabled || p.Revoked != "" {
+		t.Errorf("a fixed version installs: %+v, %v", p, err)
+	}
+}
+
+func TestBadIndexAndDownloadLinks(t *testing.T) {
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0")
+	s := &PluginService{}
+	m.plugins[0].Download = "http://bad host/x.zip"
+	if _, err := s.InstallListing("acme.horizon", "1.0.0", horizonPerms); err == nil || !strings.Contains(err.Error(), "bad download link") {
+		t.Errorf("malformed download link: %v", err)
+	}
+	big := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"apiVersion":1,"plugins":[],"pad":"`))
+		w.Write([]byte(strings.Repeat("x", 8<<20)))
+		w.Write([]byte(`"}`))
+	}))
+	defer big.Close()
+	IndexURL = big.URL
+	if _, err := s.Marketplace(); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("an index over 8 MB: %v", err)
+	}
+}

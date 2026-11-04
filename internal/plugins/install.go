@@ -66,7 +66,13 @@ func install(dir string, granted []string, source string) (Plugin, error) {
 	if err != nil {
 		return Plugin{}, err
 	}
-	if why := revokedReason(m.ID, m.Version); why != "" {
+	// The newest list, or the reason recorded for the installed copy when
+	// this is the same version (offline, the list may not have arrived).
+	why := revokedReason(m.ID, m.Version)
+	if cur, err := find(m.ID); why == "" && err == nil && cur.Manifest.Version == m.Version {
+		why = cur.Revoked
+	}
+	if why != "" {
 		return Plugin{}, fmt.Errorf("not installed: %s %s was revoked: %s", m.Name, m.Version, why)
 	}
 	if missing := missingPermissions(m, granted); len(missing) > 0 {
