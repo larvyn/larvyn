@@ -103,6 +103,16 @@ func TestInvalidManifests(t *testing.T) {
 		{"require bad url", "http or https", func(m map[string]any) {
 			m["requires"] = []any{map[string]any{"program": "mailpit", "url": "file:///etc/passwd"}}
 		}},
+		{"env keys without permission", "go together", func(m map[string]any) { m["env"] = []string{"MAIL_HOST"} }},
+		{"env permission without keys", "go together", func(m map[string]any) { m["permissions"] = []string{"terminal.run", "project.env.keys"} }},
+		{"bad env key", "capital letters", func(m map[string]any) {
+			m["permissions"] = []string{"terminal.run", "project.env.keys"}
+			m["env"] = []string{"mail_host"}
+		}},
+		{"env key twice", "listed twice", func(m map[string]any) {
+			m["permissions"] = []string{"terminal.run", "project.env.keys"}
+			m["env"] = []string{"MAIL_HOST", "MAIL_HOST"}
+		}},
 		{"nothing contributed", "adds nothing", func(m map[string]any) { m["contributes"] = map[string]any{} }},
 		{"command without terminal.run", "terminal.run", func(m map[string]any) { m["permissions"] = []string{"project.read"} }},
 		{"duplicate command", "used twice", func(m map[string]any) {
@@ -187,6 +197,10 @@ func TestCompatible(t *testing.T) {
 		{">0.1.0", "v0.1.0", false},
 		{"<=0.1.0", "v0.1.0", true},
 		{">=9.0.0", "dev", true},
+		{">=0.1.0-beta.10", "v0.1.0-beta.9", false}, // a prerelease bound compares betas
+		{">=0.1.0-beta.10", "v0.1.0-beta.10", true},
+		{">=0.1.0-beta.10", "v0.1.0", true},
+		{">=0.1.0-beta.10", "v0.2.0-beta.1", true},
 	}
 	for _, c := range cases {
 		if err := checkRange(c.r); err != nil {

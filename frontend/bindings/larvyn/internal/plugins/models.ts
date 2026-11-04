@@ -51,6 +51,13 @@ export interface Manifest {
      * the network permission, and the permission needs it.
      */
     "network"?: string[] | null;
+
+    /**
+     * Env lists the .env keys the plugin may read and change, such as
+     * MAIL_MAILER. It needs the project.env.keys permission, and the
+     * permission needs it; no other key is ever shown or written.
+     */
+    "env"?: string[] | null;
     "contributes": Contributes;
 
     /**

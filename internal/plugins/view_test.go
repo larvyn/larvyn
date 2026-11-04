@@ -286,3 +286,86 @@ func TestHostAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvKeys(t *testing.T) {
+	s, proj := installView(t, edit(t, func(m map[string]any) {
+		m["permissions"] = []string{"terminal.run", "project.env.keys"}
+		m["env"] = []string{"MAIL_MAILER", "MAIL_PORT"}
+	}))
+	os.WriteFile(filepath.Join(proj.Path, ".env"), []byte("APP_KEY=base64:secret\nMAIL_MAILER=log\nDB_PASSWORD=secret\n"), 0o600)
+
+	r, err := s.Call("acme.horizon", proj.ID, "project.env.get", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := r.Result.(map[string]any)
+	if got["MAIL_MAILER"] != "log" || got["MAIL_PORT"] != nil || len(got) != 2 {
+		t.Errorf("get must return only the listed keys: %+v", got)
+	}
+
+	if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_MAILER": "smtp", "MAIL_PORT": float64(1025)}}); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := os.ReadFile(filepath.Join(proj.Path, ".env"))
+	if string(env) != "APP_KEY=base64:secret\nMAIL_MAILER=smtp\nDB_PASSWORD=secret\nMAIL_PORT=1025\n" {
+		t.Errorf(".env after set:\n%s", env)
+	}
+	backups, _ := filepath.Glob(filepath.Join(store.HomeDir(), "backups", proj.ID+"-.env-*-acme.horizon"))
+	if len(backups) != 1 {
+		t.Errorf("want one backup, got %v", backups)
+	}
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+
+	for name, values := range map[string]map[string]any{
+		"an unlisted key": {"APP_KEY": "x"},
+		"a second line":   {"MAIL_MAILER": "smtp\nAPP_KEY=x"},
+		"an object value": {"MAIL_MAILER": map[string]any{}},
+		"$ with a quote":  {"MAIL_MAILER": "${DB_PASSWORD}'"},
+	} {
+		if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": values}); err == nil {
+			t.Errorf("%s must be refused", name)
+		}
+	}
+	if env2, _ := os.ReadFile(filepath.Join(proj.Path, ".env")); string(env2) != string(env) {
+		t.Errorf("a refused set changed .env:\n%s", env2)
+	}
+}
+
+// A value that references another key is written so the app's dotenv loader
+// keeps it literal, and errors never carry the project's path.
+func TestEnvSetNoExpansionNoPaths(t *testing.T) {
+	s, proj := installView(t, edit(t, func(m map[string]any) {
+		m["permissions"] = []string{"terminal.run", "project.env.keys"}
+		m["env"] = []string{"MAIL_HOST"}
+	}))
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+	if _, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_HOST": "${DB_PASSWORD}.evil.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	if env, _ := os.ReadFile(filepath.Join(proj.Path, ".env")); !strings.Contains(string(env), "MAIL_HOST='${DB_PASSWORD}.evil.test'") {
+		t.Errorf("must be single-quoted:\n%s", env)
+	}
+	os.Remove(filepath.Join(proj.Path, ".env"))
+	_, err := s.Call("acme.horizon", proj.ID, "project.env.set", map[string]any{"values": map[string]any{"MAIL_HOST": "x"}})
+	if err == nil || strings.Contains(err.Error(), proj.Path) {
+		t.Errorf("error must not reveal the project path: %v", err)
+	}
+}
+
+func TestEnvBackupsNeverCollide(t *testing.T) {
+	defer os.RemoveAll(filepath.Join(store.HomeDir(), "backups"))
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := backupEnv("proj", "acme.x", []byte(fmt.Sprint(i))); err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if got, _ := filepath.Glob(filepath.Join(store.HomeDir(), "backups", "proj-.env-*-acme.x")); len(got) != 20 {
+		t.Errorf("want 20 separate backups, got %d", len(got))
+	}
+}

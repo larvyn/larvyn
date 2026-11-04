@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -297,6 +298,19 @@ func (s *PluginService) Call(pluginID, projectID, method string, params map[stri
 		}
 		return storageCall(pluginID, method, str("key"), params["value"])
 
+	case "project.env.get", "project.env.set":
+		if err := need("project.env.keys"); err != nil {
+			return ViewResult{}, err
+		}
+		proj, ok := store.FindProject(projectID)
+		if !ok {
+			return ViewResult{}, errors.New("no project is open")
+		}
+		if method == "project.env.get" {
+			return envGet(p, proj)
+		}
+		return envSet(p, proj, params["values"])
+
 	case "network.fetch":
 		if err := need("network"); err != nil {
 			return ViewResult{}, err
@@ -304,6 +318,107 @@ func (s *PluginService) Call(pluginID, projectID, method string, params map[stri
 		return fetch(p, str("url"))
 	}
 	return ViewResult{}, fmt.Errorf("unknown method %q", method)
+}
+
+func envAllowed(p Plugin, key string) bool {
+	for _, k := range p.Manifest.Env {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+// envGet returns the listed keys only; a missing key comes back as null.
+func envGet(p Plugin, proj store.Project) (ViewResult, error) {
+	env := dotenv.Read(filepath.Join(proj.Path, ".env"))
+	out := map[string]any{}
+	for _, k := range p.Manifest.Env {
+		if v, ok := env[k]; ok {
+			out[k] = v
+		} else {
+			out[k] = nil
+		}
+	}
+	return ViewResult{Result: out}, nil
+}
+
+// envSet writes listed keys into the project's .env, after a backup in
+// Larvyn's backups folder. Values are single lines.
+func envSet(p Plugin, proj store.Project, raw any) (ViewResult, error) {
+	in, ok := raw.(map[string]any)
+	if !ok || len(in) == 0 {
+		return ViewResult{}, errors.New(`project.env.set needs {values: {KEY: "value"}}`)
+	}
+	values := map[string]string{}
+	for k, v := range in {
+		if !envAllowed(p, k) {
+			return ViewResult{}, fmt.Errorf("plugin %s may not change %s", p.Manifest.ID, k)
+		}
+		var s string
+		switch x := v.(type) {
+		case string:
+			s = x
+		case float64:
+			s = strconv.FormatFloat(x, 'f', -1, 64)
+		case bool:
+			s = strconv.FormatBool(x)
+		default:
+			return ViewResult{}, fmt.Errorf("%s must be a string, number or boolean", k)
+		}
+		if strings.ContainsAny(s, "\n\r") || len(s) > 1000 {
+			return ViewResult{}, fmt.Errorf("%s must be one line of at most 1000 characters", k)
+		}
+		// dotenv.Quote keeps a $ literal with single quotes, which can't
+		// hold a ' too: refused rather than written where ${...} expands.
+		if strings.Contains(s, "$") && strings.Contains(s, "'") {
+			return ViewResult{}, fmt.Errorf("%s may not contain both $ and '", k)
+		}
+		values[k] = s
+	}
+	path := filepath.Join(proj.Path, ".env")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		// Fixed messages: the OS error carries the project's path, which a
+		// plugin with only env access shouldn't learn.
+		return ViewResult{}, errors.New("the project has no .env")
+	}
+	if err := backupEnv(proj.ID, p.Manifest.ID, before); err != nil {
+		return ViewResult{}, errors.New("could not back up .env, so it was not changed")
+	}
+	if _, err := dotenv.Set(path, values); err != nil {
+		return ViewResult{}, errors.New("could not update .env")
+	}
+	return ViewResult{Result: true}, nil
+}
+
+// backupEnv keeps a copy of .env before a plugin changes it, next to the
+// copies Larvyn makes before its own changes.
+func backupEnv(projectID, pluginID string, raw []byte) error {
+	dir := filepath.Join(store.HomeDir(), "backups")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	// Created exclusively: two changes in the same nanosecond get two
+	// backups instead of the second truncating the first.
+	for stamp := time.Now().UnixNano(); ; stamp++ {
+		f, err := os.OpenFile(filepath.Join(dir, fmt.Sprintf("%s-.env-%d-%s", projectID, stamp, pluginID)), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(raw); err != nil {
+			f.Close()
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			f.Close()
+			return err
+		}
+		return f.Close()
+	}
 }
 
 // storageFile keeps a plugin's data outside its folder, so updates keep it.

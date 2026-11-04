@@ -40,6 +40,7 @@ Every plugin has a `larvyn.json`:
 | `larvyn` | yes | The Larvyn versions the plugin works with, such as `>=0.1.0` or `>=0.1.0 <0.3.0`. |
 | `permissions` | yes | What the plugin may do. Users see this list before they install the plugin. |
 | `network` | with `network` | The hosts its views may connect to, such as `api.example.com` or `localhost:8025`. |
+| `env` | with `project.env.keys` | The `.env` keys its views may read and change, such as `MAIL_MAILER`. The view never sees any other key. |
 | `contributes` | yes | The `commands`, `stack` items and `views` it adds. |
 | `requires` | no | The programs it needs on PATH: `program`, an `install` command for `mac`, `linux` and `windows`, and a `url` with install instructions. If a program is missing, Larvyn says so when the plugin is installed and in its row. It offers to run the install command in a visible terminal, after the user confirms the exact command. |
 | `description`, `author`, `homepage` | no | Shown in the plugin list. `homepage` must be an http(s) link. |
@@ -58,6 +59,7 @@ The permissions marked sensitive are shown in red when a user installs the plugi
 | `ui.notify` | | Showing notifications |
 | `storage` | | Keeping the plugin's own settings and data |
 | `network` | yes | Fetching from the hosts listed in `network`, through `network.fetch`. Larvyn makes the request, and refuses any other host. |
+| `project.env.keys` | yes | Reading and changing only the `.env` keys listed in `env`. Larvyn backs `.env` up before each change. |
 
 ## Views and `window.larvyn`
 
@@ -81,4 +83,6 @@ Larvyn checks each call against the plugin's granted permissions, in Go, before 
 | `ui.notify` | `ui.notify` | `{ message }` | shows a notification with the plugin's name |
 | `storage.get` | `storage` | `{ key }` | the stored value, or `null` |
 | `storage.set` | `storage` | `{ key, value }` | stores a JSON value; `null` deletes it. The limit is 1 MB per plugin. |
+| `project.env.get` | `project.env.keys` | — | the keys listed in `env`, each as its value or `null` |
+| `project.env.set` | `project.env.keys` | `{ values: { KEY: "value" } }` | writes listed keys only, one line each, after backing `.env` up |
 | `network.fetch` | `network` | `{ url }` | a GET request made by Larvyn, only to the hosts in `network` (redirects included). Returns `{ status, contentType, body }`. The limit is 2 MB. |
