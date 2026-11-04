@@ -4,7 +4,7 @@ import { PluginService, type PluginView as View } from '../../bindings/larvyn/in
 import { setView, toast, useStore } from '../lib/store'
 import { errMsg } from '../lib/util'
 import { Empty } from './ui'
-import { PLUGINS_CHANGED } from './pluginRun'
+import { PLUGINS_CHANGED, showSession, withConfirm } from './pluginRun'
 
 /** The views of the plugins that are on, kept fresh when plugins change. */
 export function usePluginViews() {
@@ -50,8 +50,11 @@ export function PluginView({ view }: { view: string }) {
       if (!m || m.larvyn !== 1 || typeof m.id !== 'number' || typeof m.method !== 'string') return
       const params = m.params && typeof m.params === 'object' && !Array.isArray(m.params) ? m.params : {}
       try {
-        const r = await PluginService.Call(v.pluginId, projectId ?? '', m.method, params)
+        // Running a command line for the first time asks the user first.
+        const r = await withConfirm(() => PluginService.Call(v.pluginId, projectId ?? '', m.method, params))
+        if (!r) throw new Error('the user did not allow this command')
         if (r.notify) toast('info', v.pluginName, r.notify)
+        if (r.session) showSession(r.session)
         win.postMessage({ larvyn: 1, id: m.id, result: r.result ?? null }, '*')
       } catch (err) {
         win.postMessage({ larvyn: 1, id: m.id, error: errMsg(err) }, '*')

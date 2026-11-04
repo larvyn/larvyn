@@ -34,6 +34,16 @@ export function Commands(): $CancellablePromise<$models.PluginCommand[] | null> 
 }
 
 /**
+ * ConfirmRun records that the user confirmed a command line a plugin wants
+ * to run for the first time: one of its commands, an Artisan line, or a
+ * stack item (kind as in ConfirmError). line must be what the plugin would
+ * run now.
+ */
+export function ConfirmRun(pluginID: string, kind: string, key: string, line: string): $CancellablePromise<void> {
+    return $Call.ByID(3324832967, pluginID, kind, key, line);
+}
+
+/**
  * ConfirmStackItem records that the user confirmed a plugin stack item's
  * command line before its first start.
  */

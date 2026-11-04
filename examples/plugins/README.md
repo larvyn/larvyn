@@ -88,6 +88,11 @@ Larvyn checks each call against the plugin's granted permissions, in Go, before 
 | `project.env.get` | `project.env.keys` | — | the keys listed in `env`, each as its value or `null` |
 | `project.env.set` | `project.env.keys` | `{ values: { KEY: "value" } }` | writes listed keys only, one line each, after backing `.env` up |
 | `network.fetch` | `network` | `{ url }` | a GET request made by Larvyn, only to the hosts in `network` (redirects included). Returns `{ status, contentType, body }`. The limit is 2 MB. |
+| `terminal.run` | `terminal.run` | `{ id }` | runs one of the plugin's `commands` by its `id`, in a terminal in the project folder. Returns `{ sessionId }`. A view can't run a command line that isn't in `larvyn.json`. |
+| `artisan.run` | `artisan.run` | `{ args: ["horizon:pause", ...] }` | runs `php artisan` with these arguments, in a terminal. The first one must be a command name. Returns `{ sessionId }`. |
+| `stack.start` / `stack.restart` / `stack.stop` | `stack.control` | `{ key }` | starts, restarts or stops a service in the project's stack (`queue`, `vite`, ...), or one of the plugin's own stack items (`plugin:<id>:<key>`). Another plugin's items are refused. |
+
+The first time a view runs a command line (a command, each distinct Artisan line, or a stack item), Larvyn asks the user to confirm it, the same way ⌘K does. If the user says no, the call fails.
 
 ## Looking like Larvyn
 

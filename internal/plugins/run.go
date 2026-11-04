@@ -190,9 +190,12 @@ func GuardStackStart(pluginID, key string, start func() (terminal.SessionInfo, e
 type ConfirmError struct {
 	PluginID   string `json:"pluginId"`
 	PluginName string `json:"pluginName"`
-	Key        string `json:"key"`
-	Title      string `json:"title"`
-	Line       string `json:"line"`
+	// Kind is what to confirm: "stack" (the default), "command" or
+	// "artisan"; ConfirmRun takes it back.
+	Kind  string `json:"kind,omitempty"`
+	Key   string `json:"key"`
+	Title string `json:"title"`
+	Line  string `json:"line"`
 }
 
 func (e ConfirmError) Error() string {
@@ -216,6 +219,39 @@ func (s *PluginService) ConfirmStackItem(pluginID, key, confirmed string) error 
 		}
 	}
 	return fmt.Errorf("plugin %s has no stack item %s", pluginID, key)
+}
+
+// ConfirmRun records that the user confirmed a command line a plugin wants
+// to run for the first time: one of its commands, an Artisan line, or a
+// stack item (kind as in ConfirmError). line must be what the plugin would
+// run now.
+func (s *PluginService) ConfirmRun(pluginID, kind, key, line string) error {
+	p, err := find(pluginID)
+	if err != nil {
+		return err
+	}
+	switch kind {
+	case "", "stack":
+		return s.ConfirmStackItem(pluginID, key, line)
+	case "command":
+		if err := allow(p, "terminal.run"); err != nil {
+			return err
+		}
+		for _, c := range p.Manifest.Contributes.Commands {
+			if c.ID == key {
+				return confirm(pluginID, "command:"+key, c.Run, line)
+			}
+		}
+		return fmt.Errorf("plugin %s has no command %s", pluginID, key)
+	case "artisan":
+		if err := allow(p, "artisan.run"); err != nil {
+			return err
+		}
+		// The key is the line itself: each distinct Artisan line is asked
+		// about once.
+		return confirm(pluginID, "artisan:"+key, key, line)
+	}
+	return fmt.Errorf("unknown kind %q", kind)
 }
 
 // commandLine shows argv as a shell line, quoting what needs it.
