@@ -112,3 +112,5 @@ leaves the target unset and ld warns "object file was built for newer
 'macOS' version". If WebKit logs "could not create directory
 ~/Library/WebKit/larvyn/...", that folder is not owned by you and the app
 cannot keep its settings: `sudo chown -R $(id -un):staff ~/Library/WebKit`.
+
+`scripts/ci-local.sh` runs the CI checks of `.github/workflows/test.yml` on your machine: the Linux jobs in Docker with [act](https://nektosact.com), and the Go job natively on a Mac. Use it before pushing, or when GitHub Actions can't run. Pass `linux` or `mac` to run only one side.
