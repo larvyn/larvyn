@@ -190,8 +190,8 @@ func applyRevoked(list []Revocation) {
 			if !ok || p.Folder != p.Manifest.ID || st.Revoked == why {
 				continue
 			}
-			if why != "" {
-				st.Enabled = false
+			if why != "" && st.Enabled {
+				st.Enabled, st.OffByRevocation = false, true
 				stop = append(stop, p.Manifest.ID)
 			}
 			st.Revoked = why

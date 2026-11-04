@@ -91,11 +91,11 @@ func install(dir string, granted []string, source string) (Plugin, error) {
 			d.Plugins = map[string]store.PluginState{}
 		}
 		// An update keeps a plugin the user turned off everywhere off; a new
-		// install turns it on, and so does a fixed version of one a
-		// revocation turned off.
+		// install turns it on, and so does a fixed version of one that only
+		// a revocation turned off.
 		old, updating := d.Plugins[m.ID]
 		d.Plugins[m.ID] = store.PluginState{
-			Enabled: !updating || old.Enabled || old.Revoked != "", Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
+			Enabled: !updating || old.Enabled || old.OffByRevocation, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
 			Confirmed: old.Confirmed, OffIn: old.OffIn, Source: source,
 		}
 	})
@@ -127,7 +127,7 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 			d.Plugins = map[string]store.PluginState{}
 		}
 		st := d.Plugins[id]
-		st.Enabled, st.Granted = true, append([]string(nil), p.Manifest.Permissions...)
+		st.Enabled, st.OffByRevocation, st.Granted = true, false, append([]string(nil), p.Manifest.Permissions...)
 		if st.InstalledAt == 0 {
 			st.InstalledAt = time.Now().Unix()
 		}
@@ -145,7 +145,7 @@ func (s *PluginService) Disable(id string) error {
 	defer runMu.Unlock()
 	err := store.Update(func(d *store.State) {
 		if st, ok := d.Plugins[id]; ok {
-			st.Enabled = false
+			st.Enabled, st.OffByRevocation = false, false // the user's choice now
 			d.Plugins[id] = st
 		}
 	})

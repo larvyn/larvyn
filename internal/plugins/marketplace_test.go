@@ -292,7 +292,7 @@ func TestReinstallOfRecordedRevocation(t *testing.T) {
 	}
 	store.Update(func(d *store.State) {
 		st := d.Plugins["acme.horizon"]
-		st.Enabled, st.Revoked = false, "bad"
+		st.Enabled, st.Revoked, st.OffByRevocation = false, "bad", true // as applyRevoked records it
 		d.Plugins["acme.horizon"] = st
 	})
 	if _, err := s.Install(dir, horizonPerms); err == nil {
@@ -343,5 +343,29 @@ func TestUpdateKeepsPluginOff(t *testing.T) {
 	m.publish(t, srv, "1.2.0")
 	if p, _ := s.InstallListing("acme.horizon", "1.2.0", horizonPerms); !p.Enabled {
 		t.Error("an update keeps it on")
+	}
+}
+
+// A plugin the user turned off stays off through a revocation and a fixed
+// version; one only the revocation turned off comes back on.
+func TestFixedVersionAfterRevocation(t *testing.T) {
+	for _, userOff := range []bool{false, true} {
+		m, srv := newMarket(t)
+		m.publish(t, srv, "1.0.0")
+		s := &PluginService{}
+		if _, err := s.InstallListing("acme.horizon", "1.0.0", horizonPerms); err != nil {
+			t.Fatal(err)
+		}
+		if userOff {
+			s.Disable("acme.horizon")
+		}
+		m.revoked = []Revocation{{ID: "acme.horizon", Versions: []string{"1.0.0"}, Reason: "bad"}}
+		CheckRevoked()
+		m.publish(t, srv, "1.0.1")
+		p, err := s.InstallListing("acme.horizon", "1.0.1", horizonPerms)
+		if err != nil || p.Enabled == userOff {
+			t.Errorf("turned off by the user: %v; after the fixed version: enabled %v, %v", userOff, p.Enabled, err)
+		}
+		applyRevoked(nil)
 	}
 }
