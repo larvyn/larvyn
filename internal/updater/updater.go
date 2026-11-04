@@ -323,10 +323,11 @@ func Cleanup() {
 }
 
 // CompareVersions compares two tags like v0.1.0-beta.10 by semver rules:
-// a prerelease sorts before its release, numeric parts compare as numbers.
+// a prerelease sorts before its release, numeric parts compare as numbers,
+// and build metadata (+...) is ignored.
 func CompareVersions(a, b string) int {
-	ma, pa, _ := strings.Cut(strings.TrimPrefix(a, "v"), "-")
-	mb, pb, _ := strings.Cut(strings.TrimPrefix(b, "v"), "-")
+	ma, pa := splitVersion(a)
+	mb, pb := splitVersion(b)
 	if c := compareDotted(ma, mb, true); c != 0 {
 		return c
 	}
@@ -339,6 +340,13 @@ func CompareVersions(a, b string) int {
 		return -1
 	}
 	return compareDotted(pa, pb, false)
+}
+
+// splitVersion returns the main version and the prerelease of a tag.
+func splitVersion(v string) (main, pre string) {
+	v, _, _ = strings.Cut(strings.TrimPrefix(v, "v"), "+")
+	main, pre, _ = strings.Cut(v, "-")
+	return main, pre
 }
 
 func compareDotted(a, b string, pad bool) int {
