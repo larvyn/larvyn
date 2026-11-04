@@ -1,6 +1,6 @@
 # Example plugins
 
-Plugins you can install to see what Larvyn plugins do, and copy to start your own. See [#56](https://github.com/larvyn/larvyn/issues/56) for the plugin design and its security model.
+Plugins you can install to see what Larvyn plugins do, and copy to start your own. They are published, with `plugin-starter`, at [larvyn/plugin-examples](https://github.com/larvyn/plugin-examples): copy changes there too. See [#56](https://github.com/larvyn/larvyn/issues/56) for the plugin design and its security model.
 
 | Plugin | Kind | What it shows |
 |---|---|---|
