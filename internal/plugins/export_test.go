@@ -2,11 +2,14 @@ package plugins
 
 import (
 	"archive/zip"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func TestExportTo(t *testing.T) {
@@ -112,5 +115,24 @@ func TestExportRefuses(t *testing.T) {
 	}
 	if _, err := os.Stat(dest); err == nil {
 		t.Error("a failed export must not leave a zip")
+	}
+}
+
+// copyExact must store a file only if it still has the size it was
+// measured with: neither cut short nor grown since.
+func TestCopyExact(t *testing.T) {
+	var out strings.Builder
+	if err := copyExact(&out, strings.NewReader("12345"), 5); err != nil || out.String() != "12345" {
+		t.Errorf("same size: %q %v", out.String(), err)
+	}
+	if err := copyExact(io.Discard, strings.NewReader("123"), 5); err == nil {
+		t.Error("a file that shrank must fail")
+	}
+	if err := copyExact(io.Discard, strings.NewReader("1234567"), 5); err == nil || !strings.Contains(err.Error(), "grew") {
+		t.Errorf("a file that grew must fail: %v", err)
+	}
+	boom := errors.New("disk error")
+	if err := copyExact(io.Discard, io.MultiReader(strings.NewReader("12345"), iotest.ErrReader(boom)), 5); !errors.Is(err, boom) {
+		t.Errorf("a read error after the copy must be passed on: %v", err)
 	}
 }

@@ -92,6 +92,25 @@ func ExportTo(p Plugin, dest string) error {
 	return os.Rename(tmp.Name(), dest)
 }
 
+// copyExact copies exactly size bytes and fails if the file changed size
+// since it was measured: shorter (CopyN reports it) or longer (a byte is
+// left after size), so the zip never stores a cut-off or a partly grown
+// file. A read error after the copy is passed on.
+func copyExact(out io.Writer, in io.Reader, size int64) error {
+	if _, err := io.CopyN(out, in, size); err != nil {
+		return fmt.Errorf("the file changed while it was exported: %w", err)
+	}
+	var extra [1]byte
+	switch n, err := in.Read(extra[:]); {
+	case n > 0:
+		return errors.New("the file grew while it was exported")
+	case err == nil || errors.Is(err, io.EOF):
+		return nil
+	default:
+		return err
+	}
+}
+
 func writeZip(w io.Writer, root, top string, skip map[string]bool) error {
 	zw := zip.NewWriter(w)
 	files, size := 0, int64(0)
@@ -138,10 +157,7 @@ func writeZip(w io.Writer, root, top string, skip map[string]bool) error {
 			return err
 		}
 		defer in.Close()
-		// CopyN fails if the file shrank since it was measured, rather than
-		// storing it cut short.
-		_, err = io.CopyN(out, in, info.Size())
-		return err
+		return copyExact(out, in, info.Size())
 	})
 	if err != nil {
 		zw.Close()
