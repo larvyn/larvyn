@@ -1,42 +1,75 @@
-# Runs the Go tests on Linux, Windows and macOS and type-checks the frontend
-# on every push and pull request.
+# Runs the Go tests and type-checks the frontend.
+#
+# The source repo is private, so Actions minutes are billed, and every job is
+# rounded up to a whole minute. macOS minutes cost about 10x Linux ones and
+# Windows about 2x. Running the full matrix on every PR and every push used up
+# November 2026's included usage in four days. So:
+#
+#   pull request   Linux only (Markdown-only changes skip it)
+#   push to master nothing: the PR already tested the same code
+#   nightly        Linux, Windows and macOS, if master has a commit that has
+#                  not passed a nightly run yet
+#   release        Linux, Windows and macOS before building (release.yml)
+#   manual         Linux, Windows and macOS (Actions tab, "Run workflow")
 
 name: test
 
 on:
-  push:
-    branches: [master]
   pull_request:
+    paths-ignore: ['**.md']
+  schedule:
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  go:
-    strategy:
-      fail-fast: false
-      matrix:
-        # macos-15-intel rather than macos-latest (arm64), which lacked runner
-        # capacity for days; see release.yml.
-        os: [ubuntu-24.04, windows-latest, macos-15-intel]
-    runs-on: ${{ matrix.os }}
+  # Nightly only: skip the run when master's head already passed a nightly.
+  changed:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    outputs:
+      untested: ${{ steps.check.outputs.untested }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?event=schedule&status=success&head_sha=$GITHUB_SHA" --jq .total_count)
+          echo "nightly runs that passed on $GITHUB_SHA: $passed"
+          echo "untested=$([ "$passed" = 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  # Go and the frontend in one job: a separate 20-second frontend job is
+  # still billed a full minute.
+  linux:
+    needs: changed
+    if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.changed.outputs.untested == 'true') }}
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: System libraries
-        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
       # main.go embeds frontend/dist, which is not committed; the tests do not
       # need the real build, only something for the embed to match.
       - name: Placeholder frontend build
-        shell: bash
         run: mkdir -p frontend/dist && echo '<!doctype html>' > frontend/dist/index.html
       # build/ holds the Wails platform templates, copied as generated.
       - name: Format
-        if: runner.os == 'Linux'
         run: |
           unformatted=$(gofmt -l $(git ls-files '*.go' ':!build/'))
           if [ -n "$unformatted" ]; then
@@ -46,19 +79,64 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -race ./...
-
-  frontend:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install
+      - name: Frontend install
         working-directory: frontend
         run: npm ci
-      - name: Type-check
+      - name: Frontend type-check
         working-directory: frontend
         run: npx tsc --noEmit
+
+  go:
+    needs: changed
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.event_name != 'schedule' || needs.changed.outputs.untested == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-15-intel rather than macos-latest (arm64), which lacked runner
+        # capacity for days; see release.yml.
+        os: [windows-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        if: runner.os != 'macOS'
+        with:
+          go-version-file: go.mod
+      # macOS minutes cost 10x, and setup-go spent ~45s of a ~1m40s job
+      # there: 11s downloading Go, 21s copying it into the tool cache, 14s
+      # restoring a 200 MB -race build cache. A plain download, a cache without
+      # -race, and saving it only from master (tag and PR caches can't be
+      # reused by later runs) aim to keep the job under one billed minute.
+      - name: Go (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          v=$(awk '/^go /{print $2}' go.mod)
+          arch=$([ "$(uname -m)" = arm64 ] && echo arm64 || echo amd64)
+          curl -fsSL "https://go.dev/dl/go$v.darwin-$arch.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
+      - id: go-cache
+        if: runner.os == 'macOS'
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: go-macos-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: go-macos-${{ runner.arch }}-
+      - name: Placeholder frontend build
+        shell: bash
+        run: mkdir -p frontend/dist && echo '<!doctype html>' > frontend/dist/index.html
+      - name: Vet
+        run: go vet ./...
+      # -race runs on Linux and Windows; on macOS it would double the build
+      # cache and the compile time for the same checks.
+      - name: Test
+        shell: bash
+        run: go test $([ "$RUNNER_OS" = macOS ] || echo -race) ./...
+      - if: runner.os == 'macOS' && github.ref == 'refs/heads/master' && steps.go-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}

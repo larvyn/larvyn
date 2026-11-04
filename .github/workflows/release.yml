@@ -13,12 +13,19 @@ on:
 
 permissions:
   contents: write
+  actions: read # test.yml checks past runs
 
 env:
   WAILS_VERSION: v3.0.0
 
 jobs:
+  # Pushes to master are not tested on Windows and macOS (see test.yml), so a
+  # release tests all three before building.
+  test:
+    uses: ./.github/workflows/test.yml
+
   linux-windows:
+    needs: test
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -55,15 +62,27 @@ jobs:
             larvyn-windows-amd64.exe
 
   macos:
+    needs: test
     # Intel, not macos-latest (arm64): GitHub's arm64 macOS runners went whole
     # days without capacity, cancelling the job unstarted. The app is built
     # universal (amd64 + arm64) either way: Go cross-compiles the arm64 half.
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
+      # Restore the Go cache the nightly macOS test saved on master, but don't
+      # save one: a cache saved on a tag is only readable by that tag, so
+      # setup-go's save (~1 min of macOS time) was never reused.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          cache: false
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: go-macos-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: go-macos-${{ runner.arch }}-
       - uses: actions/setup-node@v7
         with:
           node-version: 22
