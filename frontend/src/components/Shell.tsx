@@ -65,14 +65,12 @@ export function TitleBar() {
   const view = useStore((s) => s.view)
   return (
     <div className={cx('titlebar', platform === 'darwin' && 'mac')} onDoubleClick={() => Window.ToggleMaximise()}>
-      {platform !== 'darwin' && (
-        <div className="brand">
-          <div className="brand-mark">
-            <Logo />
-          </div>
-          Larvyn
+      <div className="brand">
+        <div className="brand-mark">
+          <Logo />
         </div>
-      )}
+        Larvyn
+      </div>
       {project && (
         <div className="crumbs">
           <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
