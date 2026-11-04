@@ -58,6 +58,7 @@
   .env .bad { color: var(--lv-yellow); }
   .settings .note { margin-top: 10px; font-size: 11.5px; color: var(--lv-text-3); max-width: 560px; }
   .settings .done { color: var(--lv-green); }
+  .settings .err { color: #ff8a84; margin: 0; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -269,6 +270,7 @@ async function load(manual) {
 // allows the three keys listed under "env" in larvyn.json.
 const WANT = { MAIL_MAILER: "smtp", MAIL_HOST: "127.0.0.1", MAIL_PORT: "1025" };
 let appEnv = null; // null: not known (outside Larvyn, or no project open)
+let envError = ""; // why reading the settings failed, when it did
 let settingsOpen = false;
 let fixed = false;
 
@@ -282,8 +284,10 @@ async function loadEnv() {
   if (!window.larvyn) return;
   try {
     appEnv = await window.larvyn.call("project.env.get");
-  } catch {
+    envError = "";
+  } catch (e) {
     appEnv = null;
+    envError = e.message === "no project is open" ? "" : e.message;
   }
   renderEnv();
 }
@@ -294,7 +298,8 @@ async function pointAtMailpit(btn) {
     await window.larvyn.call("project.env.set", { values: WANT });
     fixed = true;
     await loadEnv();
-    window.larvyn.call("ui.notify", { message: "Your app now sends mail to Mailpit" }).catch(() => {});
+    // .env changed; the app only follows once its config is reloaded.
+    window.larvyn.call("ui.notify", { message: ".env now points at Mailpit. Restart the Queue worker (and run config:clear if the config is cached) for it to take effect." }).catch(() => {});
   } catch (e) {
     btn.disabled = false;
     alertLine(e.message);
@@ -342,7 +347,8 @@ function renderEnv() {
   sec.replaceChildren();
   sec.append(el("h3", null, "App mail settings"), el("p", null, "Where the open project sends its mail, from its .env."));
   if (!appEnv) {
-    sec.append(el("p", "muted", window.larvyn ? "Open a project to see its mail settings." : "Open this view in Larvyn to see the app's mail settings."));
+    if (envError) sec.append(el("p", "err", "Could not read the app's mail settings: " + envError));
+    else sec.append(el("p", "lv-muted", window.larvyn ? "Open a project to see its mail settings." : "Open this view in Larvyn to see the app's mail settings."));
     return;
   }
   const grid = el("div", "env");
@@ -353,7 +359,7 @@ function renderEnv() {
   }
   sec.append(grid);
   if (pointedAtMailpit()) {
-    sec.append(el("div", "done", fixed ? "Done: your app now sends mail to Mailpit." : "Your app already sends mail to Mailpit."));
+    sec.append(el("div", "done", fixed ? ".env now points at Mailpit. Tinker uses it right away; restart the Queue worker, and run php artisan config:clear if the config is cached." : ".env already points at Mailpit."));
   } else {
     sec.append(fixButton("Point app at Mailpit"));
   }

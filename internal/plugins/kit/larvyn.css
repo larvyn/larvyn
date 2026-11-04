@@ -20,9 +20,14 @@
   --lv-line-3: rgba(255, 255, 255, 0.16);
   --lv-text: #ededf0;
   --lv-text-2: #a3a3ad;
-  --lv-text-3: #6e6e78;
-  --lv-text-4: #4a4a52;
+  --lv-text-3: #8b8b95;
+  --lv-text-4: #71717b;
   --lv-accent: #ff2d20;
+  /* Set by Larvyn from the accent: text on it, and the accent as readable
+     text or focus ring on the dark background. */
+  --lv-on-accent: #ffffff;
+  --lv-accent-text: #ff4a3e;
+  --lv-focus: var(--lv-accent-text);
   --lv-accent-soft: color-mix(in srgb, var(--lv-accent) 12%, transparent);
   --lv-accent-line: color-mix(in srgb, var(--lv-accent) 35%, transparent);
   --lv-green: #3ddc84;
@@ -88,7 +93,7 @@ h1, h2, h3 { letter-spacing: -0.01em; }
 .lv-btn.sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 7px; gap: 6px; }
 .lv-btn.sm svg { width: 13px; height: 13px; }
 .lv-btn.primary {
-  background: var(--lv-accent); border-color: var(--lv-accent-line); color: #fff;
+  background: var(--lv-accent); border-color: var(--lv-accent-line); color: var(--lv-on-accent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 18px -8px var(--lv-accent);
 }
 .lv-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--lv-accent) 88%, white); }
@@ -105,7 +110,12 @@ h1, h2, h3 { letter-spacing: -0.01em; }
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 .lv-input::placeholder, .lv-textarea::placeholder { color: var(--lv-text-4); }
-.lv-input:focus, .lv-select:focus, .lv-textarea:focus { border-color: var(--lv-accent-line); box-shadow: 0 0 0 3px var(--lv-accent-soft); }
+.lv-input:focus, .lv-select:focus, .lv-textarea:focus { border-color: var(--lv-focus); box-shadow: 0 0 0 3px var(--lv-accent-soft); }
+/* Keyboard focus stays visible whatever the accent: --lv-focus is always
+   readable on the dark background. */
+.lv-input:focus-visible, .lv-select:focus-visible, .lv-textarea:focus-visible, .lv-btn:focus-visible, .lv-item:focus-visible {
+  outline: 2px solid var(--lv-focus); outline-offset: 1px;
+}
 .lv-textarea { height: auto; padding: 10px 12px; resize: vertical; line-height: 1.55; }
 
 /* Badges and status */
@@ -115,7 +125,7 @@ h1, h2, h3 { letter-spacing: -0.01em; }
   border: 1px solid var(--lv-line); white-space: nowrap;
 }
 .lv-badge.mono { font-family: var(--lv-mono); font-size: 10.5px; }
-.lv-badge.accent { background: var(--lv-accent-soft); color: color-mix(in srgb, var(--lv-accent) 70%, white); border-color: var(--lv-accent-line); }
+.lv-badge.accent { background: var(--lv-accent-soft); color: var(--lv-accent-text); border-color: var(--lv-accent-line); }
 .lv-badge.green { background: var(--lv-green-soft); color: var(--lv-green); border-color: rgba(61, 220, 132, 0.2); }
 .lv-badge.yellow { background: var(--lv-yellow-soft); color: var(--lv-yellow); border-color: rgba(245, 197, 66, 0.2); }
 .lv-badge.blue { background: var(--lv-blue-soft); color: var(--lv-blue); border-color: rgba(76, 141, 255, 0.22); }
