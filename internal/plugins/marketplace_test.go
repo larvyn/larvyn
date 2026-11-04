@@ -228,3 +228,40 @@ func TestPluginIcon(t *testing.T) {
 		}
 	}
 }
+
+// A version revoked while Larvyn runs can't be turned on or installed from
+// a folder before the next check marks it.
+func TestRevokedRefusedFromEverySource(t *testing.T) {
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0")
+	s := &PluginService{}
+	t.Cleanup(func() { applyRevoked(nil) })
+	dir := filepath.Join(t.TempDir(), "acme.horizon")
+	writePlugin(t, dir, validManifest) // 1.0.0
+
+	m.revoked = []Revocation{{ID: "acme.horizon", Versions: []string{"1.0.0"}, Reason: "bad"}}
+	CheckRevoked() // nothing installed yet: only the list is kept
+	if _, err := s.Install(dir, horizonPerms); err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Errorf("install a revoked version from a folder: %v", err)
+	}
+
+	applyRevoked(nil)
+	if _, err := s.Install(dir, horizonPerms); err != nil {
+		t.Fatal(err)
+	}
+	s.Disable("acme.horizon")
+	revokedMu.Lock()
+	revoked = []Revocation{{ID: "acme.horizon", Reason: "bad"}} // a list that hasn't been applied yet
+	revokedMu.Unlock()
+	if _, err := s.Enable("acme.horizon", horizonPerms); err == nil {
+		t.Error("Enable must check the newest list, not only the recorded reason")
+	}
+
+	// Offline, with no list: nothing is refused.
+	applyRevoked(nil)
+	IndexURL = "http://127.0.0.1:1/plugins.json"
+	CheckRevoked()
+	if _, err := s.Enable("acme.horizon", horizonPerms); err != nil {
+		t.Errorf("offline without a list: %v", err)
+	}
+}
