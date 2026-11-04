@@ -109,12 +109,12 @@ export function PluginsCard() {
     PluginService.Folder().then(setFolder)
   }, [])
 
-  const install = async () => {
-    const dir = await ProjectService.PickFolder('Choose a plugin folder').catch(() => '')
-    if (!dir) return
+  /** Checks a plugin, asks for its permissions, then installs it. The same
+   * steps for a folder and a .zip (which Larvyn unpacks safely first). */
+  const installFrom = async (src: string, inspect: (s: string) => Promise<Plugin>, installIt: (s: string, granted: string[]) => Promise<Plugin>) => {
     let p: Plugin
     try {
-      p = await PluginService.Inspect(dir)
+      p = await inspect(src)
     } catch (e) {
       toast('error', 'Not a plugin Larvyn can install', errMsg(e))
       return
@@ -122,12 +122,22 @@ export function PluginsCard() {
     const existing = plugins?.find((x) => x.manifest.id === p.manifest.id)
     if (!(await approve(p, perms, existing ? 'Update' : 'Install'))) return
     try {
-      await PluginService.Install(dir, p.manifest.permissions ?? [])
+      await installIt(src, p.manifest.permissions ?? [])
       toast('success', `${p.manifest.name} installed`)
     } catch (e) {
       toast('error', 'Could not install the plugin', errMsg(e))
     }
     load()
+  }
+
+  const install = async () => {
+    const dir = await ProjectService.PickFolder('Choose a plugin folder').catch(() => '')
+    if (dir) await installFrom(dir, PluginService.Inspect, PluginService.Install)
+  }
+
+  const installZip = async () => {
+    const zip = await PluginService.PickZip().catch(() => '')
+    if (zip) await installFrom(zip, PluginService.InspectZip, PluginService.InstallZip)
   }
 
   const toggle = async (p: Plugin, on: boolean) => {
@@ -206,6 +216,9 @@ export function PluginsCard() {
         </button>
         <button className="btn sm ghost" onClick={() => SystemService.OpenFolder(folder).catch(fail('Could not open the folder'))}>
           <FolderOpen /> Open folder
+        </button>
+        <button className="btn sm" onClick={installZip} title="Install a plugin someone shared as a .zip">
+          <FileArchive /> Install .zip
         </button>
         <button className="btn sm primary" onClick={install}>
           <FolderPlus /> Install from folder

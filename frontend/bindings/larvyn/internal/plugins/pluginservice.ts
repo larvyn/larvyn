@@ -80,6 +80,14 @@ export function Inspect(dir: string): $CancellablePromise<$models.Plugin> {
 }
 
 /**
+ * InspectZip reads the plugin in a .zip without installing it, for the
+ * permission dialog.
+ */
+export function InspectZip(zipPath: string): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(566262905, zipPath);
+}
+
+/**
  * Install copies the plugin in dir into the plugins folder and turns it on.
  * granted must hold every permission the plugin asks for: the user saw them
  * in the install dialog. Installing over an existing copy updates it.
@@ -99,6 +107,14 @@ export function InstallRequirement(id: string, program: string, confirmed: strin
 }
 
 /**
+ * InstallZip installs the plugin in a .zip, as Install does from a folder:
+ * granted must hold every permission it asks for.
+ */
+export function InstallZip(zipPath: string, granted: string[] | null): $CancellablePromise<$models.Plugin> {
+    return $Call.ByID(1955766036, zipPath, granted);
+}
+
+/**
  * List returns the installed plugins.
  */
 export function List(): $CancellablePromise<$models.Plugin[] | null> {
@@ -111,6 +127,13 @@ export function List(): $CancellablePromise<$models.Plugin[] | null> {
  */
 export function Permissions(): $CancellablePromise<$models.Permission[] | null> {
     return $Call.ByID(96332710);
+}
+
+/**
+ * PickZip asks for a plugin .zip and returns its path ("" if cancelled).
+ */
+export function PickZip(): $CancellablePromise<string> {
+    return $Call.ByID(1906703094);
 }
 
 /**
