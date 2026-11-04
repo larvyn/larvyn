@@ -99,12 +99,44 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
+        if: runner.os != 'macOS'
         with:
           go-version-file: go.mod
+      # macOS minutes cost 10x, and setup-go spent ~45s of a ~1m40s job
+      # there: 11s downloading Go, 21s copying it into the tool cache, 14s
+      # restoring a 200 MB -race build cache. A plain download, a cache without
+      # -race, and saving it only from master (tag and PR caches can't be
+      # reused by later runs) aim to keep the job under one billed minute.
+      - name: Go (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          v=$(awk '/^go /{print $2}' go.mod)
+          arch=$([ "$(uname -m)" = arm64 ] && echo arm64 || echo amd64)
+          curl -fsSL "https://go.dev/dl/go$v.darwin-$arch.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
+      - id: go-cache
+        if: runner.os == 'macOS'
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: go-macos-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: go-macos-${{ runner.arch }}-
       - name: Placeholder frontend build
         shell: bash
         run: mkdir -p frontend/dist && echo '<!doctype html>' > frontend/dist/index.html
       - name: Vet
         run: go vet ./...
+      # -race runs on Linux and Windows; on macOS it would double the build
+      # cache and the compile time for the same checks.
       - name: Test
-        run: go test -race ./...
+        shell: bash
+        run: go test $([ "$RUNNER_OS" = macOS ] || echo -race) ./...
+      - if: runner.os == 'macOS' && github.ref == 'refs/heads/master' && steps.go-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
