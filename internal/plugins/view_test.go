@@ -81,8 +81,11 @@ func TestServeView(t *testing.T) {
 	if body := rec.Body.String(); !strings.HasPrefix(body, "<script>") || !strings.Contains(body, "window.larvyn") {
 		t.Errorf("the bridge must be injected first: %.80s", body)
 	}
-	if rec := get("/plugin-view/acme.horizon/ui/app.js"); rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Type"), "javascript") {
-		t.Errorf("js: %d %s", rec.Code, rec.Header().Get("Content-Type"))
+	if rec := get("/plugin-view/acme.horizon/ui/app.js"); rec.Code != 200 || rec.Header().Get("Content-Type") != "text/javascript; charset=utf-8" {
+		t.Errorf("js must be served as JavaScript whatever the OS says: %d %s", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("module scripts and fonts from the opaque-origin iframe need CORS: %q", got)
 	}
 	if rec := get("/index.html"); rec.Body.String() != "app" {
 		t.Error("other paths go to the app")
@@ -139,6 +142,16 @@ func TestViewsCannotReachWailsRuntime(t *testing.T) {
 	}
 	if rec := get("/wails/custom.js", "Sec-Fetch-Site", "same-origin"); rec.Body.String() != "app" {
 		t.Error("Larvyn's own page must still reach /wails/ files")
+	}
+}
+
+func TestInjectBridgeNonASCII(t *testing.T) {
+	// Latin-1 é (an invalid UTF-8 byte) and a rune whose lowercase is wider
+	// come before <head>: the bridge must still land right after it.
+	page := []byte("<!doctype html><html lang=fr>\xe9\u023a<HEAD><title>t</title>")
+	got := string(injectBridge(page))
+	if !strings.Contains(got, "<HEAD><script>") {
+		t.Errorf("bridge misplaced: %q", got[:60])
 	}
 }
 

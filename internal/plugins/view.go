@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,6 +36,21 @@ const ViewPrefix = "/plugin-view/"
 const viewCSP = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
 	"img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'none'; " +
 	"form-action 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'; sandbox allow-scripts"
+
+// viewTypes are the content types of the files a view uses. They are fixed
+// here because mime.TypeByExtension reads the OS database (the registry on
+// Windows), which can map .js to text/plain; with nosniff the browser would
+// then refuse to run it.
+var viewTypes = map[string]string{
+	".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+	".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
+	".css": "text/css; charset=utf-8", ".json": "application/json", ".map": "application/json",
+	".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+	".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon",
+	".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
+	".mp3": "audio/mpeg", ".mp4": "video/mp4", ".webm": "video/webm", ".wasm": "application/wasm",
+	".txt": "text/plain; charset=utf-8",
+}
 
 // PluginView is a view for the sidebar.
 type PluginView struct {
@@ -118,8 +132,8 @@ func serveView(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	ctype := mime.TypeByExtension(filepath.Ext(file))
-	if ctype == "" {
+	ctype, ok := viewTypes[strings.ToLower(filepath.Ext(file))]
+	if !ok {
 		ctype = "application/octet-stream"
 	}
 	if strings.HasSuffix(file, ".html") {
@@ -130,6 +144,11 @@ func serveView(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", ctype)
 	h.Set("Content-Security-Policy", viewCSP)
 	h.Set("X-Content-Type-Options", "nosniff")
+	// The sandboxed iframe has an opaque origin, and module scripts and
+	// fonts are fetched in CORS mode even from the view's own folder. These
+	// are a plugin's own static files, and views can't fetch (connect-src
+	// 'none'), so any origin may read them.
+	h.Set("Access-Control-Allow-Origin", "*")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Cache-Control", "no-store")
 	_, _ = w.Write(data)
@@ -184,7 +203,7 @@ const bridgeJS = `<script>(function () {
 
 // injectBridge puts bridgeJS before everything else in the page.
 func injectBridge(page []byte) []byte {
-	lower := bytes.ToLower(page)
+	lower := asciiLower(page)
 	for _, tag := range [][]byte{[]byte("<head>"), []byte("<html>")} {
 		if i := bytes.Index(lower, tag); i >= 0 {
 			at := i + len(tag)
@@ -198,6 +217,19 @@ func injectBridge(page []byte) []byte {
 		}
 	}
 	return append([]byte(bridgeJS), page...)
+}
+
+// asciiLower lowercases A-Z only, so its indexes match page byte for byte
+// (bytes.ToLower can change lengths on non-ASCII or invalid UTF-8).
+func asciiLower(b []byte) []byte {
+	out := make([]byte, len(b))
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		out[i] = c
+	}
+	return out
 }
 
 // ViewResult is what a view's call returns. Notify asks the frontend to

@@ -12,10 +12,15 @@ export function usePluginViews() {
   // the list is still on its way.
   const [views, setViews] = useState<View[] | null>(null)
   useEffect(() => {
-    const load = () =>
+    // Only the latest request may set the list: an older one finishing last
+    // would bring back views from before a plugin changed.
+    let seq = 0
+    const load = () => {
+      const mine = ++seq
       PluginService.Views()
-        .then((v) => setViews(v ?? []))
-        .catch(() => setViews([]))
+        .then((v) => mine === seq && setViews(v ?? []))
+        .catch(() => mine === seq && setViews([]))
+    }
     load()
     window.addEventListener(PLUGINS_CHANGED, load)
     return () => window.removeEventListener(PLUGINS_CHANGED, load)
