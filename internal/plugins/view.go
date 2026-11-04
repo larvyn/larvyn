@@ -592,6 +592,10 @@ func backupEnv(projectID, pluginID string, raw []byte) error {
 // runDeclared runs one of the plugin's commands from a view, asking first
 // the same way ⌘K does.
 func runDeclared(s *PluginService, p Plugin, projectID, id string) (ViewResult, error) {
+	// Before asking: a confirmation with nowhere to run would be wasted.
+	if _, ok := store.FindProject(projectID); !ok {
+		return ViewResult{}, errors.New("no project is open")
+	}
 	for _, c := range p.Manifest.Contributes.Commands {
 		if c.ID != id {
 			continue

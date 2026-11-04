@@ -82,6 +82,11 @@ func TestViewTerminalRun(t *testing.T) {
 	}
 	waitOutput(t, r.Session.ID, "view-ran")
 
+	// With no project open, the call fails before asking anything.
+	if _, err := s.Call("acme.horizon", "", "terminal.run", map[string]any{"id": "hello"}); err == nil || errors.As(err, new(ConfirmError)) {
+		t.Errorf("no project must fail without a confirmation: %v", err)
+	}
+
 	// Only commands from larvyn.json: no free-form lines.
 	if _, err := s.Call("acme.horizon", proj.ID, "terminal.run", map[string]any{"id": "rm -rf /"}); err == nil || !strings.Contains(err.Error(), "no command") {
 		t.Errorf("an undeclared command must be refused: %v", err)
