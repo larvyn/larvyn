@@ -1,12 +1,14 @@
 package plugins
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"larvyn/internal/store"
@@ -111,13 +113,32 @@ func TestServeViewRefuses(t *testing.T) {
 }
 
 func TestViewsCannotReachWailsRuntime(t *testing.T) {
-	for _, h := range [][]string{{"Origin", "null"}, {"Referer", "wails://localhost/plugin-view/acme.x/ui/index.html"}} {
-		if rec := get("/wails/runtime", h...); rec.Code != http.StatusForbidden {
-			t.Errorf("%v reached /wails/runtime: %d", h, rec.Code)
+	// A header-less GET, as an <img src> in a plugin page would send.
+	if rec := get("/wails/runtime?object=0&method=0&args={}"); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("a GET to /wails/runtime must be refused: %d", rec.Code)
+	}
+	if rec := get("/wails/eventpayload/x", "Sec-Fetch-Site", "cross-site"); rec.Code != http.StatusForbidden {
+		t.Errorf("a cross-site request to /wails/ must be refused: %d", rec.Code)
+	}
+	post := httptest.NewRequest("POST", "/wails/runtime", strings.NewReader("{}"))
+	post.Header.Set("Origin", "wails://localhost")
+	post.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	ViewMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("app")) })).ServeHTTP(rec, post)
+	if rec.Body.String() != "app" {
+		t.Errorf("Larvyn's own POST must reach the runtime: %d", rec.Code)
+	}
+	for _, h := range [][]string{{"Origin", "null"}, {"Referer", "wails://localhost/plugin-view/acme.x/ui/index.html"}, {"Sec-Fetch-Site", "cross-site"}} {
+		req := httptest.NewRequest("POST", "/wails/runtime", strings.NewReader("{}"))
+		req.Header.Set(h[0], h[1])
+		rec := httptest.NewRecorder()
+		ViewMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("app")) })).ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("a POST with %v reached /wails/runtime: %d", h, rec.Code)
 		}
 	}
-	if rec := get("/wails/runtime", "Origin", "wails://localhost"); rec.Body.String() != "app" {
-		t.Error("Larvyn's own page must still reach the runtime")
+	if rec := get("/wails/custom.js", "Sec-Fetch-Site", "same-origin"); rec.Body.String() != "app" {
+		t.Error("Larvyn's own page must still reach /wails/ files")
 	}
 }
 
@@ -159,6 +180,28 @@ func TestCallChecksPermissions(t *testing.T) {
 		if _, err := s.Call("acme.horizon", proj2.ID, method, map[string]any{"key": "k", "message": "m"}); err == nil || !strings.Contains(err.Error(), "may not") {
 			t.Errorf("%s without its permission: %v", method, err)
 		}
+	}
+}
+
+func TestStorageConcurrent(t *testing.T) {
+	s, proj := installView(t, viewManifest(t))
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s.Call("acme.horizon", proj.ID, "storage.set", map[string]any{"key": fmt.Sprint("k", i), "value": i})
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < 20; i++ {
+		if r, _ := s.Call("acme.horizon", proj.ID, "storage.get", map[string]any{"key": fmt.Sprint("k", i)}); r.Result == nil {
+			t.Errorf("k%d was lost to a concurrent set", i)
+		}
+	}
+	os.WriteFile(storageFile("acme.horizon"), []byte("{broken"), 0o600)
+	if _, err := s.Call("acme.horizon", proj.ID, "storage.set", map[string]any{"key": "x", "value": 1}); err == nil || !strings.Contains(err.Error(), "damaged") {
+		t.Errorf("a damaged file must be reported, not overwritten: %v", err)
 	}
 }
 

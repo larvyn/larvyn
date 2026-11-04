@@ -8,7 +8,9 @@ import { PLUGINS_CHANGED } from './pluginRun'
 
 /** The views of the plugins that are on, kept fresh when plugins change. */
 export function usePluginViews() {
-  const [views, setViews] = useState<View[]>([])
+  // null until the first load: a view must not say it is unavailable while
+  // the list is still on its way.
+  const [views, setViews] = useState<View[] | null>(null)
   useEffect(() => {
     const load = () =>
       PluginService.Views()
@@ -32,7 +34,7 @@ export function PluginView({ view }: { view: string }) {
   const views = usePluginViews()
   const projectId = useStore((s) => s.activeId)
   const frame = useRef<HTMLIFrameElement>(null)
-  const v = views.find((x) => viewKey(x) === view)
+  const v = views?.find((x) => viewKey(x) === view)
 
   useEffect(() => {
     if (!v) return
@@ -54,6 +56,7 @@ export function PluginView({ view }: { view: string }) {
     return () => window.removeEventListener('message', onMessage)
   }, [v?.pluginId, v?.id, projectId])
 
+  if (!views) return <div className="view" />
   if (!v)
     return (
       <div className="view pad">

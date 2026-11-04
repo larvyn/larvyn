@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"larvyn/internal/dotenv"
@@ -68,6 +69,12 @@ func ViewMiddleware(next http.Handler) http.Handler {
 		switch {
 		case strings.HasPrefix(r.URL.Path, ViewPrefix):
 			serveView(w, r)
+		// Larvyn's page calls the runtime with POST only (fetch in
+		// @wailsio/runtime). A GET can be made by any page with an <img> or
+		// a link, without Origin or Referer, and Wails would still read the
+		// call from its query string.
+		case r.URL.Path == "/wails/runtime" && r.Method != http.MethodPost:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		case strings.HasPrefix(r.URL.Path, "/wails/") && fromPluginView(r):
 			http.Error(w, "plugin views cannot call Larvyn directly", http.StatusForbidden)
 		default:
@@ -76,9 +83,11 @@ func ViewMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// fromPluginView reports whether r came from a sandboxed plugin view.
+// fromPluginView reports whether r came from a sandboxed plugin view: its
+// opaque origin shows as Origin: null and makes every request cross-site.
+// Larvyn's own page is always same-origin.
 func fromPluginView(r *http.Request) bool {
-	if r.Header.Get("Origin") == "null" {
+	if r.Header.Get("Origin") == "null" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		return true
 	}
 	if ref, err := url.Parse(r.Header.Get("Referer")); err == nil && strings.HasPrefix(ref.Path, ViewPrefix) {
@@ -270,13 +279,23 @@ func storageFile(pluginID string) string {
 	return filepath.Join(store.HomeDir(), "plugin-data", pluginID+".json")
 }
 
+// storageMu makes each storage call's read-modify-write one step, so two
+// calls at once can't drop each other's keys.
+var storageMu sync.Mutex
+
 func storageCall(pluginID, method, key string, value any) (ViewResult, error) {
 	if key == "" {
 		return ViewResult{}, errors.New(method + " needs a key")
 	}
+	storageMu.Lock()
+	defer storageMu.Unlock()
 	data := map[string]any{}
 	if b, err := os.ReadFile(storageFile(pluginID)); err == nil {
-		_ = json.Unmarshal(b, &data)
+		// A damaged file is reported, not silently replaced with only the
+		// key being set.
+		if err := json.Unmarshal(b, &data); err != nil {
+			return ViewResult{}, fmt.Errorf("the plugin's storage is damaged: %w", err)
+		}
 	}
 	if method == "storage.get" {
 		return ViewResult{Result: data[key]}, nil
@@ -296,7 +315,20 @@ func storageCall(pluginID, method, key string, value any) (ViewResult, error) {
 	if err := os.MkdirAll(filepath.Dir(storageFile(pluginID)), 0o700); err != nil {
 		return ViewResult{}, err
 	}
-	return ViewResult{Result: true}, os.WriteFile(storageFile(pluginID), b, 0o600)
+	// Written to a temporary file and renamed, so a reader never sees half.
+	tmp, err := os.CreateTemp(filepath.Dir(storageFile(pluginID)), "."+pluginID+"-*")
+	if err != nil {
+		return ViewResult{}, err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		return ViewResult{}, err
+	}
+	if err := tmp.Close(); err != nil {
+		return ViewResult{}, err
+	}
+	return ViewResult{Result: true}, os.Rename(tmp.Name(), storageFile(pluginID))
 }
 
 // hostAllowed reports whether u's host[:port] is one the manifest lists.

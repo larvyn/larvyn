@@ -249,10 +249,10 @@ export function Sidebar() {
             })}
           </div>
         ))}
-        {pluginViews.length > 0 && (
+        {(pluginViews?.length ?? 0) > 0 && (
           <div className="nav-group">
             <div className="nav-label">Plugins</div>
-            {pluginViews.map((v) => (
+            {pluginViews!.map((v) => (
               <button key={viewKey(v)} className={cx('nav-item', view === viewKey(v) && 'active')} title={`From the ${v.pluginName} plugin`} onClick={() => setView(viewKey(v))}>
                 <Puzzle />
                 {v.title}
