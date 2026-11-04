@@ -202,7 +202,7 @@ export function Overview() {
 
   return (
     <div className="view pad">
-      <div className="hero" style={{ ['--hero' as any]: `color-mix(in srgb, ${project.color} 22%, transparent)` }}>
+      <div className="hero">
         <div className="row" style={{ alignItems: 'flex-start' }}>
           <div className="grow">
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
