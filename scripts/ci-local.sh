@@ -37,18 +37,20 @@ mac() {
 	local tree
 	tree=$(mktemp -d)
 	git worktree add -q --detach "$tree" HEAD
+	# Each step exits on failure itself: the "|| fail=1" after the subshell
+	# turns set -e off inside it.
 	(
-		cd "$tree"
+		cd "$tree" || exit 1
 		# main.go embeds frontend/dist; the tests only need something there.
-		mkdir -p frontend/dist && echo '<!doctype html>' >frontend/dist/index.html
+		mkdir -p frontend/dist && echo '<!doctype html>' >frontend/dist/index.html || exit 1
 		# Without the Command Line Tools, cgo needs Xcode's clang and SDK.
 		export CC="${CC:-/usr/bin/clang}" SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
 		unformatted=$(gofmt -l $(git ls-files '*.go' ':!build/'))
 		if [ -n "$unformatted" ]; then
 			echo "Run gofmt -w on:"; echo "$unformatted"; exit 1
 		fi
-		go vet ./...
-		go test -race ./...
+		go vet ./... || exit 1
+		go test -race ./... || exit 1
 	) || fail=1
 	git worktree remove --force "$tree"
 }
@@ -56,7 +58,9 @@ mac() {
 case $what in
 all) linux || fail=1; mac || fail=1 ;;
 linux) linux || fail=1 ;;
-mac) mac || fail=1 ;;
+mac)
+	# Asked for explicitly, a missing Mac is a failure; "all" skips it.
+	if [ "$(uname)" = Darwin ]; then mac || fail=1; else echo "mac needs a Mac"; fail=1; fi ;;
 *) echo "usage: $0 [all|linux|mac]"; exit 2 ;;
 esac
 if [ $fail -ne 0 ]; then echo "== CI failed"; exit 1; fi
