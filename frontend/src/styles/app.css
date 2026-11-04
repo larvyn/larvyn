@@ -93,7 +93,6 @@ a { color: inherit; }
   position: relative;
   z-index: 5;
 }
-.titlebar.mac { padding-left: 84px; }
 .titlebar .nodrag, .titlebar button, .titlebar input { --wails-draggable: no-drag; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; font-size: 13.5px; }
 .brand-mark {
