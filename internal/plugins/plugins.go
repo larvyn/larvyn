@@ -6,8 +6,10 @@ package plugins
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"larvyn/internal/store"
@@ -40,6 +42,8 @@ type Plugin struct {
 	// Linked is set when the plugin folder is a symlink, as while developing
 	// a plugin; uninstalling removes only the link.
 	Linked bool `json:"linked"`
+	// OffIn are the projects the plugin is turned off in.
+	OffIn []string `json:"offIn"`
 }
 
 // Dir is the folder plugins are installed in, one folder per plugin named
@@ -98,7 +102,7 @@ func load(dir, name string) Plugin {
 
 // applyState fills in what the user decided about p.
 func applyState(p *Plugin, st store.PluginState) {
-	p.Granted = st.Granted
+	p.Granted, p.OffIn = st.Granted, st.OffIn
 	if !st.Enabled || p.Error != "" {
 		return
 	}
@@ -134,6 +138,25 @@ func Active() []Plugin {
 		}
 	}
 	return out
+}
+
+// ActiveIn returns the plugins that are on in the project.
+func ActiveIn(projectID string) []Plugin {
+	var out []Plugin
+	for _, p := range Active() {
+		if inProject(p, projectID) == nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// inProject refuses a plugin the user turned off in the project.
+func inProject(p Plugin, projectID string) error {
+	if slices.Contains(p.OffIn, projectID) {
+		return fmt.Errorf("plugin %s is off in this project", p.Manifest.ID)
+	}
+	return nil
 }
 
 // List returns the installed plugins.

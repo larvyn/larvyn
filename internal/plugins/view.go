@@ -178,10 +178,10 @@ type PluginView struct {
 	URL string `json:"url"`
 }
 
-// Views lists the views of the plugins that are on.
-func (s *PluginService) Views() []PluginView {
+// Views lists the views of the plugins that are on in the project.
+func (s *PluginService) Views(projectID string) []PluginView {
 	var out []PluginView
-	for _, p := range Active() {
+	for _, p := range ActiveIn(projectID) {
 		for _, v := range p.Manifest.Contributes.Views {
 			out = append(out, PluginView{PluginID: p.Manifest.ID, PluginName: p.Manifest.Name, ID: v.ID, Title: v.Title,
 				URL: ViewPrefix + p.Manifest.ID + "/" + path.Clean(v.Entry)})
@@ -380,6 +380,9 @@ const maxFetchBody = 2 << 20
 func (s *PluginService) Call(pluginID, projectID, method string, params map[string]any) (ViewResult, error) {
 	p, err := find(pluginID)
 	if err != nil {
+		return ViewResult{}, err
+	}
+	if err := inProject(p, projectID); err != nil {
 		return ViewResult{}, err
 	}
 	str := func(k string) string { v, _ := params[k].(string); return v }
@@ -645,6 +648,9 @@ func runArtisan(p Plugin, projectID string, raw any) (ViewResult, error) {
 		return ViewResult{}, err
 	}
 	if err := allow(p, "artisan.run"); err != nil {
+		return ViewResult{}, err
+	}
+	if err := inProject(p, proj.ID); err != nil {
 		return ViewResult{}, err
 	}
 	if store.Plugins()[p.Manifest.ID].Confirmed["artisan:"+line] != line {

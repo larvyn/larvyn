@@ -37,7 +37,7 @@ func installViewRun(t *testing.T, perms ...string) (*PluginService, store.Projec
 	store.Update(func(d *store.State) { d.Projects = append(d.Projects, proj) })
 	t.Cleanup(func() {
 		store.Update(func(d *store.State) { d.Projects = nil })
-		stopSessions("acme.horizon")
+		stopSessions("acme.horizon", "")
 	})
 	php := filepath.Join(t.TempDir(), "php")
 	if err := os.WriteFile(php, []byte("#!/bin/sh\necho fake-php \"$@\"\n"), 0o755); err != nil {

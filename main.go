@@ -64,7 +64,7 @@ func init() {
 	// plugins that are on and may run commands.
 	stack.PluginItems = func(p store.Project) []stack.StackItem {
 		var out []stack.StackItem
-		for _, it := range plugins.StackItems() {
+		for _, it := range plugins.StackItems(p.ID) {
 			argv := append([]string(nil), it.Argv...)
 			if argv[0] == "php" {
 				argv[0] = store.PHP()
@@ -74,9 +74,9 @@ func init() {
 			if it.Missing != "" {
 				si.Reason = "needs " + it.Missing + ": install it from Settings → Plugins"
 			}
-			pluginID, key := it.PluginID, it.ItemKey
+			pluginID, projectID, key := it.PluginID, p.ID, it.ItemKey
 			si.Guard = func(start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
-				return plugins.GuardStackStart(pluginID, key, start)
+				return plugins.GuardStackStart(pluginID, projectID, key, start)
 			}
 			if it.NeedsConfirm {
 				si.NeedConfirm = plugins.ConfirmError{PluginID: it.PluginID, PluginName: it.PluginName, Key: it.ItemKey, Title: it.Title, Line: it.Line}

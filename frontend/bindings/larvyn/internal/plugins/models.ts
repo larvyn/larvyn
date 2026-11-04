@@ -139,6 +139,11 @@ export interface Plugin {
      * a plugin; uninstalling removes only the link.
      */
     "linked": boolean;
+
+    /**
+     * OffIn are the projects the plugin is turned off in.
+     */
+    "offIn": string[] | null;
 }
 
 /**

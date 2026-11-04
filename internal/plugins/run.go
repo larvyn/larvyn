@@ -56,10 +56,10 @@ type PluginCommand struct {
 	NeedsConfirm bool `json:"needsConfirm"`
 }
 
-// Commands lists the commands of the plugins that are on.
-func (s *PluginService) Commands() []PluginCommand {
+// Commands lists the commands of the plugins that are on in the project.
+func (s *PluginService) Commands(projectID string) []PluginCommand {
 	var out []PluginCommand
-	for _, p := range Active() {
+	for _, p := range ActiveIn(projectID) {
 		if allow(p, "terminal.run") != nil {
 			continue
 		}
@@ -87,6 +87,9 @@ func (s *PluginService) RunCommand(projectID, pluginID, commandID, confirmed str
 		return terminal.SessionInfo{}, err
 	}
 	if err := allow(p, "terminal.run"); err != nil {
+		return terminal.SessionInfo{}, err
+	}
+	if err := inProject(p, proj.ID); err != nil {
 		return terminal.SessionInfo{}, err
 	}
 	for _, c := range p.Manifest.Contributes.Commands {
@@ -137,11 +140,12 @@ type PluginStackItem struct {
 	NeedsConfirm bool
 }
 
-// StackItems returns the stack items of the plugins that are on.
-func StackItems() []PluginStackItem {
+// StackItems returns the stack items of the plugins that are on in the
+// project.
+func StackItems(projectID string) []PluginStackItem {
 	var out []PluginStackItem
 	states := store.Plugins()
-	for _, p := range Active() {
+	for _, p := range ActiveIn(projectID) {
 		if allow(p, "terminal.run") != nil {
 			continue
 		}
@@ -162,9 +166,10 @@ func StackItems() []PluginStackItem {
 }
 
 // GuardStackStart starts a plugin's stack item through the gate: under
-// runMu it checks again that the plugin is on, granted terminal.run, and
-// that the item's current command line was confirmed, then runs start.
-func GuardStackStart(pluginID, key string, start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
+// runMu it checks again that the plugin is on (in this project too),
+// granted terminal.run, and that the item's current command line was
+// confirmed, then runs start.
+func GuardStackStart(pluginID, projectID, key string, start func() (terminal.SessionInfo, error)) (terminal.SessionInfo, error) {
 	runMu.Lock()
 	defer runMu.Unlock()
 	p, err := find(pluginID)
@@ -172,6 +177,9 @@ func GuardStackStart(pluginID, key string, start func() (terminal.SessionInfo, e
 		return terminal.SessionInfo{}, err
 	}
 	if err := allow(p, "terminal.run"); err != nil {
+		return terminal.SessionInfo{}, err
+	}
+	if err := inProject(p, projectID); err != nil {
 		return terminal.SessionInfo{}, err
 	}
 	for _, it := range p.Manifest.Contributes.Stack {
@@ -268,9 +276,11 @@ func commandLine(argv []string) string {
 
 // stopSessions ends everything a plugin runs, when it is turned off or
 // uninstalled. The caller holds runMu.
-func stopSessions(pluginID string) {
+// stopSessions closes what a plugin runs: in one project, or everywhere when
+// projectID is "".
+func stopSessions(pluginID, projectID string) {
 	for _, sess := range terminal.Sessions.List() {
-		if strings.HasPrefix(sess.Key, SessionKeyPrefix(pluginID)) {
+		if strings.HasPrefix(sess.Key, SessionKeyPrefix(pluginID)) && (projectID == "" || sess.ProjectID == projectID) {
 			_ = terminal.Sessions.Close(sess.ID)
 		}
 	}

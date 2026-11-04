@@ -65,7 +65,7 @@ func get(path string, header ...string) *httptest.ResponseRecorder {
 
 func TestServeView(t *testing.T) {
 	s, _ := installView(t, viewManifest(t))
-	views := s.Views()
+	views := s.Views("")
 	if len(views) != 1 || views[0].URL != "/plugin-view/acme.horizon/ui/index.html" {
 		t.Fatalf("views: %+v", views)
 	}

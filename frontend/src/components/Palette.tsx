@@ -77,12 +77,25 @@ export function Palette() {
   const [pluginCmds, setPluginCmds] = useState<PluginCommand[]>([])
 
   useEffect(() => {
-    if (open) {
-      setQ(initialQuery)
-      if (id) StackService.Items(id).then((x) => setStack(x ?? [])).catch(() => {})
-      PluginService.Commands().then((x) => setPluginCmds(x ?? [])).catch(() => {})
-    }
+    if (open) setQ(initialQuery)
   }, [open])
+
+  // Lists for the open project. A request from an earlier opening or
+  // another project must not replace them when it finishes last.
+  useEffect(() => {
+    if (!open) return
+    let current = true
+    if (id)
+      StackService.Items(id)
+        .then((x) => current && setStack(x ?? []))
+        .catch(() => {})
+    PluginService.Commands(id ?? '')
+      .then((x) => current && setPluginCmds(x ?? []))
+      .catch(() => {})
+    return () => {
+      current = false
+    }
+  }, [open, id])
 
   const close = () => useStore.setState({ paletteOpen: false })
   const act = (fn: () => void) => () => {

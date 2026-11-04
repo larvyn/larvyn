@@ -27,10 +27,10 @@ export function Call(pluginID: string, projectID: string, method: string, params
 }
 
 /**
- * Commands lists the commands of the plugins that are on.
+ * Commands lists the commands of the plugins that are on in the project.
  */
-export function Commands(): $CancellablePromise<$models.PluginCommand[] | null> {
-    return $Call.ByID(696378388);
+export function Commands(projectID: string): $CancellablePromise<$models.PluginCommand[] | null> {
+    return $Call.ByID(696378388, projectID);
 }
 
 /**
@@ -156,6 +156,14 @@ export function RunCommand(projectID: string, pluginID: string, commandID: strin
 }
 
 /**
+ * SetOnInProject turns a plugin on or off in one project. Turning it off
+ * stops what it runs there.
+ */
+export function SetOnInProject(id: string, projectID: string, on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2224820745, id, projectID, on);
+}
+
+/**
  * Uninstall deletes the plugin folder with this name (only the link, for a
  * linked one) and forgets what the user decided about the plugin whose id
  * it is named after. It takes the folder, not the manifest id: a broken
@@ -167,8 +175,8 @@ export function Uninstall(folder: string): $CancellablePromise<void> {
 }
 
 /**
- * Views lists the views of the plugins that are on.
+ * Views lists the views of the plugins that are on in the project.
  */
-export function Views(): $CancellablePromise<$models.PluginView[] | null> {
-    return $Call.ByID(4170814180);
+export function Views(projectID: string): $CancellablePromise<$models.PluginView[] | null> {
+    return $Call.ByID(4170814180, projectID);
 }
