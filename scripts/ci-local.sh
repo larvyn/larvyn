@@ -4,7 +4,7 @@
 # pushing:
 #
 #   scripts/ci-local.sh            # Linux (in Docker) and this Mac
-#   scripts/ci-local.sh linux      # only the Linux jobs: go + frontend
+#   scripts/ci-local.sh linux      # only the Linux job: go + frontend
 #   scripts/ci-local.sh mac        # only the Go job on this Mac
 #
 # Linux runs the workflow itself with act (https://nektosact.com, 0.2.80 or
@@ -20,15 +20,13 @@ linux() {
 	docker info >/dev/null 2>&1 || { echo "Docker is not running"; return 1; }
 	local arch
 	arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-	for job in frontend go; do
-		echo "== Linux: $job"
-		# --init: a real PID 1 reaps orphans, as on GitHub's runners. Without
-		# it, killed processes stay as zombies and the process-tree tests
-		# think they survived.
-		act pull_request -W .github/workflows/test.yml -j "$job" --matrix os:ubuntu-24.04 \
-			-P ubuntu-24.04=catthehacker/ubuntu:act-24.04 --container-architecture "linux/$arch" \
-			--container-options "--init" || fail=1
-	done
+	echo "== Linux: go + frontend"
+	# --init: a real PID 1 reaps orphans, as on GitHub's runners. Without
+	# it, killed processes stay as zombies and the process-tree tests
+	# think they survived.
+	act pull_request -W .github/workflows/test.yml -j linux \
+		-P ubuntu-24.04=catthehacker/ubuntu:act-24.04 --container-architecture "linux/$arch" \
+		--container-options "--init" || fail=1
 }
 
 mac() {
