@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My plugin</title>
+<!-- Larvyn's look: its dark theme, accent colour and lv- classes. Only
+     Larvyn serves it, so `npm run dev` in a browser shows the page unstyled. -->
+<link rel="stylesheet" href="/plugin-view/_kit/larvyn.css">
+</head>
+<body class="lv-page">
+<header class="lv-header">
+  <h1>My plugin</h1>
+  <span class="lv-badge accent" id="mode">plugin</span>
+</header>
+<main class="lv-body lv-pad">
+  <div class="lv-card" style="max-width: 520px">
+    <div class="lv-card-head"><h3 id="title">Hello!</h3></div>
+    <div class="lv-card-body lv-stack">
+      <dl class="lv-kv">
+        <dt>Project</dt><dd id="name">—</dd>
+        <dt>Folder</dt><dd id="path" class="lv-mono lv-small">—</dd>
+        <dt>Opened</dt><dd id="count">—</dd>
+      </dl>
+      <div class="lv-row">
+        <button class="lv-btn primary sm" id="wave">Say hello</button>
+      </div>
+    </div>
+  </div>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
