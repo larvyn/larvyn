@@ -237,7 +237,7 @@ export function PluginsCard() {
         <div className="check-row">
           <div className="t">
             <b>No plugins yet</b>
-            <span>Install one from a folder, e.g. examples/plugins in the Larvyn repository. Plugins can add commands, stack items and sidebar views.</span>
+            <span>Install one from a folder, such as the examples at github.com/larvyn/plugin-examples. Plugins can add commands, stack items and sidebar views.</span>
           </div>
         </div>
       )}
