@@ -1,0 +1,144 @@
+package plugins
+
+import (
+	"archive/zip"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
+)
+
+// Export asks where to save the plugin in this folder as a .zip, and saves
+// it there. It returns the file's path, or "" when the user cancelled.
+func (s *PluginService) Export(folder string) (string, error) {
+	p, err := byFolder(folder)
+	if err != nil {
+		return "", err
+	}
+	dest, err := application.Get().Dialog.SaveFile().
+		SetMessage("Export "+p.Manifest.Name).
+		SetFilename(zipName(p)).
+		AddFilter("Zip archive", "*.zip").
+		CanCreateDirectories(true).
+		PromptForSingleSelection()
+	if err != nil || dest == "" {
+		return "", err
+	}
+	if !strings.HasSuffix(strings.ToLower(dest), ".zip") {
+		dest += ".zip"
+	}
+	return dest, ExportTo(p, dest)
+}
+
+// zipName is <id>-<version>.zip, or <folder>.zip for a broken plugin.
+func zipName(p Plugin) string {
+	if p.Manifest.Version != "" && p.Error == "" {
+		return p.Manifest.ID + "-" + p.Manifest.Version + ".zip"
+	}
+	return p.Folder + ".zip"
+}
+
+// byFolder finds the installed plugin in this folder of the plugins folder.
+func byFolder(folder string) (Plugin, error) {
+	if folder == "" || strings.HasPrefix(folder, ".") || strings.ContainsAny(folder, `/\`) {
+		return Plugin{}, fmt.Errorf("%q is not a plugin folder", folder)
+	}
+	for _, p := range Load() {
+		if p.Folder == folder {
+			return p, nil
+		}
+	}
+	return Plugin{}, fmt.Errorf("no plugin in %s", folder)
+}
+
+// ExportTo writes the plugin's files to a zip at dest, inside one folder
+// named after the plugin (so unzipping gives a folder Install from folder
+// accepts). It copies what Install copies: regular files only, without
+// symlinks, .git or node_modules, within the same limits. The zip is
+// written next to dest and renamed into place when complete.
+func ExportTo(p Plugin, dest string) error {
+	root, err := filepath.EvalSymlinks(p.Dir)
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".larvyn-export-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if err := writeZip(tmp, root, p.Folder); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), dest)
+}
+
+func writeZip(w io.Writer, root, top string) error {
+	zw := zip.NewWriter(w)
+	files, size := 0, int64(0)
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil || rel == "." {
+			return err
+		}
+		if d.IsDir() {
+			if skipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil // symlinks, sockets, devices
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		files++
+		size += info.Size()
+		if files > maxInstallFiles || size > maxInstallBytes {
+			return tooLarge()
+		}
+		hdr, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		hdr.Name = top + "/" + filepath.ToSlash(rel)
+		hdr.Method = zip.Deflate
+		out, err := zw.CreateHeader(hdr)
+		if err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		_, err = io.Copy(out, io.LimitReader(in, info.Size()))
+		return err
+	})
+	if err != nil {
+		zw.Close()
+		return err
+	}
+	if files == 0 {
+		zw.Close()
+		return errors.New("the plugin folder is empty")
+	}
+	return zw.Close()
+}

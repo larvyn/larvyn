@@ -57,6 +57,14 @@ export function Enable(id: string, granted: string[] | null): $CancellablePromis
 }
 
 /**
+ * Export asks where to save the plugin in this folder as a .zip, and saves
+ * it there. It returns the file's path, or "" when the user cancelled.
+ */
+export function Export(folder: string): $CancellablePromise<string> {
+    return $Call.ByID(3301166532, folder);
+}
+
+/**
  * Folder returns the plugins folder, creating it so it can be opened.
  */
 export function Folder(): $CancellablePromise<string> {
