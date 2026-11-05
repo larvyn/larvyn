@@ -6,6 +6,7 @@ import { attach } from '../lib/terms'
 import { useStore } from '../lib/store'
 import { cx } from '../lib/util'
 
+/** A dialog over the window: Escape or a click outside closes it. */
 export function Modal(props: {
   title: ReactNode
   subtitle?: ReactNode
@@ -15,14 +16,28 @@ export function Modal(props: {
   footer?: ReactNode
   wide?: boolean
 }) {
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
+    // Tab stays inside the dialog: from the last control it wraps to the
+    // first, and back.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') props.onClose()
+      if (e.key !== 'Tab' || !box.current) return
+      const all = [...box.current.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')].filter(
+        (el) => !(el as HTMLButtonElement).disabled,
+      )
+      const at = all.indexOf(document.activeElement as HTMLElement)
+      if (all.length && (at < 0 || (e.shiftKey ? at === 0 : at === all.length - 1))) {
+        e.preventDefault()
+        all[e.shiftKey ? all.length - 1 : 0].focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [props.onClose])
   return (
     <div className="overlay center" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className={cx('modal', props.wide && 'wide')}>
+      <div ref={box} className={cx('modal', props.wide && 'wide')}>
         <div className="modal-head">
           {props.icon}
           <div className="grow">
@@ -49,14 +64,47 @@ interface ConfirmReq {
   message?: ReactNode
   confirm?: string
   danger?: boolean
+  /** Replaces the warning sign, e.g. with the icon of what is installed. */
+  icon?: ReactNode
+  /** The message is still on its way: placeholders show, Confirm waits. */
+  loading?: boolean
   resolve: (ok: boolean) => void
 }
 const useConfirm = create<{ req: ConfirmReq | null }>(() => ({ req: null }))
 
-export function confirmDialog(opts: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
-  return new Promise((resolve) => useConfirm.setState({ req: { ...opts, resolve } }))
+/** Shows req, answering "no" to the one it replaces so that one's caller
+ * isn't left waiting. */
+function showConfirm(req: ConfirmReq) {
+  useConfirm.getState().req?.resolve(false)
+  useConfirm.setState({ req })
 }
 
+/** Asks a yes/no question; resolves true when the user confirms. */
+export function confirmDialog(opts: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
+  return new Promise((resolve) => showConfirm({ ...opts, resolve }))
+}
+
+/** A confirm that opens at once, before its message is known (it shows
+ * `loading`); update() fills it in. Both are ignored once it is closed. */
+export function openConfirm(opts: Omit<ConfirmReq, 'resolve'>) {
+  let mine: ConfirmReq['resolve'] = () => {}
+  const result = new Promise<boolean>((resolve) => {
+    mine = resolve
+    showConfirm({ ...opts, resolve })
+  })
+  const open = () => useConfirm.getState().req?.resolve === mine
+  return {
+    result,
+    update: (patch: Partial<Omit<ConfirmReq, 'resolve'>>) => open() && useConfirm.setState((s) => ({ req: { ...s.req!, ...patch } })),
+    cancel: () => {
+      if (!open()) return
+      mine(false)
+      useConfirm.setState({ req: null })
+    },
+  }
+}
+
+/** Shows the open confirm dialog; mounted once by the app. */
 export function ConfirmHost() {
   const req = useConfirm((s) => s.req)
   if (!req) return null
@@ -69,24 +117,37 @@ export function ConfirmHost() {
       title={req.title}
       onClose={() => done(false)}
       icon={
+        req.icon ?? (
         <div className="empty" style={{ padding: 0 }}>
           <div className="ico" style={{ width: 34, height: 34, margin: 0, borderRadius: 10, color: req.danger ? 'var(--red)' : 'var(--text-2)' }}>
             <AlertTriangle style={{ width: 16, height: 16 }} />
           </div>
         </div>
+        )
       }
       footer={
         <>
-          <button className="btn ghost" onClick={() => done(false)}>
+          {/* A dialog that opens loading focuses Cancel and leaves the focus
+              there when it is ready: Enter must not approve what the user
+              hasn't seen. */}
+          <button className="btn ghost" autoFocus={req.loading} onClick={() => done(false)}>
             Cancel
           </button>
-          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus onClick={() => done(true)}>
+          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus={!req.loading} disabled={req.loading} onClick={() => done(true)}>
             {req.confirm ?? 'Continue'}
           </button>
         </>
       }
     >
-      {req.message && <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{req.message}</div>}
+      {req.loading ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {[70, 45, 55].map((w) => (
+            <div key={w} className="skeleton" style={{ height: 14, width: `${w}%` }} />
+          ))}
+        </div>
+      ) : (
+        req.message && <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{req.message}</div>
+      )}
     </Modal>
   )
 }
@@ -103,10 +164,12 @@ interface PromptReq {
 }
 const usePrompt = create<{ req: PromptReq | null }>(() => ({ req: null }))
 
+/** Asks for one line of text; resolves null when cancelled. */
 export function promptDialog(opts: Omit<PromptReq, 'resolve'>): Promise<string | null> {
   return new Promise((resolve) => usePrompt.setState({ req: { ...opts, resolve } }))
 }
 
+/** Shows the open prompt dialog; mounted once by the app. */
 export function PromptHost() {
   const req = usePrompt((s) => s.req)
   const [value, setValue] = useState('')
@@ -148,6 +211,7 @@ export function PromptHost() {
 
 // ---- misc ------------------------------------------------------------------
 
+/** The placeholder for a view or list with nothing to show. */
 export function Empty(props: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
@@ -159,6 +223,7 @@ export function Empty(props: { icon: ReactNode; title: string; children?: ReactN
   )
 }
 
+/** An on/off switch. */
 export function Toggle(props: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; title?: string }) {
   return (
     <button
@@ -173,6 +238,7 @@ export function Toggle(props: { on: boolean; onChange: (v: boolean) => void; dis
   )
 }
 
+/** A search field; Escape clears it. */
 export function SearchInput(props: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; width?: number | string }) {
   return (
     <div className="search" style={{ width: props.width ?? 260 }}>
@@ -189,6 +255,7 @@ export function SearchInput(props: { value: string; onChange: (v: string) => voi
   )
 }
 
+/** A spinner with an optional label, for a view that is loading. */
 export function Loading({ label }: { label?: string }) {
   return (
     <div className="empty">
@@ -198,6 +265,7 @@ export function Loading({ label }: { label?: string }) {
   )
 }
 
+/** The slot a terminal session is drawn into. */
 export function TermPane({ id, focus, className, style }: { id: string; focus?: boolean; className?: string; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -207,6 +275,7 @@ export function TermPane({ id, focus, className, style }: { id: string; focus?: 
   return <div ref={ref} className={cx('term-slot', className)} style={style} />
 }
 
+/** The notifications in the corner; an error one can be reported. */
 export function Toasts() {
   const toasts = useStore((s) => s.toasts)
   return (
@@ -235,6 +304,7 @@ export function Toasts() {
   )
 }
 
+/** Runs fn when deps change and keeps its result, error and loading state. */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [state, setState] = useState<{ data: T | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
   const [tick, setTick] = useState(0)
@@ -258,6 +328,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   return { ...state, reload: () => setTick((t) => t + 1), setData: (d: T) => setState((s) => ({ ...s, data: d })) }
 }
 
+/** The current time, refreshed every interval ms. */
 export function useNow(interval = 1000) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
@@ -267,6 +338,7 @@ export function useNow(interval = 1000) {
   return now
 }
 
+/** Larvyn's mark. */
 export function Logo() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -276,6 +348,7 @@ export function Logo() {
   )
 }
 
+/** A unified diff, coloured by line kind. */
 export function Diff({ text }: { text: string }) {
   if (!text.trim()) return <Empty icon={<CheckCircle2 />} title="No changes" />
   const lines = text.replace(/\r\n/g, '\n').split('\n')
