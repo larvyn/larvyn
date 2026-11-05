@@ -53,7 +53,7 @@ function PermissionList({ p, all, market }: { p: Plugin; all: Permission[]; mark
               <ShieldAlert /> {market ? 'Marketplace' : 'Unverified'}
             </span>
             <span style={{ fontSize: 12 }}>
-              {market ? 'Checked by the marketplace, not code-reviewed' : 'Installed from a folder, not reviewed by Larvyn'}. Only install plugins you trust.
+              {market ? 'Checked by the marketplace, not code-reviewed' : 'Installed locally, not reviewed by Larvyn'}. Only install plugins you trust.
             </span>
           </>
         )}
