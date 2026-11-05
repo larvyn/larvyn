@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowUpCircle, Download, ExternalLink, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, Store, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowUpCircle, Download, ExternalLink, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, ShieldCheck, Store, Trash2 } from 'lucide-react'
 import { PluginService, type Listing, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
@@ -40,10 +40,23 @@ function PermissionList({ p, all, market }: { p: Plugin; all: Permission[]; mark
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div className="row" style={{ gap: 6 }}>
-        <span className="badge yellow">
-          <ShieldAlert /> Unverified
-        </span>
-        <span style={{ fontSize: 12 }}>{market ? 'From the marketplace' : 'Installed from a folder'}, not reviewed by Larvyn. Only install plugins you trust.</span>
+        {p.official ? (
+          <>
+            <span className="badge green">
+              <ShieldCheck /> By Larvyn
+            </span>
+            <span style={{ fontSize: 12 }}>Made and published by the Larvyn team.</span>
+          </>
+        ) : (
+          <>
+            <span className="badge yellow">
+              <ShieldAlert /> {market ? 'Marketplace' : 'Unverified'}
+            </span>
+            <span style={{ fontSize: 12 }}>
+              {market ? 'Checked by the marketplace, not code-reviewed' : 'Installed locally, not reviewed by Larvyn'}. Only install plugins you trust.
+            </span>
+          </>
+        )}
       </div>
       {asked.length === 0 ? (
         <div>It asks for no permissions.</div>

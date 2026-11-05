@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -50,6 +52,25 @@ type Listing struct {
 	Update bool `json:"update"`
 	// Error says why this version can't be installed on this Larvyn.
 	Error string `json:"error,omitempty"`
+	// Official is set when Larvyn publishes the plugin: its download is a
+	// release on github.com/larvyn/. Larvyn works this out from the link
+	// itself, so a listing can't claim it.
+	Official bool `json:"official"`
+}
+
+// official reports whether a download link is a release asset of a
+// repository in the larvyn GitHub organization:
+// https://github.com/larvyn/<repo>/releases/download/<tag>/<file>. Only the
+// organization's members can publish one. Any other link under /larvyn/,
+// such as a pull request's source archive, can hold code from anyone, and a
+// path with dot segments or escapes could lead outside /larvyn/.
+func official(download string) bool {
+	u, err := url.Parse(download)
+	if err != nil || u.Scheme != "https" || u.Host != "github.com" || u.User != nil || u.RawPath != "" || path.Clean(u.Path) != u.Path {
+		return false
+	}
+	parts := strings.Split(u.Path, "/") // "", larvyn, repo, releases, download, tag, file
+	return len(parts) == 7 && parts[1] == "larvyn" && parts[3] == "releases" && parts[4] == "download" && !slices.Contains(parts[1:], "")
 }
 
 // Revocation stops a plugin the registry found harmful. No Versions means
@@ -115,6 +136,7 @@ func (s *PluginService) Marketplace() ([]Listing, error) {
 	}
 	for i := range ix.Plugins {
 		l := &ix.Plugins[i]
+		l.Official = official(l.Download)
 		// Only an inline SVG: a remote icon URL would tell its host who
 		// opened the marketplace.
 		if !strings.HasPrefix(l.Icon, "data:image/svg+xml;base64,") || len(l.Icon) > maxIconBytes*4/3+64 {
@@ -207,12 +229,13 @@ func applyRevoked(list []Revocation) {
 // InspectListing downloads a marketplace plugin and reads it without
 // installing it, for the permission dialog.
 func (s *PluginService) InspectListing(id, version string) (Plugin, error) {
-	zip, cleanup, err := downloadListing(id, version)
+	zip, l, cleanup, err := downloadListing(id, version)
 	if err != nil {
 		return Plugin{}, err
 	}
 	defer cleanup()
 	p, err := s.InspectZip(zip)
+	p.Official = official(l.Download)
 	if err == nil {
 		err = sameListing(p.Manifest, id, version)
 	}
@@ -222,7 +245,7 @@ func (s *PluginService) InspectListing(id, version string) (Plugin, error) {
 // InstallListing installs the version of a marketplace plugin the user saw
 // in the permission dialog; granted must hold every permission it asks for.
 func (s *PluginService) InstallListing(id, version string, granted []string) (Plugin, error) {
-	zip, cleanup, err := downloadListing(id, version)
+	zip, _, cleanup, err := downloadListing(id, version)
 	if err != nil {
 		return Plugin{}, err
 	}
@@ -252,39 +275,39 @@ func sameListing(m Manifest, id, version string) error {
 }
 
 // downloadListing saves the listing's zip to a temporary file after
-// checking its size and sha256 against the index.
-func downloadListing(id, version string) (string, func(), error) {
+// checking its size and sha256 against the index, and returns the listing.
+func downloadListing(id, version string) (string, Listing, func(), error) {
 	ix, err := fetchIndex()
 	if err != nil {
-		return "", nil, err
+		return "", Listing{}, nil, err
 	}
 	i := slices.IndexFunc(ix.Plugins, func(l Listing) bool { return l.ID == id })
 	if i < 0 {
-		return "", nil, fmt.Errorf("%s is not in the marketplace", id)
+		return "", Listing{}, nil, fmt.Errorf("%s is not in the marketplace", id)
 	}
 	l := ix.Plugins[i]
 	if l.Version != version {
-		return "", nil, fmt.Errorf("the marketplace now has %s %s, not %s; look again", id, l.Version, version)
+		return "", Listing{}, nil, fmt.Errorf("the marketplace now has %s %s, not %s; look again", id, l.Version, version)
 	}
 	if reasonIn(ix.Revoked, id, version) != "" {
-		return "", nil, fmt.Errorf("%s %s was revoked", id, version)
+		return "", Listing{}, nil, fmt.Errorf("%s %s was revoked", id, version)
 	}
 	req, err := http.NewRequest("GET", l.Download, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("%s has a bad download link: %w", id, err)
+		return "", Listing{}, nil, fmt.Errorf("%s has a bad download link: %w", id, err)
 	}
 	req.Header.Set("User-Agent", "larvyn/"+updater.Version)
 	res, err := marketClient.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("download failed: %w", err)
+		return "", Listing{}, nil, fmt.Errorf("download failed: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return "", nil, fmt.Errorf("download failed: %s", res.Status)
+		return "", Listing{}, nil, fmt.Errorf("download failed: %s", res.Status)
 	}
 	f, err := os.CreateTemp("", "larvyn-market-*.zip")
 	if err != nil {
-		return "", nil, err
+		return "", Listing{}, nil, err
 	}
 	cleanup := func() { os.Remove(f.Name()) }
 	h := sha256.New()
@@ -301,7 +324,7 @@ func downloadListing(id, version string) (string, func(), error) {
 	}
 	if err != nil {
 		cleanup()
-		return "", nil, err
+		return "", Listing{}, nil, err
 	}
-	return f.Name(), cleanup, nil
+	return f.Name(), l, cleanup, nil
 }

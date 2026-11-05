@@ -339,6 +339,34 @@ func TestBadIndexAndDownloadLinks(t *testing.T) {
 	}
 }
 
+// Only a download from github.com/larvyn/ over https is official.
+func TestOfficial(t *testing.T) {
+	for link, want := range map[string]bool{
+		"https://github.com/larvyn/plugin-examples/releases/download/larvyn.hello-v0.1.1/larvyn.hello-0.1.1.zip": true,
+		"https://github.com/larvynx/evil/releases/download/v1/x.zip":                                             false,
+		"https://github.com/someone/larvyn/releases/download/v1/x.zip":                                           false,
+		"http://github.com/larvyn/plugin-examples/x.zip":                                                         false,
+		"https://github.com.evil.example/larvyn/x.zip":                                                           false,
+		"https://user@github.com/larvyn/x.zip":                                                                   false,
+		"https://github.com/larvyn/plugin-examples/archive/refs/pull/1/head.zip":                                 false,
+		"https://github.com/larvyn/plugin-examples/raw/abc123/x.zip":                                             false,
+		"https://github.com/larvyn/../evil/releases/download/v1/x.zip":                                           false,
+		"https://github.com/larvyn/x/../../evil/releases/download/v1/x.zip":                                      false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1/%2E%2E/x.zip":                            false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1%2F..%2F..%2Fx/x.zip":                     false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1/":                                        false,
+	} {
+		if got := official(link); got != want {
+			t.Errorf("official(%q) = %v", link, got)
+		}
+	}
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0") // served from 127.0.0.1
+	if l := listing(t, &PluginService{}); l.Official {
+		t.Error("a plugin downloaded from elsewhere is not official")
+	}
+}
+
 // An update keeps a plugin the user turned off, off.
 func TestUpdateKeepsPluginOff(t *testing.T) {
 	m, srv := newMarket(t)
