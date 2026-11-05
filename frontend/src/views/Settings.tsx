@@ -3,6 +3,8 @@ import { ArrowUpCircle, Bug, Check, Cog, ExternalLink, FileText, FolderOpen, Inf
 import { checkForUpdate, installUpdate, useUpdate } from '../lib/update'
 import { Brand } from '../components/Brand'
 import { PluginsCard } from '../components/PluginsCard'
+import { CustomAgentsCard } from '../components/CustomAgentsCard'
+import { resetAgentKinds } from '../components/NewTabMenu'
 import { SystemService, type AppInfo, type Tool } from '../../bindings/larvyn/internal/system'
 import { type Settings as S } from '../../bindings/larvyn/internal/store'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
@@ -36,6 +38,8 @@ export function Settings() {
       await SystemService.SaveSettings(v)
       useStore.setState({ settings: v })
       setFontSize(v.terminalFontSize)
+      resetAgentKinds()
+      AgentService.Kinds().then((k) => setAgents(k ?? []))
       toast('success', 'Settings saved')
     } catch (e) {
       toast('error', 'Could not save', errMsg(e))
@@ -145,6 +149,8 @@ export function Settings() {
             )}
           </div>
         </div>
+
+        <CustomAgentsCard value={v.customAgents ?? []} builtins={agents.filter((a) => !a.custom)} onChange={(customAgents) => set({ customAgents })} />
 
         <PluginsCard />
 

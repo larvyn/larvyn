@@ -19,6 +19,13 @@ export interface AgentKind {
      */
     "promptFlag": string;
     "color": string;
+
+    /**
+     * Base is the built-in agent this one works like: its own id, or the
+     * one a custom agent was added as.
+     */
+    "base": string;
+    "custom": boolean;
 }
 
 /**

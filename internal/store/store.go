@@ -55,6 +55,19 @@ type Settings struct {
 	// NoFlockAutoServe stops Larvyn from serving the Laravel projects it
 	// adds with Flock (flk link) when Flock runs.
 	NoFlockAutoServe bool `json:"noFlockAutoServe"`
+	// CustomAgents are the agents the user added in Settings.
+	CustomAgents []CustomAgent `json:"customAgents,omitempty"`
+}
+
+// CustomAgent is a command that works like one of the built-in agents (its
+// Base): it starts, resumes and takes its first prompt the same way, with
+// its own name and environment.
+type CustomAgent struct {
+	ID      string            `json:"id"`
+	Name    string            `json:"name"`
+	Base    string            `json:"base"`
+	Command string            `json:"command"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // PluginState is what the user decided about an installed plugin.

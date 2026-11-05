@@ -19,6 +19,10 @@ type Item = { id: string; label: string; detail?: string; icon: ReactNode; hint?
 
 // Agent detection shells out to `which` for every CLI: do it once per app run.
 let kindsCache: Promise<AgentKind[]> | null = null
+// Settings calls this after saving, as the user's agents may have changed.
+export function resetAgentKinds() {
+  kindsCache = null
+}
 function agentKinds() {
   kindsCache ??= AgentService.Kinds()
     .then((k) => k ?? [])
