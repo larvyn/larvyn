@@ -5,7 +5,7 @@ import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { fail, toast, useStore } from '../lib/store'
 import { cx, errMsg } from '../lib/util'
-import { SearchInput, Toggle, confirmDialog } from './ui'
+import { SearchInput, Toggle, confirmDialog, openConfirm } from './ui'
 import { pluginsChanged } from './pluginRun'
 
 /** A plugin's icon.svg, or the puzzle piece when it has none or it doesn't
@@ -106,15 +106,17 @@ function PermissionList({ p, all, market }: { p: Plugin; all: Permission[]; mark
   )
 }
 
+/** The dialog that asks the user to approve a plugin's permissions. */
+const approval = (p: Plugin, all: Permission[], action: string, market = p.source === 'marketplace') => ({
+  title: `${action} ${p.manifest.name} ${p.manifest.version}?`,
+  message: <PermissionList p={p} all={all} market={market} />,
+  icon: <PluginIcon icon={p.icon} big />,
+  confirm: `Allow and ${action.toLowerCase()}`,
+  danger: true,
+})
+
 /** Asks the user to approve a plugin's permissions. */
-const approve = (p: Plugin, all: Permission[], action: string, market = p.source === 'marketplace') =>
-  confirmDialog({
-    title: `${action} ${p.manifest.name} ${p.manifest.version}?`,
-    message: <PermissionList p={p} all={all} market={market} />,
-    icon: <PluginIcon icon={p.icon} big />,
-    confirm: `Allow and ${action.toLowerCase()}`,
-    danger: true,
-  })
+const approve = (p: Plugin, all: Permission[], action: string, market?: boolean) => confirmDialog(approval(p, all, action, market))
 
 /** Settings > Plugins. Installed: every installed plugin, wherever it came
  * from, with its toggles, updates, export and uninstall. Marketplace: the
@@ -128,6 +130,8 @@ export function PluginsCard() {
   const [market, setMarket] = useState<Listing[] | null>(null)
   const [marketErr, setMarketErr] = useState('')
   const [q, setQ] = useState('')
+  // The plugin being installed after the user approved it.
+  const [busy, setBusy] = useState('')
 
   const load = () =>
     PluginService.List()
@@ -153,23 +157,44 @@ export function PluginsCard() {
   }, [])
 
   /** Checks a plugin, asks for its permissions, then installs it. The same
-   * steps for a folder and a .zip (which Larvyn unpacks safely first). */
-  const installFrom = async (src: string, inspect: (s: string) => Promise<Plugin>, installIt: (s: string, granted: string[]) => Promise<Plugin>, fromMarket = false) => {
-    let p: Plugin
-    try {
-      p = await inspect(src)
-    } catch (e) {
-      toast('error', 'Not a plugin Larvyn can install', errMsg(e))
-      return
-    }
-    const existing = plugins?.find((x) => x.manifest.id === p.manifest.id)
-    if (!(await approve(p, perms, existing ? 'Update' : 'Install', fromMarket))) return
+   * steps for a folder and a .zip (which Larvyn unpacks safely first). The
+   * dialog opens at once and fills in when the plugin has been read: a
+   * marketplace plugin is downloaded first. */
+  const installFrom = async (
+    src: string,
+    inspect: (s: string) => Promise<Plugin>,
+    installIt: (s: string, granted: string[]) => Promise<Plugin>,
+    fromMarket = false,
+    listing?: Listing,
+  ) => {
+    const action = (id?: string) => (plugins?.some((x) => x.manifest.id === id) ? 'Update' : 'Install')
+    const dlg = openConfirm({
+      title: listing ? `${action(listing.id)} ${listing.name} ${listing.version}?` : 'Install plugin?',
+      icon: <PluginIcon icon={listing?.icon} big />,
+      confirm: `Allow and ${action(listing?.id).toLowerCase()}`,
+      danger: true,
+      loading: true,
+    })
+    const inspected = inspect(src)
+    inspected.then(
+      (p) => dlg.update({ ...approval(p, perms, action(p.manifest.id), fromMarket), loading: false }),
+      (e) => {
+        dlg.cancel()
+        toast('error', 'Not a plugin Larvyn can install', errMsg(e))
+      },
+    )
+    // Confirm is enabled only once the plugin was read.
+    if (!(await dlg.result)) return
+    const p = await inspected
+    const verb = action(p.manifest.id) === 'Update' ? 'updated' : 'installed'
+    setBusy(p.manifest.id)
     try {
       await installIt(src, p.manifest.permissions ?? [])
-      toast('success', `${p.manifest.name} ${existing ? 'updated' : 'installed'}`)
+      toast('success', `${p.manifest.name} ${verb}`)
     } catch (e) {
       toast('error', 'Could not install the plugin', errMsg(e))
     }
+    setBusy('')
     reload()
   }
 
@@ -181,6 +206,7 @@ export function PluginsCard() {
       (id) => PluginService.InspectListing(id, l.version),
       (id, granted) => PluginService.InstallListing(id, l.version, granted),
       true,
+      l,
     )
 
   const install = async () => {
@@ -341,7 +367,11 @@ export function PluginsCard() {
         <button className="icon-btn" title="Source code" onClick={() => SystemService.OpenURL(l.repo)}>
           <ExternalLink />
         </button>
-        {l.update ? (
+        {busy === l.id ? (
+          <button className="btn sm ghost" disabled>
+            <span className="spinner" /> {l.installed ? 'Updating…' : 'Installing…'}
+          </button>
+        ) : l.update ? (
           <button className="btn sm primary" disabled={!!l.error} title={l.error} onClick={() => installListing(l)}>
             <ArrowUpCircle /> Update
           </button>
@@ -414,7 +444,11 @@ export function PluginsCard() {
                 </span>
               ))}
           </div>
-          {updateFor(p) && (
+          {busy === p.manifest.id ? (
+            <button className="btn sm ghost" disabled>
+              <span className="spinner" /> Updating…
+            </button>
+          ) : updateFor(p) && (
             <button className="btn sm primary" disabled={!!updateFor(p)!.error} title={updateFor(p)!.error} onClick={() => installListing(updateFor(p)!)}>
               <ArrowUpCircle /> Update to {updateFor(p)!.version}
             </button>

@@ -51,12 +51,34 @@ interface ConfirmReq {
   danger?: boolean
   /** Replaces the warning sign, e.g. with the icon of what is installed. */
   icon?: ReactNode
+  /** The message is still on its way: placeholders show, Confirm waits. */
+  loading?: boolean
   resolve: (ok: boolean) => void
 }
 const useConfirm = create<{ req: ConfirmReq | null }>(() => ({ req: null }))
 
 export function confirmDialog(opts: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
   return new Promise((resolve) => useConfirm.setState({ req: { ...opts, resolve } }))
+}
+
+/** A confirm that opens at once, before its message is known (it shows
+ * `loading`); update() fills it in. Both are ignored once it is closed. */
+export function openConfirm(opts: Omit<ConfirmReq, 'resolve'>) {
+  let mine: ConfirmReq['resolve'] = () => {}
+  const result = new Promise<boolean>((resolve) => {
+    mine = resolve
+    useConfirm.setState({ req: { ...opts, resolve } })
+  })
+  const open = () => useConfirm.getState().req?.resolve === mine
+  return {
+    result,
+    update: (patch: Partial<Omit<ConfirmReq, 'resolve'>>) => open() && useConfirm.setState((s) => ({ req: { ...s.req!, ...patch } })),
+    cancel: () => {
+      if (!open()) return
+      mine(false)
+      useConfirm.setState({ req: null })
+    },
+  }
 }
 
 export function ConfirmHost() {
@@ -84,13 +106,21 @@ export function ConfirmHost() {
           <button className="btn ghost" onClick={() => done(false)}>
             Cancel
           </button>
-          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus onClick={() => done(true)}>
+          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus disabled={req.loading} onClick={() => done(true)}>
             {req.confirm ?? 'Continue'}
           </button>
         </>
       }
     >
-      {req.message && <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{req.message}</div>}
+      {req.loading ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {[70, 45, 55].map((w) => (
+            <div key={w} className="skeleton" style={{ height: 14, width: `${w}%` }} />
+          ))}
+        </div>
+      ) : (
+        req.message && <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{req.message}</div>
+      )}
     </Modal>
   )
 }
