@@ -127,12 +127,13 @@ export function ConfirmHost() {
       }
       footer={
         <>
-          {/* While loading, Cancel has the focus; the confirm button is
-              remounted when it is ready, so it takes the focus then. */}
+          {/* A dialog that opens loading focuses Cancel and leaves the focus
+              there when it is ready: Enter must not approve what the user
+              hasn't seen. */}
           <button className="btn ghost" autoFocus={req.loading} onClick={() => done(false)}>
             Cancel
           </button>
-          <button key={req.loading ? 'loading' : 'ready'} className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus={!req.loading} disabled={req.loading} onClick={() => done(true)}>
+          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus={!req.loading} disabled={req.loading} onClick={() => done(true)}>
             {req.confirm ?? 'Continue'}
           </button>
         </>
