@@ -43,6 +43,24 @@ export interface FlockServed {
 }
 
 /**
+ * Found is a Laravel project found on disk by Discover.
+ */
+export interface Found {
+    "path": string;
+    "name": string;
+
+    /**
+     * Added is true when the folder is already one of the user's projects.
+     */
+    "added": boolean;
+
+    /**
+     * Modified is when composer.json last changed, in Unix milliseconds.
+     */
+    "modified": number;
+}
+
+/**
  * Package is a notable Composer package found in a project.
  */
 export interface Package {

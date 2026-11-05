@@ -54,6 +54,7 @@ interface State {
   paletteOpen: boolean
   paletteQuery: string
   newProjectOpen: boolean
+  addProjectOpen: boolean // the "Open a project" picker is on screen
   onboarding: boolean // the first-run setup is on screen
   sidebar: boolean
   toasts: Toast[]
@@ -76,6 +77,7 @@ const initial: State = {
   paletteOpen: false,
   paletteQuery: '',
   newProjectOpen: false,
+  addProjectOpen: false,
   onboarding: false,
   sidebar: true,
   toasts: [],
@@ -316,15 +318,36 @@ export function openPalette(query = '') {
   set({ paletteOpen: true, paletteQuery: query })
 }
 
-export async function addProject() {
+/** Opens the project picker: Laravel apps found on this computer, or a
+ * folder chosen by hand. */
+export function addProject() {
+  set({ addProjectOpen: true })
+}
+
+/** Adds the folder at path as a project and opens it. */
+export async function addProjectAt(path: string) {
   try {
-    const p = await ProjectService.Pick()
-    if (p) {
-      selectProject(p.id)
-      toast('success', 'Project added', p.path)
-    }
+    const p = await ProjectService.Add(path)
+    selectProject(p.id)
+    toast('success', 'Project added', p.path)
+    return true
   } catch (e) {
     toast('error', 'Could not add project', errMsg(e))
+    return false
+  }
+}
+
+/** Asks for a folder with the system dialog and adds it. */
+export async function browseProject() {
+  try {
+    const p = await ProjectService.Pick()
+    if (!p) return false
+    selectProject(p.id)
+    toast('success', 'Project added', p.path)
+    return true
+  } catch (e) {
+    toast('error', 'Could not add project', errMsg(e))
+    return false
   }
 }
 

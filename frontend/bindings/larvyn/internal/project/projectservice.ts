@@ -36,6 +36,15 @@ export function Close(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * Discover looks for Laravel projects on this computer, under the home
+ * folder and the usual web roots, newest first. It stops looking after a
+ * few seconds, so on a very large disk the list may be partial.
+ */
+export function Discover(): $CancellablePromise<$models.Found[] | null> {
+    return $Call.ByID(2302053366);
+}
+
+/**
  * EnsureSQLite creates the SQLite database file a project's .env points at
  * when it is missing, so a fresh app does not fail with "Database file at
  * path [...] does not exist". It reports whether a file was created.

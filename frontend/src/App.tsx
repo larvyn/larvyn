@@ -25,6 +25,7 @@ import { Env } from './views/Env'
 import { Deps } from './views/Deps'
 import { Settings } from './views/Settings'
 import { NewProject, Welcome } from './views/Welcome'
+import { AddProject } from './components/AddProject'
 import { Onboarding } from './views/Onboarding'
 import { Loading } from './components/ui'
 import { PluginView } from './components/PluginView'
@@ -150,6 +151,7 @@ export default function App() {
       <StatusBar />
       <Palette />
       <NewProject />
+      <AddProject />
       <ConfirmHost />
       <PromptHost />
       <CustomizeProjectHost />
