@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"time"
@@ -160,12 +161,28 @@ func HomeDir() string {
 	if h := os.Getenv("LARVYN_HOME"); h != "" {
 		return h
 	}
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
+	if base, err := os.UserConfigDir(); err == nil {
+		return filepath.Join(base, "larvyn")
 	}
-	return filepath.Join(base, "larvyn")
+	// No $HOME: the account's home from the system's user database still
+	// gives the same folder on every launch, so state persists.
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+		return filepath.Join(u.HomeDir, ".config", "larvyn")
+	}
+	return fallbackHome()
 }
+
+// fallbackHome is the last resort, when the account has no home at all: a
+// private folder for this run. It is never a shared, predictable path in the
+// temp dir that another account could have created first (#53); when even
+// the private folder can't be made, it is a random name nobody can have
+// prepared, and writes there simply fail.
+var fallbackHome = sync.OnceValue(func() string {
+	if dir, err := os.MkdirTemp("", "larvyn-"); err == nil {
+		return dir
+	}
+	return filepath.Join(os.TempDir(), "larvyn-"+NewID()+NewID())
+})
 
 // New reads the state from HomeDir().
 func New() *Store {
@@ -195,11 +212,21 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	tmp := filepath.Join(s.dir, "state.json.tmp")
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	// A fresh temp file each time (CreateTemp makes it 0600): reusing a fixed
+	// name would keep the mode of one an older version left behind.
+	f, err := os.CreateTemp(s.dir, "state.json.*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
+	defer os.Remove(f.Name()) // a no-op once renamed
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), filepath.Join(s.dir, "state.json"))
 }
 
 // Update changes the state under the lock and saves it.
@@ -300,10 +327,12 @@ func (s *Store) PHP() string {
 // AppendLog adds a line to larvyn.log in HomeDir(), so errors leave a trace.
 func AppendLog(level, message string) {
 	_ = os.MkdirAll(HomeDir(), 0o755)
-	f, err := os.OpenFile(filepath.Join(HomeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(HomeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+	// Logs from older versions were created world-readable.
+	_ = f.Chmod(0o600)
 	fmt.Fprintf(f, "%s %s %s\n", time.Now().Format(time.RFC3339), level, message)
 }

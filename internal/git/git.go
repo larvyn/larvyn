@@ -369,12 +369,12 @@ func (g *GitService) CreateWorktree(req WorktreeRequest) (Worktree, error) {
 		return Worktree{}, err
 	}
 	if req.CopyEnv {
-		copyFile(filepath.Join(p.Path, ".env"), filepath.Join(path, ".env"))
+		copyInto(filepath.Join(p.Path, ".env"), path, ".env")
 		env := dotenv.Read(filepath.Join(p.Path, ".env"))
 		if env["DB_CONNECTION"] == "sqlite" {
 			db := env["DB_DATABASE"]
 			if db == "" || !filepath.IsAbs(db) {
-				copyFile(filepath.Join(p.Path, "database", "database.sqlite"), filepath.Join(path, "database", "database.sqlite"))
+				copyInto(filepath.Join(p.Path, "database", "database.sqlite"), path, filepath.Join("database", "database.sqlite"))
 			}
 		}
 	}
@@ -447,17 +447,35 @@ func (g *GitService) MergeWorktree(projectID, path, message string) (string, err
 // so they are never committed even where .gitignore misses them.
 var notCopied = []string{":!.env", ":!database/database.sqlite"}
 
-func copyFile(from, to string) {
+// copyInto copies a file into dir/rel. It writes through os.Root, so a
+// symlink the checked-out branch put at rel (or at a folder on the way) can't
+// send the copy, and its truncation, outside the worktree (#51). A new file
+// keeps the source's permissions, so a private .env stays private.
+func copyInto(from, dir, rel string) {
 	in, err := os.Open(from)
 	if err != nil {
 		return
 	}
 	defer in.Close()
-	_ = os.MkdirAll(filepath.Dir(to), 0o755)
-	out, err := os.Create(to)
+	info, err := in.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return
+	}
+	defer root.Close()
+	_ = root.MkdirAll(filepath.Dir(rel), 0o755)
+	out, err := root.OpenFile(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
 	if err != nil {
 		return
 	}
 	defer out.Close()
+	// The branch may track its own .env: OpenFile keeps that file's mode, so
+	// set the source's before the secrets go in.
+	if err := out.Chmod(info.Mode().Perm()); err != nil {
+		return
+	}
 	_, _ = io.Copy(out, in)
 }

@@ -236,12 +236,21 @@ func (l *LaravelService) SaveEnv(projectID, name, raw string) error {
 	if strings.ContainsAny(name, `/\`) || !strings.HasPrefix(name, ".env") {
 		return errors.New("not an env file")
 	}
-	path := filepath.Join(dir, name)
-	if old, err := os.ReadFile(path); err == nil {
+	// os.Root refuses a symlink that leads out of the project, so a .env
+	// linked to ~/.bashrc can't be overwritten (#51).
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if old, err := root.ReadFile(name); err == nil {
 		_ = os.MkdirAll(filepath.Join(store.HomeDir(), "backups"), 0o755)
 		_ = os.WriteFile(filepath.Join(store.HomeDir(), "backups", fmt.Sprintf("%s-%s-%d", projectID, name, time.Now().Unix())), old, 0o600)
 	}
-	return os.WriteFile(path, []byte(raw), 0o644)
+	if err := root.WriteFile(name, []byte(raw), 0o644); err != nil {
+		return fmt.Errorf("can't write %s: %w", name, err)
+	}
+	return nil
 }
 
 // SetEnv sets one key in .env, appending it when absent.
@@ -441,7 +450,17 @@ func (l *LaravelService) ClearLog(projectID, file string) error {
 	if strings.ContainsAny(file, `/\`) || !strings.HasSuffix(file, ".log") {
 		return errors.New("bad log name")
 	}
-	return os.Truncate(filepath.Join(dir, "storage", "logs", file), 0)
+	// Through os.Root, so a log symlinked out of the project isn't emptied.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	f, err := root.OpenFile(filepath.Join("storage", "logs", file), os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return fmt.Errorf("can't clear %s: %w", file, err)
+	}
+	return f.Close()
 }
 
 // ---- files ----------------------------------------------------------------
