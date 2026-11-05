@@ -28,6 +28,7 @@ import { artisanRun, fail, toast, useActive, useStore } from '../lib/store'
 import { bytes, cx, errMsg, load, mod, num, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'
 import { Empty, Loading, Modal, SearchInput, confirmDialog, useAsync } from '../components/ui'
+import { isReadOnlySQL } from '../lib/sql'
 
 type Tab = 'data' | 'structure' | 'sql' | 'migrations'
 
@@ -407,7 +408,7 @@ function SqlConsole({ projectId }: { projectId: string }) {
   const run = async () => {
     const text = sql.trim()
     if (!text) return
-    const isWrite = !/^\s*(select|with|show|describe|desc|explain|pragma|values)\b/i.test(text)
+    const isWrite = !isReadOnlySQL(text)
     if (isWrite && !(await confirmDialog({ title: 'Run a write statement?', message: <span className="mono">{text.slice(0, 300)}</span>, confirm: 'Run', danger: true }))) return
     setBusy(true)
     setErr('')
