@@ -6,6 +6,7 @@ import { attach } from '../lib/terms'
 import { useStore } from '../lib/store'
 import { cx } from '../lib/util'
 
+/** A dialog over the window: Escape or a click outside closes it. */
 export function Modal(props: {
   title: ReactNode
   subtitle?: ReactNode
@@ -78,6 +79,7 @@ function showConfirm(req: ConfirmReq) {
   useConfirm.setState({ req })
 }
 
+/** Asks a yes/no question; resolves true when the user confirms. */
 export function confirmDialog(opts: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
   return new Promise((resolve) => showConfirm({ ...opts, resolve }))
 }
@@ -102,6 +104,7 @@ export function openConfirm(opts: Omit<ConfirmReq, 'resolve'>) {
   }
 }
 
+/** Shows the open confirm dialog; mounted once by the app. */
 export function ConfirmHost() {
   const req = useConfirm((s) => s.req)
   if (!req) return null
@@ -160,10 +163,12 @@ interface PromptReq {
 }
 const usePrompt = create<{ req: PromptReq | null }>(() => ({ req: null }))
 
+/** Asks for one line of text; resolves null when cancelled. */
 export function promptDialog(opts: Omit<PromptReq, 'resolve'>): Promise<string | null> {
   return new Promise((resolve) => usePrompt.setState({ req: { ...opts, resolve } }))
 }
 
+/** Shows the open prompt dialog; mounted once by the app. */
 export function PromptHost() {
   const req = usePrompt((s) => s.req)
   const [value, setValue] = useState('')
@@ -205,6 +210,7 @@ export function PromptHost() {
 
 // ---- misc ------------------------------------------------------------------
 
+/** The placeholder for a view or list with nothing to show. */
 export function Empty(props: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
@@ -216,6 +222,7 @@ export function Empty(props: { icon: ReactNode; title: string; children?: ReactN
   )
 }
 
+/** An on/off switch. */
 export function Toggle(props: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; title?: string }) {
   return (
     <button
@@ -230,6 +237,7 @@ export function Toggle(props: { on: boolean; onChange: (v: boolean) => void; dis
   )
 }
 
+/** A search field; Escape clears it. */
 export function SearchInput(props: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; width?: number | string }) {
   return (
     <div className="search" style={{ width: props.width ?? 260 }}>
@@ -246,6 +254,7 @@ export function SearchInput(props: { value: string; onChange: (v: string) => voi
   )
 }
 
+/** A spinner with an optional label, for a view that is loading. */
 export function Loading({ label }: { label?: string }) {
   return (
     <div className="empty">
@@ -255,6 +264,7 @@ export function Loading({ label }: { label?: string }) {
   )
 }
 
+/** The slot a terminal session is drawn into. */
 export function TermPane({ id, focus, className, style }: { id: string; focus?: boolean; className?: string; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -264,6 +274,7 @@ export function TermPane({ id, focus, className, style }: { id: string; focus?: 
   return <div ref={ref} className={cx('term-slot', className)} style={style} />
 }
 
+/** The notifications in the corner; an error one can be reported. */
 export function Toasts() {
   const toasts = useStore((s) => s.toasts)
   return (
@@ -292,6 +303,7 @@ export function Toasts() {
   )
 }
 
+/** Runs fn when deps change and keeps its result, error and loading state. */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [state, setState] = useState<{ data: T | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
   const [tick, setTick] = useState(0)
@@ -315,6 +327,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   return { ...state, reload: () => setTick((t) => t + 1), setData: (d: T) => setState((s) => ({ ...s, data: d })) }
 }
 
+/** The current time, refreshed every interval ms. */
 export function useNow(interval = 1000) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
@@ -324,6 +337,7 @@ export function useNow(interval = 1000) {
   return now
 }
 
+/** Larvyn's mark. */
 export function Logo() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -333,6 +347,7 @@ export function Logo() {
   )
 }
 
+/** A unified diff, coloured by line kind. */
 export function Diff({ text }: { text: string }) {
   if (!text.trim()) return <Empty icon={<CheckCircle2 />} title="No changes" />
   const lines = text.replace(/\r\n/g, '\n').split('\n')

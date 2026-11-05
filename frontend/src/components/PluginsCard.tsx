@@ -21,6 +21,7 @@ function PluginIcon({ icon, off, big }: { icon?: string; off?: boolean; big?: bo
   )
 }
 
+/** "1 command", "2 commands". */
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** What a plugin adds, e.g. "4 commands · 1 stack item". */
@@ -133,6 +134,7 @@ export function PluginsCard() {
   // The plugins being installed after the user approved them.
   const [busy, setBusy] = useState<string[]>([])
 
+  /** Reads the installed plugins. */
   const load = () =>
     PluginService.List()
       .then((l) => {
@@ -140,6 +142,7 @@ export function PluginsCard() {
         pluginsChanged()
       })
       .catch(fail('Could not list the plugins'))
+  /** Reads the marketplace, which also applies its revocations. */
   const loadMarket = () =>
     PluginService.Marketplace()
       .then((l) => {
@@ -210,16 +213,19 @@ export function PluginsCard() {
       l,
     )
 
+  /** Installs a plugin from a folder the user picks. */
   const install = async () => {
     const dir = await ProjectService.PickFolder('Choose a plugin folder').catch(() => '')
     if (dir) await installFrom(dir, PluginService.Inspect, PluginService.Install)
   }
 
+  /** Installs a plugin from a .zip the user picks. */
   const installZip = async () => {
     const zip = await PluginService.PickZip().catch(() => '')
     if (zip) await installFrom(zip, PluginService.InspectZip, PluginService.InstallZip)
   }
 
+  /** Turns a plugin off, or on after the user approves its permissions. */
   const toggle = async (p: Plugin, on: boolean) => {
     try {
       if (!on) await PluginService.Disable(p.manifest.id)
@@ -277,8 +283,10 @@ export function PluginsCard() {
   }
 
   const updates = (market ?? []).filter((l) => l.update)
+  /** The marketplace update for an installed plugin, if there is one. */
   const updateFor = (p: Plugin) => updates.find((l) => l.id === p.manifest.id)
 
+  /** Uninstalls a plugin after the user confirms. */
   const uninstall = async (p: Plugin) => {
     const ok = await confirmDialog({
       title: `Uninstall ${p.manifest.name || p.manifest.id}?`,
@@ -333,6 +341,7 @@ export function PluginsCard() {
     </div>
   )
 
+  /** The Marketplace tab. */
   function marketList() {
     if (marketErr)
       return (
@@ -389,6 +398,7 @@ export function PluginsCard() {
     ))
   }
 
+  /** The Installed tab. */
   function installedList() {
     return (
       <>
