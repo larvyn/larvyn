@@ -21,7 +21,7 @@ export function Fanout(req: $models.LaunchRequest, agents: string[] | null): $Ca
 }
 
 /**
- * Kinds lists the known agents and whether each is on PATH.
+ * Kinds lists the agents, built-in then custom, and whether each is on PATH.
  */
 export function Kinds(): $CancellablePromise<$models.AgentKind[] | null> {
     return $Call.ByID(1319002389);

@@ -2,6 +2,7 @@ package agents
 
 import (
 	"bufio"
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -31,6 +32,12 @@ type AgentKind struct {
 	// first message through an option (agy -i "…").
 	PromptFlag string `json:"promptFlag"`
 	Color      string `json:"color"`
+	// Base is the built-in agent this one works like: its own id, or the
+	// one a custom agent was added as.
+	Base   string `json:"base"`
+	Custom bool   `json:"custom"`
+	// env is a custom agent's environment, "~/" expanded.
+	env map[string]string
 }
 
 var agentKinds = []AgentKind{
@@ -41,6 +48,61 @@ var agentKinds = []AgentKind{
 	{ID: "cursor-agent", Name: "Cursor Agent", Binary: "cursor-agent", Install: "see cursor.com/cli", PromptAsArg: true, Color: "#A3A3A3"},
 	{ID: "aider", Name: "Aider", Binary: "aider", Install: "pip install aider-install", Color: "#14B8A6"},
 	{ID: "pi", Name: "Pi", Binary: "pi", Install: "npm i -g @mariozechner/pi-coding-agent", Color: "#8B5CF6"},
+}
+
+// kinds are the built-in agents followed by the user's custom ones.
+func kinds() []AgentKind {
+	out := make([]AgentKind, 0, len(agentKinds))
+	for _, k := range agentKinds {
+		k.Base = k.ID
+		out = append(out, k)
+	}
+	for _, c := range store.CurrentSettings().CustomAgents {
+		if k, ok := customKind(c); ok && kindByID(out, k.ID) == nil {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// customKind is the agent a custom one describes. One without an id or a
+// command, or whose base isn't a built-in agent, is left out.
+func customKind(c store.CustomAgent) (AgentKind, bool) {
+	base := kindByID(agentKinds, c.Base)
+	cmd := expandHome(strings.TrimSpace(c.Command))
+	if base == nil || c.ID == "" || cmd == "" {
+		return AgentKind{}, false
+	}
+	k := *base
+	k.ID, k.Base, k.Custom, k.Binary = c.ID, base.ID, true, cmd
+	k.Name = cmp.Or(strings.TrimSpace(c.Name), cmd)
+	k.Install = "see Settings: " + cmd + " was not found"
+	k.env = map[string]string{}
+	for key, v := range c.Env {
+		if key = strings.TrimSpace(key); key != "" {
+			k.env[key] = expandHome(v)
+		}
+	}
+	return k, true
+}
+
+func kindByID(list []AgentKind, id string) *AgentKind {
+	for i := range list {
+		if list[i].ID == id {
+			return &list[i]
+		}
+	}
+	return nil
+}
+
+// expandHome expands a leading ~/: agents start without a shell.
+func expandHome(s string) string {
+	if s == "~" || strings.HasPrefix(s, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, s[1:])
+		}
+	}
+	return s
 }
 
 // yoloFlags start each agent without approval prompts (the same flags Orca
@@ -56,13 +118,13 @@ var yoloFlags = map[string][]string{
 
 // resumeArgs are the arguments that make each agent continue its previous
 // conversation in the same folder. Agents missing here start afresh.
-var resumeArgs = map[string]func(meta map[string]string) []string{
-	"claude": func(meta map[string]string) []string {
-		id := meta["resumeId"]
+var resumeArgs = map[string]func(spec terminal.SessionSpec) []string{
+	"claude": func(spec terminal.SessionSpec) []string {
+		id := spec.Meta["resumeId"]
 		switch {
 		case id == "":
 			return []string{"--continue"}
-		case claudeSessionExists(id):
+		case claudeSessionExists(spec.Env, id):
 			return []string{"--resume", id}
 		default:
 			// Nothing was said yet, so there is nothing to resume: start the
@@ -70,16 +132,16 @@ var resumeArgs = map[string]func(meta map[string]string) []string{
 			return []string{"--session-id", id}
 		}
 	},
-	"codex": func(meta map[string]string) []string {
-		if id := meta["resumeId"]; id != "" {
+	"codex": func(spec terminal.SessionSpec) []string {
+		if id := spec.Meta["resumeId"]; id != "" {
 			return []string{"resume", id}
 		}
 		return nil // no conversation was recorded: start a new one
 	},
-	"opencode":    func(map[string]string) []string { return []string{"--continue"} },
-	"antigravity": func(map[string]string) []string { return []string{"--continue"} },
-	"aider":       func(map[string]string) []string { return []string{"--restore-chat-history"} },
-	"pi":          func(map[string]string) []string { return []string{"--continue"} },
+	"opencode":    func(terminal.SessionSpec) []string { return []string{"--continue"} },
+	"antigravity": func(terminal.SessionSpec) []string { return []string{"--continue"} },
+	"aider":       func(terminal.SessionSpec) []string { return []string{"--restore-chat-history"} },
+	"pi":          func(terminal.SessionSpec) []string { return []string{"--continue"} },
 }
 
 // resumesByFolder are the agents that resume "the latest conversation in this
@@ -92,13 +154,7 @@ var resumesByFolder = map[string]bool{"opencode": true, "antigravity": true, "ai
 // with its permission flags and without the first prompt. resumes tells
 // whether the agent can pick its conversation up.
 func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resumes bool, err error) {
-	var kind *AgentKind
-	for _, k := range agentKinds {
-		if k.ID == spec.Key {
-			k := k
-			kind = &k
-		}
-	}
+	kind := kindByID(kinds(), spec.Key)
 	if kind == nil {
 		return nil, false, errors.New("unknown agent " + spec.Key)
 	}
@@ -108,18 +164,19 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 	}
 	argv = []string{path}
 	if spec.Meta["yolo"] == "1" {
-		argv = append(argv, yoloFlags[kind.ID]...)
+		argv = append(argv, yoloFlags[kind.Base]...)
 	}
-	if fn, ok := resumeArgs[kind.ID]; ok && !(shared && resumesByFolder[kind.ID]) {
+	if fn, ok := resumeArgs[kind.Base]; ok && !(shared && resumesByFolder[kind.Base]) {
 		resumes = true
-		argv = append(argv, fn(spec.Meta)...)
+		argv = append(argv, fn(spec)...)
 	}
 	return argv, resumes, nil
 }
 
-// claudeConfigDir is where Claude Code keeps its conversations.
-func claudeConfigDir() string {
-	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+// claudeConfigDir is where Claude Code keeps its conversations: the
+// session's CLAUDE_CONFIG_DIR, else Larvyn's.
+func claudeConfigDir(env map[string]string) string {
+	if d := cmp.Or(env["CLAUDE_CONFIG_DIR"], os.Getenv("CLAUDE_CONFIG_DIR")); d != "" {
 		return d
 	}
 	home, _ := os.UserHomeDir()
@@ -128,14 +185,15 @@ func claudeConfigDir() string {
 
 // claudeSessionExists tells whether Claude Code recorded a conversation
 // under id (in projects/<folder>/<id>.jsonl).
-func claudeSessionExists(id string) bool {
-	m, _ := filepath.Glob(filepath.Join(claudeConfigDir(), "projects", "*", id+".jsonl"))
+func claudeSessionExists(env map[string]string, id string) bool {
+	m, _ := filepath.Glob(filepath.Join(claudeConfigDir(env), "projects", "*", id+".jsonl"))
 	return len(m) > 0
 }
 
-// codexHome is where Codex keeps its conversations.
-func codexHome() string {
-	if d := os.Getenv("CODEX_HOME"); d != "" {
+// codexHome is where Codex keeps its conversations: the agent's
+// CODEX_HOME, else Larvyn's.
+func codexHome(env map[string]string) string {
+	if d := cmp.Or(env["CODEX_HOME"], os.Getenv("CODEX_HOME")); d != "" {
 		return d
 	}
 	home, _ := os.UserHomeDir()
@@ -148,10 +206,19 @@ func isCodexRollout(path string) bool {
 	return strings.HasPrefix(base, "rollout-") && strings.HasSuffix(base, ".jsonl")
 }
 
-// CodexResumeID finds the conversation of a Codex session. While it runs,
+// ResolveResumeID finds the conversation of an agent session that doesn't
+// let Larvyn pick its id: Codex, or a custom agent that works like it.
+func ResolveResumeID(key, cwd string, pid int, startedAt int64, claimed map[string]bool) (string, bool) {
+	if k := kindByID(kinds(), key); k != nil && k.Base == "codex" {
+		return codexResumeID(codexHome(k.env), cwd, pid, startedAt, claimed)
+	}
+	return "", false
+}
+
+// codexResumeID finds the conversation of a Codex session. While it runs,
 // the rollout file its processes have open names it exactly; otherwise (or
 // where open files cannot be listed) it is guessed by folder and time.
-func CodexResumeID(cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
+func codexResumeID(home, cwd string, pid int, startedAt int64, claimed map[string]bool) (id string, exact bool) {
 	if pid > 0 {
 		if files, ok := proc.GroupOpenFiles(pid, isCodexRollout); ok {
 			for _, f := range files {
@@ -161,14 +228,13 @@ func CodexResumeID(cwd string, pid int, startedAt int64, claimed map[string]bool
 			}
 		}
 	}
-	return codexSessionID(cwd, startedAt, claimed), false
+	return codexSessionID(home, cwd, startedAt, claimed), false
 }
 
 // codexSessionID finds the Codex conversation started in cwd at or after
 // startedAt (Unix ms) that no other session claimed: Codex writes each one to
 // sessions/YYYY/MM/DD/rollout-*.jsonl, whose first line holds its id and cwd.
-func codexSessionID(cwd string, startedAt int64, claimed map[string]bool) string {
-	root := codexHome()
+func codexSessionID(root, cwd string, startedAt int64, claimed map[string]bool) string {
 	start := time.UnixMilli(startedAt)
 	// Folders and file names are in local time, like start.
 	from := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.Local)
@@ -240,10 +306,10 @@ var CreateWorktree = func(projectID, name, base string) (path, branch string, er
 	return "", "", errors.New("worktrees are not available")
 }
 
-// Kinds lists the known agents and whether each is on PATH.
+// Kinds lists the agents, built-in then custom, and whether each is on PATH.
 func (a *AgentService) Kinds() []AgentKind {
-	out := make([]AgentKind, len(agentKinds))
-	for i, k := range agentKinds {
+	out := kinds()
+	for i, k := range out {
 		k.Path = proc.Which(k.Binary)
 		k.Installed = k.Path != ""
 		out[i] = k
@@ -270,13 +336,7 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 	if !ok {
 		return terminal.SessionInfo{}, errors.New("project not found")
 	}
-	var kind *AgentKind
-	for _, k := range a.Kinds() {
-		if k.ID == req.Agent {
-			k := k
-			kind = &k
-		}
-	}
+	kind := kindByID(a.Kinds(), req.Agent)
 	if kind == nil {
 		return terminal.SessionInfo{}, errors.New("unknown agent " + req.Agent)
 	}
@@ -310,13 +370,13 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		}
 	}
 	argv := []string{kind.Path}
-	if f := yoloFlags[kind.ID]; len(f) > 0 && store.CurrentSettings().AgentPermissions != "manual" {
+	if f := yoloFlags[kind.Base]; len(f) > 0 && store.CurrentSettings().AgentPermissions != "manual" {
 		argv = append(argv, f...)
 		meta["yolo"] = "1"
 	}
 	// Claude Code takes the conversation id from us, so it can be resumed
 	// after Larvyn restarts.
-	if kind.ID == "claude" {
+	if kind.Base == "claude" {
 		id := newUUID()
 		argv = append(argv, "--session-id", id)
 		meta["resumeId"] = id
@@ -328,7 +388,7 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		kind.PromptAsArg = false
 	}
 	argv = append(argv, promptArgs(*kind, req.Prompt)...)
-	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Meta: meta})
+	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Env: kind.env, Meta: meta})
 	if err != nil {
 		return sess, err
 	}

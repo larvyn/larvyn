@@ -60,10 +60,10 @@ func TestCodexSessionIDMatchesFolderAndTime(t *testing.T) {
 	write("3", "mine", "/app", started.Add(2*time.Second))
 	write("4", "later", "/app", started.Add(10*time.Second))
 
-	if got := codexSessionID("/app", started.UnixMilli(), map[string]bool{}); got != "mine" {
+	if got := codexSessionID(codexHome(nil), "/app", started.UnixMilli(), map[string]bool{}); got != "mine" {
 		t.Fatalf("got %q, want mine", got)
 	}
-	if got := codexSessionID("/app", started.UnixMilli(), map[string]bool{"mine": true}); got != "later" {
+	if got := codexSessionID(codexHome(nil), "/app", started.UnixMilli(), map[string]bool{"mine": true}); got != "later" {
 		t.Fatalf("a claimed conversation must be skipped, got %q", got)
 	}
 }
