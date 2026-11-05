@@ -29,6 +29,11 @@ export const SessionsChanged = "sessions:changed";
 export const TermData = "term:data";
 
 /**
+ * Name of the custom event "term:dropped".
+ */
+export const TermDropped = "term:dropped";
+
+/**
  * Name of the custom event "term:exit".
  */
 export const TermExit = "term:exit";

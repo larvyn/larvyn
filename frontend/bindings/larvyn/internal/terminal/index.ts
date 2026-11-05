@@ -7,6 +7,7 @@ export {
 };
 
 export type {
+    FilesDropped,
     ProjectLayout,
     SessionInfo,
     SessionSpec,

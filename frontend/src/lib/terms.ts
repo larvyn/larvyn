@@ -67,6 +67,14 @@ function listen() {
       e.term.write(b64ToBytes(d.data))
     }
   })
+  // Files dropped on a terminal: their paths, quoted, as a paste.
+  Events.On('term:dropped', (ev: any) => {
+    const d = ev.data as { session: string; paths: string[] }
+    const e = entries.get(d.session)
+    if (!e || !d.paths?.length) return
+    e.term.paste(quotePaths(d.paths))
+    e.term.focus()
+  })
   useStore.subscribe((s, prev) => {
     if (s.sessions === prev.sessions) return
     const ids = new Set(s.sessions.map((x) => x.id))
@@ -81,6 +89,69 @@ function listen() {
   })
 }
 listen()
+
+const isWindows = () => useStore.getState().platform === 'windows'
+
+/** Paths as a shell (and an agent) reads them: quoted when they need it,
+ * with a trailing space so the next word doesn't run into them. */
+export function quotePaths(paths: string[], windows = isWindows()) {
+  const quote = (p: string) => {
+    if (p && (windows ? /^[A-Za-z0-9/\\._\-+=,:@%~]+$/ : /^[A-Za-z0-9/._\-+=,:@%~]+$/).test(p)) return p
+    return windows ? `"${p}"` : `'${p.replace(/'/g, `'\\''`)}'`
+  }
+  return paths.map(quote).join(' ') + ' '
+}
+
+/** Local paths in a text/uri-list (files copied in a file manager). */
+function fileURIs(list: string) {
+  const out: string[] = []
+  for (const line of list.split(/\r?\n/)) {
+    const l = line.trim()
+    if (!l.startsWith('file://')) continue
+    try {
+      let path = decodeURIComponent(new URL(l).pathname)
+      if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1).replace(/\//g, '\\') // file:///C:/x
+      out.push(path)
+    } catch {}
+  }
+  return out
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(blob)
+  })
+}
+
+/** A paste with no text in it, as other terminals handle one:
+ * - copied files are pasted as their quoted paths;
+ * - otherwise (a screenshot) Ctrl+V goes to the program, and agents such as
+ *   Claude Code and Codex read the image from the clipboard themselves.
+ *   Windows console programs expect the terminal to do the pasting, so
+ *   there the image is saved to a file and its path pasted instead.
+ * Returns false for a text paste, which xterm handles as usual. */
+function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
+  if (!data || data.getData('text/plain')) return false
+  const files = fileURIs(data.getData('text/uri-list'))
+  if (files.length) {
+    term.paste(quotePaths(files))
+    return true
+  }
+  if (!isWindows()) {
+    TerminalService.Write(id, '\x16')
+    return true
+  }
+  const image = [...data.items].find((it) => it.kind === 'file' && it.type.startsWith('image/'))?.getAsFile()
+  if (!image) return false
+  blobToBase64(image)
+    .then((b64) => TerminalService.SaveImage(b64))
+    .then((path) => term.paste(quotePaths([path])))
+    .catch((e) => console.error('could not paste the image', e))
+  return true
+}
 
 // Keys the app handles even while a terminal has focus.
 function isAppShortcut(ev: KeyboardEvent) {
@@ -124,7 +195,7 @@ function getEntry(id: string): Entry {
       return false
     }
     if (mod && ev.key.toLowerCase() === 'v' && !ev.shiftKey) {
-      return false // the browser paste event reaches xterm by itself
+      return false // the browser paste event reaches xterm (and pasteNonText) by itself
     }
     return true
   })
@@ -137,6 +208,20 @@ function getEntry(id: string): Entry {
   term.onResize(({ cols, rows }) => TerminalService.Resize(id, cols, rows))
   const el = document.createElement('div')
   el.className = 'term-host'
+  // A Wails file drop target: main hands files dropped here back as
+  // term:dropped for this session.
+  el.setAttribute('data-file-drop-target', '')
+  el.setAttribute('data-session', id)
+  // Before xterm's own listener, which only knows text.
+  el.addEventListener(
+    'paste',
+    (ev) => {
+      if (!pasteNonText(id, term, ev.clipboardData)) return
+      ev.preventDefault()
+      ev.stopImmediatePropagation()
+    },
+    true,
+  )
   e = { term, fit, search, el, opened: false, ready: false, lastSeq: 0, pending: [] }
   entries.set(id, e)
   const entry = e
