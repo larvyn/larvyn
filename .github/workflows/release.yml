@@ -20,7 +20,8 @@ env:
 
 jobs:
   # Pushes to master are not tested on Windows and macOS (see test.yml), so a
-  # release tests all three before building.
+  # release tests Linux and Windows before building. macOS tests run weekly
+  # instead: they cost about a third of a release.
   test:
     uses: ./.github/workflows/test.yml
 
@@ -69,7 +70,7 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
-      # Restore the Go cache the nightly macOS test saved on master, but don't
+      # Restore the Go cache the weekly macOS test saved on master, but don't
       # save one: a cache saved on a tag is only readable by that tag, so
       # setup-go's save (~1 min of macOS time) was never reused.
       - uses: actions/setup-go@v7
