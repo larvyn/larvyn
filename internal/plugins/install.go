@@ -38,6 +38,8 @@ func (s *PluginService) Inspect(dir string) (Plugin, error) {
 	return p, nil
 }
 
+// readInstallable reads the manifest in dir and checks this Larvyn can
+// run it.
 func readInstallable(dir string) (Manifest, error) {
 	m, err := ReadManifest(dir)
 	if errors.Is(err, os.ErrNotExist) && m.ID == "" {
@@ -234,6 +236,8 @@ func find(id string) (Plugin, error) {
 	return Plugin{}, fmt.Errorf("plugin %s is not installed", id)
 }
 
+// samePath tells whether a and b are the same folder once links are
+// resolved.
 func samePath(a, b string) bool {
 	ra, err1 := filepath.EvalSymlinks(a)
 	rb, err2 := filepath.EvalSymlinks(b)
@@ -283,6 +287,8 @@ func installCopy(src, dest string) error {
 	return nil
 }
 
+// copyTree copies src into dest within the install limits, skipping
+// development folders and anything that isn't a regular file.
 func copyTree(src, dest string) error {
 	files, size := 0, int64(0)
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -318,6 +324,7 @@ func copyTree(src, dest string) error {
 	})
 }
 
+// tooLarge is the error for a plugin over the install limits.
 func tooLarge() error {
 	return fmt.Errorf("the plugin is too large: more than %d files or %d MB", maxInstallFiles, maxInstallBytes>>20)
 }

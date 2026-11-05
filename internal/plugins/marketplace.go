@@ -66,6 +66,7 @@ type index struct {
 	Revoked    []Revocation `json:"revoked"`
 }
 
+// fetchIndex downloads and checks the marketplace index.
 func fetchIndex() (index, error) {
 	var ix index
 	req, err := http.NewRequest("GET", IndexURL, nil)
@@ -241,6 +242,8 @@ func (s *PluginService) InstallListing(id, version string, granted []string) (Pl
 	return install(dir, granted, "marketplace")
 }
 
+// sameListing refuses a download whose manifest isn't the listing the
+// user picked.
 func sameListing(m Manifest, id, version string) error {
 	if m.ID != id || m.Version != version {
 		return fmt.Errorf("the download is %s %s, not %s %s; nothing was installed", m.ID, m.Version, id, version)
