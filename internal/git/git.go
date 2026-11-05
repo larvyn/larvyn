@@ -4,6 +4,7 @@ package git
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -77,35 +78,14 @@ func gitDir(path string) string {
 func (g *GitService) Status(target string) (GitStatus, error) {
 	dir := gitDir(target)
 	st := GitStatus{}
-	out, err := proc.Git(dir, "status", "--porcelain=v1", "-b", "-uall")
+	out, err := proc.Git(dir, "status", "--porcelain=v1", "-z", "-b", "-uall")
 	if err != nil {
 		return st, nil
 	}
 	st.IsRepo = true
-	for i, line := range proc.NonEmptyLines(out) {
-		if i == 0 && strings.HasPrefix(line, "## ") {
-			parseBranchLine(strings.TrimPrefix(line, "## "), &st)
-			continue
-		}
-		if len(line) < 4 {
-			continue
-		}
-		path := line[3:]
-		if j := strings.Index(path, " -> "); j >= 0 {
-			path = path[j+4:]
-		}
-		st.Files = append(st.Files, GitFile{Path: strings.Trim(path, `"`), Index: string(line[0]), Worktree: string(line[1])})
-	}
-	if num, err := proc.Git(dir, "diff", "HEAD", "--numstat"); err == nil {
-		stats := map[string][2]int{}
-		for _, l := range proc.NonEmptyLines(num) {
-			f := strings.Split(l, "\t")
-			if len(f) == 3 {
-				a, _ := strconv.Atoi(f[0])
-				r, _ := strconv.Atoi(f[1])
-				stats[f[2]] = [2]int{a, r}
-			}
-		}
+	st.Files = parseStatusZ(out, &st)
+	if num, err := proc.Git(dir, "diff", "HEAD", "--numstat", "-z"); err == nil {
+		stats := parseNumstatZ(num)
 		for i := range st.Files {
 			s := stats[st.Files[i].Path]
 			st.Files[i].Added, st.Files[i].Removed = s[0], s[1]
@@ -203,14 +183,90 @@ func (g *GitService) Commit(target, message string, paths []string) error {
 	return err
 }
 
-// Discard throws away changes to a path.
+// Discard throws away changes to a path, as `git status` reports it
+// (relative to the repository root). Untracked files are deleted, but only
+// the exact file git lists as untracked, inside the repository; anything
+// else is restored from HEAD.
 func (g *GitService) Discard(target, path string) error {
 	dir := gitDir(target)
-	if _, err := proc.Git(dir, "ls-files", "--error-unmatch", "--", path); err != nil {
-		return os.RemoveAll(filepath.Join(dir, path))
+	rel, err := repoRelative(path)
+	if err != nil {
+		return err
 	}
-	_, err := proc.Git(dir, "checkout", "HEAD", "--", path)
+	top, err := proc.Git(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return err
+	}
+	top = strings.TrimSpace(top)
+	out, err := proc.Git(top, "--literal-pathspecs", "status", "--porcelain=v1", "-z", "-uall", "--", rel)
+	if err != nil {
+		return err
+	}
+	for _, f := range parseStatusZ(out, nil) {
+		if f.Path == rel && f.Index == "?" {
+			return os.Remove(filepath.Join(top, filepath.FromSlash(rel)))
+		}
+	}
+	_, err = proc.Git(top, "--literal-pathspecs", "checkout", "HEAD", "--", rel)
 	return err
+}
+
+// repoRelative checks that path is a plain path inside the repository and
+// returns it in git's form (forward slashes, cleaned).
+func repoRelative(path string) (string, error) {
+	p := filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
+	if path == "" || p == "." || p == ".." || strings.HasPrefix(p, "../") || filepath.IsAbs(path) || strings.HasPrefix(p, "/") {
+		return "", fmt.Errorf("%q is not a path inside the repository", path)
+	}
+	return p, nil
+}
+
+// parseStatusZ reads `git status --porcelain=v1 -z` output. With -z paths
+// are never quoted and a rename's source is its own entry, so file names
+// containing " -> " or quotes come through as they are. st, when not nil,
+// receives the branch line (-b).
+func parseStatusZ(out string, st *GitStatus) []GitFile {
+	var files []GitFile
+	entries := strings.Split(out, "\x00")
+	for i := 0; i < len(entries); i++ {
+		e := entries[i]
+		if i == 0 && strings.HasPrefix(e, "## ") {
+			if st != nil {
+				parseBranchLine(strings.TrimPrefix(e, "## "), st)
+			}
+			continue
+		}
+		if len(e) < 4 {
+			continue
+		}
+		if e[0] == 'R' || e[0] == 'C' {
+			i++ // the next entry is where it was renamed or copied from
+		}
+		files = append(files, GitFile{Path: e[3:], Index: string(e[0]), Worktree: string(e[1])})
+	}
+	return files
+}
+
+// parseNumstatZ reads `git diff --numstat -z` into added/removed per path.
+// A rename's line has an empty path followed by the source and destination.
+func parseNumstatZ(out string) map[string][2]int {
+	stats := map[string][2]int{}
+	entries := strings.Split(out, "\x00")
+	for i := 0; i < len(entries); i++ {
+		f := strings.SplitN(entries[i], "\t", 3)
+		if len(f) != 3 {
+			continue
+		}
+		path := f[2]
+		if path == "" && i+2 < len(entries) {
+			path = entries[i+2]
+			i += 2
+		}
+		a, _ := strconv.Atoi(f[0])
+		r, _ := strconv.Atoi(f[1])
+		stats[path] = [2]int{a, r}
+	}
+	return stats
 }
 
 // Checkout switches branches, creating it when create is set.
