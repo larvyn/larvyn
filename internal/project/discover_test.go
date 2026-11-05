@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"larvyn/internal/store"
 )
 
 func writeLaravel(t *testing.T, dir string) {
@@ -55,12 +57,13 @@ func TestDiscoverMarksAddedProjects(t *testing.T) {
 	root := t.TempDir()
 	app := filepath.Join(root, "app")
 	writeLaravel(t, app)
-	s := &ProjectService{}
-	p, err := s.Add(app)
-	if err != nil {
+	// Saved straight to the store: Add would also ask a running Flock to
+	// serve the folder.
+	p := store.Project{ID: store.NewID(), Name: "App", Path: app}
+	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
 		t.Fatal(err)
 	}
-	defer s.Remove(p.ID)
+	defer (&ProjectService{}).Remove(p.ID)
 	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
 	if len(got) != 1 || !got[0].Added {
 		t.Fatalf("want the app marked as added: %+v", got)
