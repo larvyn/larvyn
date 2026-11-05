@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -45,4 +46,39 @@ func TestFallbackHomeIsPrivateAndStable(t *testing.T) {
 		t.Fatalf("fallback %q: %v %v", a, fi, err)
 	}
 	os.RemoveAll(a)
+}
+
+// A state.json.tmp an older version left world-readable doesn't make the
+// next state.json world-readable.
+func TestSaveIgnoresStaleTempFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permissions")
+	}
+	dir := t.TempDir()
+	t.Setenv("LARVYN_HOME", dir)
+	os.WriteFile(filepath.Join(dir, "state.json.tmp"), []byte("{}"), 0o644)
+	if err := New().Update(func(d *State) { d.Projects = append(d.Projects, Project{ID: "b"}) }); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(filepath.Join(dir, "state.json")); fi.Mode().Perm() != 0o600 {
+		t.Errorf("state.json mode = %v, want 0600", fi.Mode().Perm())
+	}
+	if m, _ := filepath.Glob(filepath.Join(dir, "state.json.*.tmp")); len(m) > 0 {
+		t.Errorf("temp files left behind: %v", m)
+	}
+}
+
+// Without $HOME, the folder still comes from the account's home, so it is
+// the same on every launch and state persists.
+func TestHomeDirWithoutHomeEnvIsStable(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("UserConfigDir reads $HOME on linux")
+	}
+	t.Setenv("LARVYN_HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	a, b := HomeDir(), HomeDir()
+	if a != b || strings.HasPrefix(a, os.TempDir()) {
+		t.Fatalf("HomeDir without $HOME = %q then %q, want a stable folder outside the temp dir", a, b)
+	}
 }

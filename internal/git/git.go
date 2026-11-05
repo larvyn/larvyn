@@ -414,5 +414,10 @@ func copyInto(from, dir, rel string) {
 		return
 	}
 	defer out.Close()
+	// The branch may track its own .env: OpenFile keeps that file's mode, so
+	// set the source's before the secrets go in.
+	if err := out.Chmod(info.Mode().Perm()); err != nil {
+		return
+	}
 	_, _ = io.Copy(out, in)
 }

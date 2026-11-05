@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"larvyn/internal/proc"
@@ -78,7 +79,40 @@ func TestCreateWorktreeKeepsEnvPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
+		t.Errorf(".env mode = %v, want 0600", fi.Mode().Perm())
+	}
+}
+
+// A branch that tracks a world-readable .env gets it replaced by the main
+// checkout's private one, and the mode follows.
+func TestCreateWorktreeTightensTrackedEnv(t *testing.T) {
+	if proc.Which("git") == "" {
+		t.Skip("git not installed")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permissions")
+	}
+	repo := t.TempDir()
+	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		proc.Git(repo, args...)
+	}
+	os.WriteFile(filepath.Join(repo, ".env"), []byte("TRACKED=1\n"), 0o644)
+	proc.Git(repo, "add", "-f", ".env")
+	proc.Git(repo, "commit", "-m", "tracked env")
+	os.WriteFile(filepath.Join(repo, ".env"), []byte("SECRET=1\n"), 0o644)
+	os.Chmod(filepath.Join(repo, ".env"), 0o600)
+	p := store.Project{ID: "tracked", Name: "Tracked", Path: repo}
+	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
+	wt, err := (&GitService{}).CreateWorktree(WorktreeRequest{ProjectID: p.ID, Name: "z", CopyEnv: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(wt.Path, ".env")
+	if b, _ := os.ReadFile(dst); string(b) != "SECRET=1\n" {
+		t.Fatalf(".env = %q", b)
+	}
+	if fi, _ := os.Stat(dst); fi.Mode().Perm() != 0o600 {
 		t.Errorf(".env mode = %v, want 0600", fi.Mode().Perm())
 	}
 }

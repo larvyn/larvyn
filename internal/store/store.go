@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"time"
@@ -160,22 +161,27 @@ func HomeDir() string {
 	if h := os.Getenv("LARVYN_HOME"); h != "" {
 		return h
 	}
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return fallbackHome()
+	if base, err := os.UserConfigDir(); err == nil {
+		return filepath.Join(base, "larvyn")
 	}
-	return filepath.Join(base, "larvyn")
+	// No $HOME: the account's home from the system's user database still
+	// gives the same folder on every launch, so state persists.
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+		return filepath.Join(u.HomeDir, ".config", "larvyn")
+	}
+	return fallbackHome()
 }
 
-// fallbackHome is used only when there is no config folder (no $HOME): a
-// private folder made for this run, never a shared, predictable path in the
-// temp dir that another account could have created first (#53).
+// fallbackHome is the last resort, when the account has no home at all: a
+// private folder for this run. It is never a shared, predictable path in the
+// temp dir that another account could have created first (#53); when even
+// the private folder can't be made, it is a random name nobody can have
+// prepared, and writes there simply fail.
 var fallbackHome = sync.OnceValue(func() string {
-	dir, err := os.MkdirTemp("", "larvyn-")
-	if err != nil {
-		return filepath.Join(os.TempDir(), "larvyn")
+	if dir, err := os.MkdirTemp("", "larvyn-"); err == nil {
+		return dir
 	}
-	return dir
+	return filepath.Join(os.TempDir(), "larvyn-"+NewID()+NewID())
 })
 
 // New reads the state from HomeDir().
@@ -206,11 +212,21 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	tmp := filepath.Join(s.dir, "state.json.tmp")
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	// A fresh temp file each time (CreateTemp makes it 0600): reusing a fixed
+	// name would keep the mode of one an older version left behind.
+	f, err := os.CreateTemp(s.dir, "state.json.*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
+	defer os.Remove(f.Name()) // a no-op once renamed
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), filepath.Join(s.dir, "state.json"))
 }
 
 // Update changes the state under the lock and saves it.
