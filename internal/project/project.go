@@ -309,8 +309,14 @@ func (s *ProjectService) RepairEnv(id string) (bool, error) {
 	if !ok {
 		return false, errors.New("project not found")
 	}
-	path := filepath.Join(p.Path, ".env")
-	b, err := os.ReadFile(path)
+	// Through os.Root: it runs on its own when projects load, so a .env
+	// symlinked out of the project must not be followed.
+	root, err := os.OpenRoot(p.Path)
+	if err != nil {
+		return false, err
+	}
+	defer root.Close()
+	b, err := root.ReadFile(".env")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -321,7 +327,7 @@ func (s *ProjectService) RepairEnv(id string) (bool, error) {
 	if !changed {
 		return false, nil
 	}
-	return true, os.WriteFile(path, []byte(fixed), 0o644)
+	return true, root.WriteFile(".env", []byte(fixed), 0o644)
 }
 
 // repairAppURL turns APP_URL=http://host:8000:8000 back into http://host:8000.
