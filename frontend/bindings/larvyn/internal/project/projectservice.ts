@@ -99,6 +99,13 @@ export function FlockUseSiteURL(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * Images returns the git avatar and the custom image of a project.
+ */
+export function Images(id: string): $CancellablePromise<$models.ProjectImages> {
+    return $Call.ByID(75734579, id);
+}
+
+/**
  * Info inspects a project's files.
  */
 export function Info(id: string): $CancellablePromise<$models.ProjectInfo> {
@@ -149,6 +156,14 @@ export function RepairEnv(id: string): $CancellablePromise<boolean> {
  */
 export function RestoreAppURL(id: string): $CancellablePromise<string> {
     return $Call.ByID(4005914009, id);
+}
+
+/**
+ * SetCustomIcon saves a PNG (as a data URL or raw base64) as the project's
+ * custom image. "" removes it.
+ */
+export function SetCustomIcon(id: string, data: string): $CancellablePromise<void> {
+    return $Call.ByID(406441209, id, data);
 }
 
 /**

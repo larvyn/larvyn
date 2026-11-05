@@ -42,9 +42,10 @@ import {
   useActive,
   useStore,
 } from '../lib/store'
-import { NAV_ITEMS } from './Shell'
+import { NAV_ITEMS, navShown } from './Shell'
 import { askCloseProject } from './closeProject'
-import { initials, splitArgs } from '../lib/util'
+import { splitArgs } from '../lib/util'
+import { ProjectBadge } from './ProjectBadge'
 
 const QUICK: { args: string[]; label: string; danger?: boolean }[] = [
   { args: ['optimize:clear'], label: 'Clear every cache (optimize:clear)' },
@@ -185,7 +186,7 @@ export function Palette() {
 
           {project && (
             <Command.Group heading="Go to">
-              {NAV_ITEMS.map((n) => (
+              {NAV_ITEMS.filter((n) => navShown(n, info?.isLaravel)).map((n) => (
                 <Command.Item key={n.view} value={'go ' + n.label} onSelect={act(() => setView(n.view))}>
                   <n.icon />
                   {n.label}
@@ -306,9 +307,7 @@ export function Palette() {
           <Command.Group heading="Projects">
             {projects.map((p) => (
               <Command.Item key={p.id} value={'project ' + p.name + ' ' + p.path} onSelect={act(() => selectProject(p.id))}>
-                <span style={{ width: 18, height: 18, borderRadius: 5, background: p.color, color: '#fff', fontSize: 8.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>
-                  {initials(p.name)}
-                </span>
+                <ProjectBadge project={p} size={18} />
                 {p.name}
                 <span className="hint mono" style={{ fontSize: 10.5 }}>
                   {p.path}

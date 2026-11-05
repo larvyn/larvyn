@@ -116,6 +116,23 @@ var knownPackages = map[string][2]string{
 
 var palette = []string{"#FF2D20", "#F97316", "#EAB308", "#22C55E", "#14B8A6", "#3B82F6", "#8B5CF6", "#EC4899"}
 
+// iconRe is what a badge icon name looks like: a lucide icon in kebab case.
+var iconRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+var colorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+
+// validColor reports whether c is a #RRGGBB color.
+func validColor(c string) bool { return colorRe.MatchString(c) }
+
+// validIcon returns the icon name, or "" (initials) when it isn't one.
+func validIcon(icon string) string {
+	icon = strings.TrimSpace(icon)
+	if len(icon) > 40 || !iconRe.MatchString(icon) {
+		return ""
+	}
+	return icon
+}
+
 type ProjectService struct{}
 
 func init() {
@@ -223,6 +240,9 @@ func (s *ProjectService) Remove(id string) error {
 		}
 		d.Projects = out
 	})
+	if err == nil {
+		_ = os.Remove(customIconPath(id))
+	}
 	s.changed()
 	return err
 }
@@ -232,8 +252,13 @@ func (s *ProjectService) Update(p store.Project) error {
 	err := store.Update(func(d *store.State) {
 		for i := range d.Projects {
 			if d.Projects[i].ID == p.ID {
-				d.Projects[i].Name = p.Name
-				d.Projects[i].Color = p.Color
+				if name := strings.TrimSpace(p.Name); name != "" {
+					d.Projects[i].Name = name
+				}
+				if validColor(p.Color) {
+					d.Projects[i].Color = strings.ToUpper(p.Color)
+				}
+				d.Projects[i].Icon = validIcon(p.Icon)
 				d.Projects[i].Port = p.Port
 				d.Projects[i].Pinned = p.Pinned
 			}

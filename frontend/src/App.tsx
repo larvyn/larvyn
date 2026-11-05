@@ -5,6 +5,7 @@ import { boot, newTerminal, openPalette, selectProject, setView, showConsole, us
 import { Drawer, NAV_ITEMS, Rail, Sidebar, StatusBar, TitleBar } from './components/Shell'
 import { Palette } from './components/Palette'
 import { ConfirmHost, PromptHost, Toasts } from './components/ui'
+import { CustomizeProjectHost } from './components/ProjectBadge'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { UpdateNotice } from './components/UpdateNotice'
 import { startUpdateChecks } from './lib/update'
@@ -151,6 +152,7 @@ export default function App() {
       <NewProject />
       <ConfirmHost />
       <PromptHost />
+      <CustomizeProjectHost />
       <Toasts />
       <UpdateNotice />
     </div>

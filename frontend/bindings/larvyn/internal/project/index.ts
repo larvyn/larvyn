@@ -10,5 +10,6 @@ export type {
     FlockInfo,
     FlockServed,
     Package,
+    ProjectImages,
     ProjectInfo
 } from "./models.js";

@@ -3,8 +3,9 @@ import { AlertTriangle, Bot, Database, Download, FlaskConical, FolderOpen, Plus,
 import { SystemService, type Tool } from '../../bindings/larvyn/internal/system'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
 import { addProject, selectProject, showConsole, toast, updateLaravelInstaller, useStore } from '../lib/store'
-import { cx, errMsg, initials } from '../lib/util'
+import { cx, errMsg } from '../lib/util'
 import { Logo, Modal } from '../components/ui'
+import { ProjectBadge } from '../components/ProjectBadge'
 
 const FEATURES = [
   { icon: Server, title: 'One-click dev stack', text: 'artisan serve, Vite, queues, scheduler, Reverb and Pail with live output.' },
@@ -50,9 +51,7 @@ export function Welcome() {
               .slice(0, 6)
               .map((p) => (
                 <button key={p.id} className="list-item welcome-project" title={p.path} onClick={() => selectProject(p.id)}>
-                  <span className="welcome-project-badge" style={{ background: p.color }}>
-                    {initials(p.name)}
-                  </span>
+                  <ProjectBadge project={p} size={22} />
                   <span className="grow ellipsis">{p.name}</span>
                   <span className="faint mono ellipsis welcome-project-path">{p.path}</span>
                 </button>

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Window } from '@wailsio/runtime'
 import {
+  Pencil,
   Bot,
   Box,
   Braces,
@@ -53,11 +54,12 @@ import {
 } from '../lib/store'
 import { PLUGINS_CHANGED, toggleService } from './pluginRun'
 import { usePluginViews, viewKey } from './PluginView'
-import { cx, initials, mod } from '../lib/util'
+import { cx, mod } from '../lib/util'
 import { Logo, TermPane, Toggle, useNow } from './ui'
 import { activity } from '../lib/terms'
 import { FeedbackButton, TitleFeedback } from './Feedback'
 import { askRemoveProject } from './removeProject'
+import { BadgeContent, badgeStyle, customizeProject, ProjectBadge } from './ProjectBadge'
 
 export function TitleBar() {
   const platform = useStore((s) => s.platform)
@@ -122,11 +124,15 @@ export function Rail() {
           <button
             key={p.id}
             className={cx('rail-item', p.id === activeId && 'active')}
-            style={{ background: p.color }}
-            title={`${p.name}\n${p.path}`}
+            style={badgeStyle(p)}
+            title={`${p.name}\n${p.path}\nRight-click to customize`}
             onClick={() => selectProject(p.id)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              customizeProject(p)
+            }}
           >
-            {initials(p.name)}
+            <BadgeContent project={p} size={18} />
             {running > 0 && <span className="dot" />}
             {bells > 0 && <span className="bell">{bells}</span>}
           </button>
@@ -147,7 +153,8 @@ export function Rail() {
   )
 }
 
-const NAV: { group: string; items: { view: View; label: string; icon: any; hint?: string }[] }[] = [
+// laravel: only shown in Laravel projects (every item of the Laravel group is).
+const NAV: { group: string; items: { view: View; label: string; icon: any; hint?: string; laravel?: boolean }[] }[] = [
   {
     group: 'Workspace',
     items: [
@@ -175,11 +182,14 @@ const NAV: { group: string; items: { view: View; label: string; icon: any; hint?
       { view: 'files', label: 'Files', icon: FolderTree },
       { view: 'git', label: 'Source control', icon: GitBranch },
       { view: 'env', label: 'Environment', icon: Braces },
-      { view: 'deps', label: 'Dependencies', icon: Package },
+      { view: 'deps', label: 'Dependencies', icon: Package, laravel: true },
     ],
   },
 ]
-export const NAV_ITEMS = NAV.flatMap((g) => g.items)
+export const NAV_ITEMS = NAV.flatMap((g) => g.items.map((it) => ({ ...it, laravel: it.laravel || g.group === 'Laravel' })))
+
+/** Whether a nav item shows for a project; while its info loads, everything does. */
+export const navShown = (it: { laravel?: boolean }, isLaravel?: boolean) => !it.laravel || isLaravel !== false
 
 export function Sidebar() {
   const { id, project, info } = useActive()
@@ -201,6 +211,35 @@ export function Sidebar() {
     return () => window.removeEventListener(PLUGINS_CHANGED, load)
   }, [id, sessKey, info?.hasVendor, info?.siteUrl])
 
+  // A Laravel view has nothing to show in a project that isn't Laravel (e.g.
+  // after switching from one that is): go to its overview instead.
+  useEffect(() => {
+    if (info?.isLaravel !== false) return
+    if (NAV_ITEMS.some((n) => n.view === view && !navShown(n, false))) setView('overview')
+  }, [id, info?.isLaravel, view])
+
+  // After switching projects, a view the new project doesn't have (a Laravel
+  // view in a project that isn't Laravel, a plugin view that is off there)
+  // goes to the overview. It is checked once per switch, when the project's
+  // info and plugin views are in.
+  const checkFor = useRef<string | null>(null)
+  useEffect(() => {
+    checkFor.current = id
+  }, [id])
+  useEffect(() => {
+    if (!id || checkFor.current !== id || !info) return
+    let valid = true
+    if (view.startsWith('plugin:')) {
+      if (pluginViews === null) return
+      valid = pluginViews.some((v) => viewKey(v) === view)
+    } else {
+      const item = NAV_ITEMS.find((n) => n.view === view)
+      if (item) valid = navShown(item, info.isLaravel)
+    }
+    checkFor.current = null
+    if (!valid) setView('overview')
+  }, [id, info, pluginViews, view])
+
   if (!project) return <div className="sidebar collapsed" />
   const agents = mine.filter((s) => s.kind === 'agent' && s.running).length
   const terms = mine.filter((s) => s.kind === 'shell' && s.running).length
@@ -216,8 +255,11 @@ export function Sidebar() {
     <div className={cx('sidebar', !open && 'collapsed')}>
       <div className="side-head">
         <h2>
-          <span style={{ width: 9, height: 9, borderRadius: 3, background: project.color, flexShrink: 0 }} />
+          <ProjectBadge project={project} size={18} />
           <span className="ellipsis grow">{project.name}</span>
+          <button className="icon-btn sm side-remove side-edit" title="Customize name, color and icon" onClick={() => customizeProject(project)}>
+            <Pencil />
+          </button>
           <button className="icon-btn sm danger side-remove" title="Remove from Larvyn (your files stay)" onClick={() => askRemoveProject(project)}>
             <Trash2 />
           </button>
@@ -235,7 +277,7 @@ export function Sidebar() {
         {NAV.filter((g) => g.group !== 'Laravel' || !info || info.isLaravel).map((g) => (
           <div className="nav-group" key={g.group}>
             <div className="nav-label">{g.group}</div>
-            {g.items.map((it) => {
+            {g.items.filter((it) => navShown(it, info?.isLaravel)).map((it) => {
               const c = counts[it.view]
               return (
                 <button key={it.view} className={cx('nav-item', view === it.view && 'active')} onClick={() => setView(it.view)}>

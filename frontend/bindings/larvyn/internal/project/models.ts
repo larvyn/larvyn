@@ -54,6 +54,27 @@ export interface Package {
 }
 
 /**
+ * ProjectImages are the pictures a project's badge can show, as data URLs.
+ * Each is "" when the project has none.
+ */
+export interface ProjectImages {
+    /**
+     * Git is the avatar of the owner of the project's GitHub remote.
+     */
+    "git": string;
+
+    /**
+     * GitOwner is that owner, e.g. "laravel".
+     */
+    "gitOwner": string;
+
+    /**
+     * Custom is the image the user picked.
+     */
+    "custom": string;
+}
+
+/**
  * ProjectInfo is a project plus everything Larvyn can learn from its files.
  */
 export interface ProjectInfo {
@@ -61,6 +82,12 @@ export interface ProjectInfo {
     "name": string;
     "path": string;
     "color": string;
+
+    /**
+     * Icon is the name of the icon shown in the project's badge, or "" to
+     * show its initials.
+     */
+    "icon"?: string;
     "port": number;
     "pinned": boolean;
     "addedAt": number;

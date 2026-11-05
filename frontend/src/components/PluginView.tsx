@@ -17,6 +17,7 @@ export function usePluginViews() {
     // Only the latest request may set the list: an older one finishing last
     // would bring back views from before a plugin changed.
     let seq = 0
+    setViews(null)
     const load = () => {
       const mine = ++seq
       PluginService.Views(projectId ?? '')

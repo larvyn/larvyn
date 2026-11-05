@@ -172,6 +172,8 @@ a { color: inherit; }
 .side-head h2 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: -0.015em; display: flex; align-items: center; gap: 8px; }
 .side-head .side-remove { margin: -4px -4px -4px auto; opacity: 0; transition: opacity 0.12s; }
 .side-head:hover .side-remove, .side-head .side-remove:focus-visible { opacity: 1; }
+.side-head .side-edit { margin-right: 0; }
+.side-head .side-edit + .side-remove { margin-left: 0; }
 .side-head .meta { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
 .side-scroll { flex: 1; overflow-y: auto; padding: 8px 8px 12px; }
 .nav-group { margin-top: 10px; }
@@ -602,7 +604,6 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .welcome-projects { margin-top: 26px; border: 1px solid var(--line); border-radius: 13px; padding: 6px; background: rgba(255, 255, 255, 0.015); }
 .welcome-projects-head { font-size: 11px; font-weight: 620; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px 4px; }
 .welcome-project { display: flex; align-items: center; gap: 10px; width: 100%; }
-.welcome-project-badge { width: 22px; height: 22px; border-radius: 6px; color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; flex: none; }
 .welcome-project-path { font-size: 11px; max-width: 55%; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 34px; }
 .feature { padding: 14px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.015); }
@@ -747,3 +748,30 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
   .onboard-side { display: none; }
   .onboard-choices.cols-4, .onboard-choices.cols-3 { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* project badge and its customize dialog */
+.project-badge { display: grid; place-items: center; flex: none; font-weight: 800; letter-spacing: -0.02em; line-height: 1; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { position: relative; width: 24px; height: 24px; border-radius: 7px; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); transition: transform 0.12s var(--ease); }
+.swatch:hover { transform: translateY(-1px); }
+.swatch.on { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3), 0 0 0 2px var(--bg-2), 0 0 0 3.5px var(--text); }
+.swatch.custom { overflow: hidden; background-image: conic-gradient(#f43f5e, #eab308, #22c55e, #06b6d4, #6366f1, #d946ef, #f43f5e) !important; }
+.swatch.custom.on { background-image: none !important; }
+.swatch.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 6px; }
+.icon-pick { height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text-2); display: grid; place-items: center; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+.icon-pick svg { width: 16px; height: 16px; }
+.icon-pick:hover { color: var(--text); border-color: var(--line-3); }
+.icon-pick.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); }
+.badge-img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.rail-item .badge-img { position: absolute; inset: 0; }
+.image-picks { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.image-pick { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; min-width: 170px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text-2); cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
+.image-pick:hover { border-color: var(--line-3); color: var(--text); }
+.image-pick.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); }
+.image-thumb { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; overflow: hidden; }
+.image-thumb svg { width: 15px; height: 15px; }
+.image-label { display: flex; flex-direction: column; min-width: 0; }
+.image-label b { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.image-label small { font-size: 11px; color: var(--text-3); }
+.image-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
