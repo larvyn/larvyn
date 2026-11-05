@@ -10,12 +10,12 @@ import { pluginsChanged } from './pluginRun'
 
 /** A plugin's icon.svg, or the puzzle piece when it has none or it doesn't
  * render. Dimmed while the plugin is off. */
-function PluginIcon({ icon, off }: { icon?: string; off?: boolean }) {
+function PluginIcon({ icon, off, big }: { icon?: string; off?: boolean; big?: boolean }) {
   const [broken, setBroken] = useState('')
   return icon && broken !== icon ? (
-    <img className={cx('plugin-icon', off && 'off')} src={icon} alt="" onError={() => setBroken(icon)} />
+    <img className={cx('plugin-icon', off && 'off', big && 'big')} src={icon} alt="" onError={() => setBroken(icon)} />
   ) : (
-    <div className={cx('plugin-icon', 'none', off && 'off')}>
+    <div className={cx('plugin-icon', 'none', off && 'off', big && 'big')}>
       <Puzzle />
     </div>
   )
@@ -111,6 +111,7 @@ const approve = (p: Plugin, all: Permission[], action: string, market = p.source
   confirmDialog({
     title: `${action} ${p.manifest.name} ${p.manifest.version}?`,
     message: <PermissionList p={p} all={all} market={market} />,
+    icon: <PluginIcon icon={p.icon} big />,
     confirm: `Allow and ${action.toLowerCase()}`,
     danger: true,
   })

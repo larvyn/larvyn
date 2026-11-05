@@ -49,6 +49,8 @@ interface ConfirmReq {
   message?: ReactNode
   confirm?: string
   danger?: boolean
+  /** Replaces the warning sign, e.g. with the icon of what is installed. */
+  icon?: ReactNode
   resolve: (ok: boolean) => void
 }
 const useConfirm = create<{ req: ConfirmReq | null }>(() => ({ req: null }))
@@ -69,11 +71,13 @@ export function ConfirmHost() {
       title={req.title}
       onClose={() => done(false)}
       icon={
+        req.icon ?? (
         <div className="empty" style={{ padding: 0 }}>
           <div className="ico" style={{ width: 34, height: 34, margin: 0, borderRadius: 10, color: req.danger ? 'var(--red)' : 'var(--text-2)' }}>
             <AlertTriangle style={{ width: 16, height: 16 }} />
           </div>
         </div>
+        )
       }
       footer={
         <>
