@@ -38,6 +38,8 @@ func (s *PluginService) Inspect(dir string) (Plugin, error) {
 	return p, nil
 }
 
+// readInstallable reads the manifest in dir and checks this Larvyn can
+// run it.
 func readInstallable(dir string) (Manifest, error) {
 	m, err := ReadManifest(dir)
 	if errors.Is(err, os.ErrNotExist) && m.ID == "" {
@@ -52,7 +54,8 @@ func readInstallable(dir string) (Manifest, error) {
 	return m, nil
 }
 
-// Install copies the plugin in dir into the plugins folder and turns it on.
+// Install copies the plugin in dir into the plugins folder and turns it on,
+// or, for an update, leaves it on or off as it was.
 // granted must hold every permission the plugin asks for: the user saw them
 // in the install dialog. Installing over an existing copy updates it.
 func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
@@ -60,7 +63,8 @@ func (s *PluginService) Install(dir string, granted []string) (Plugin, error) {
 }
 
 // install installs the plugin in dir from source ("" or "marketplace").
-// What the user decided per project and per command survives an update.
+// What the user decided survives an update: whether it's on, the projects
+// it's off in and the commands they confirmed.
 func install(dir string, granted []string, source string) (Plugin, error) {
 	m, err := readInstallable(dir)
 	if err != nil {
@@ -88,9 +92,12 @@ func install(dir string, granted []string, source string) (Plugin, error) {
 		if d.Plugins == nil {
 			d.Plugins = map[string]store.PluginState{}
 		}
-		old := d.Plugins[m.ID]
+		// An update keeps a plugin the user turned off everywhere off; a new
+		// install turns it on, and so does a fixed version of one that only
+		// a revocation turned off.
+		old, updating := d.Plugins[m.ID]
 		d.Plugins[m.ID] = store.PluginState{
-			Enabled: true, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
+			Enabled: !updating || old.Enabled || old.OffByRevocation, Granted: append([]string(nil), m.Permissions...), InstalledAt: time.Now().Unix(),
 			Confirmed: old.Confirmed, OffIn: old.OffIn, Source: source,
 		}
 	})
@@ -122,7 +129,7 @@ func (s *PluginService) Enable(id string, granted []string) (Plugin, error) {
 			d.Plugins = map[string]store.PluginState{}
 		}
 		st := d.Plugins[id]
-		st.Enabled, st.Granted = true, append([]string(nil), p.Manifest.Permissions...)
+		st.Enabled, st.OffByRevocation, st.Granted = true, false, append([]string(nil), p.Manifest.Permissions...)
 		if st.InstalledAt == 0 {
 			st.InstalledAt = time.Now().Unix()
 		}
@@ -140,7 +147,7 @@ func (s *PluginService) Disable(id string) error {
 	defer runMu.Unlock()
 	err := store.Update(func(d *store.State) {
 		if st, ok := d.Plugins[id]; ok {
-			st.Enabled = false
+			st.Enabled, st.OffByRevocation = false, false // the user's choice now
 			d.Plugins[id] = st
 		}
 	})
@@ -229,6 +236,8 @@ func find(id string) (Plugin, error) {
 	return Plugin{}, fmt.Errorf("plugin %s is not installed", id)
 }
 
+// samePath tells whether a and b are the same folder once links are
+// resolved.
 func samePath(a, b string) bool {
 	ra, err1 := filepath.EvalSymlinks(a)
 	rb, err2 := filepath.EvalSymlinks(b)
@@ -278,6 +287,8 @@ func installCopy(src, dest string) error {
 	return nil
 }
 
+// copyTree copies src into dest within the install limits, skipping
+// development folders and anything that isn't a regular file.
 func copyTree(src, dest string) error {
 	files, size := 0, int64(0)
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -313,6 +324,7 @@ func copyTree(src, dest string) error {
 	})
 }
 
+// tooLarge is the error for a plugin over the install limits.
 func tooLarge() error {
 	return fmt.Errorf("the plugin is too large: more than %d files or %d MB", maxInstallFiles, maxInstallBytes>>20)
 }

@@ -91,6 +91,9 @@ type PluginState struct {
 	// Revoked is the registry's reason for revoking the installed version.
 	// A revoked plugin is off and can't be turned on.
 	Revoked string `json:"revoked,omitempty"`
+	// OffByRevocation is set when a revocation, not the user, turned the
+	// plugin off, so installing a fixed version can turn it back on.
+	OffByRevocation bool `json:"offByRevocation,omitempty"`
 }
 
 // State is what state.json holds.
