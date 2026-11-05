@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -57,11 +58,19 @@ type Listing struct {
 	Official bool `json:"official"`
 }
 
-// official reports whether a download link is a release of a repository
-// in the larvyn GitHub organization.
+// official reports whether a download link is a release asset of a
+// repository in the larvyn GitHub organization:
+// https://github.com/larvyn/<repo>/releases/download/<tag>/<file>. Only the
+// organization's members can publish one. Any other link under /larvyn/,
+// such as a pull request's source archive, can hold code from anyone, and a
+// path with dot segments or escapes could lead outside /larvyn/.
 func official(download string) bool {
 	u, err := url.Parse(download)
-	return err == nil && u.Scheme == "https" && u.Host == "github.com" && strings.HasPrefix(u.Path, "/larvyn/") && u.User == nil
+	if err != nil || u.Scheme != "https" || u.Host != "github.com" || u.User != nil || u.RawPath != "" || path.Clean(u.Path) != u.Path {
+		return false
+	}
+	parts := strings.Split(u.Path, "/") // "", larvyn, repo, releases, download, tag, file
+	return len(parts) == 7 && parts[1] == "larvyn" && parts[3] == "releases" && parts[4] == "download" && !slices.Contains(parts[1:], "")
 }
 
 // Revocation stops a plugin the registry found harmful. No Versions means

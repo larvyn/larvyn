@@ -348,6 +348,13 @@ func TestOfficial(t *testing.T) {
 		"http://github.com/larvyn/plugin-examples/x.zip":                                                         false,
 		"https://github.com.evil.example/larvyn/x.zip":                                                           false,
 		"https://user@github.com/larvyn/x.zip":                                                                   false,
+		"https://github.com/larvyn/plugin-examples/archive/refs/pull/1/head.zip":                                 false,
+		"https://github.com/larvyn/plugin-examples/raw/abc123/x.zip":                                             false,
+		"https://github.com/larvyn/../evil/releases/download/v1/x.zip":                                           false,
+		"https://github.com/larvyn/x/../../evil/releases/download/v1/x.zip":                                      false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1/%2E%2E/x.zip":                            false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1%2F..%2F..%2Fx/x.zip":                     false,
+		"https://github.com/larvyn/plugin-examples/releases/download/v1/":                                        false,
 	} {
 		if got := official(link); got != want {
 			t.Errorf("official(%q) = %v", link, got)
