@@ -162,10 +162,21 @@ func HomeDir() string {
 	}
 	base, err := os.UserConfigDir()
 	if err != nil {
-		base = os.TempDir()
+		return fallbackHome()
 	}
 	return filepath.Join(base, "larvyn")
 }
+
+// fallbackHome is used only when there is no config folder (no $HOME): a
+// private folder made for this run, never a shared, predictable path in the
+// temp dir that another account could have created first (#53).
+var fallbackHome = sync.OnceValue(func() string {
+	dir, err := os.MkdirTemp("", "larvyn-")
+	if err != nil {
+		return filepath.Join(os.TempDir(), "larvyn")
+	}
+	return dir
+})
 
 // New reads the state from HomeDir().
 func New() *Store {
@@ -196,7 +207,7 @@ func (s *Store) saveLocked() error {
 		return err
 	}
 	tmp := filepath.Join(s.dir, "state.json.tmp")
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, filepath.Join(s.dir, "state.json"))
@@ -300,10 +311,12 @@ func (s *Store) PHP() string {
 // AppendLog adds a line to larvyn.log in HomeDir(), so errors leave a trace.
 func AppendLog(level, message string) {
 	_ = os.MkdirAll(HomeDir(), 0o755)
-	f, err := os.OpenFile(filepath.Join(HomeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(HomeDir(), "larvyn.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+	// Logs from older versions were created world-readable.
+	_ = f.Chmod(0o600)
 	fmt.Fprintf(f, "%s %s %s\n", time.Now().Format(time.RFC3339), level, message)
 }
