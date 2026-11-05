@@ -130,8 +130,8 @@ export function PluginsCard() {
   const [market, setMarket] = useState<Listing[] | null>(null)
   const [marketErr, setMarketErr] = useState('')
   const [q, setQ] = useState('')
-  // The plugin being installed after the user approved it.
-  const [busy, setBusy] = useState('')
+  // The plugins being installed after the user approved them.
+  const [busy, setBusy] = useState<string[]>([])
 
   const load = () =>
     PluginService.List()
@@ -187,14 +187,15 @@ export function PluginsCard() {
     if (!(await dlg.result)) return
     const p = await inspected
     const verb = action(p.manifest.id) === 'Update' ? 'updated' : 'installed'
-    setBusy(p.manifest.id)
+    const id = p.manifest.id
+    setBusy((b) => [...b, id])
     try {
       await installIt(src, p.manifest.permissions ?? [])
       toast('success', `${p.manifest.name} ${verb}`)
     } catch (e) {
       toast('error', 'Could not install the plugin', errMsg(e))
     }
-    setBusy('')
+    setBusy((b) => b.filter((x) => x !== id))
     reload()
   }
 
@@ -367,7 +368,7 @@ export function PluginsCard() {
         <button className="icon-btn" title="Source code" onClick={() => SystemService.OpenURL(l.repo)}>
           <ExternalLink />
         </button>
-        {busy === l.id ? (
+        {busy.includes(l.id) ? (
           <button className="btn sm ghost" disabled>
             <span className="spinner" /> {l.installed ? 'Updating…' : 'Installing…'}
           </button>
@@ -444,7 +445,7 @@ export function PluginsCard() {
                 </span>
               ))}
           </div>
-          {busy === p.manifest.id ? (
+          {busy.includes(p.manifest.id) ? (
             <button className="btn sm ghost" disabled>
               <span className="spinner" /> Updating…
             </button>

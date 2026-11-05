@@ -15,14 +15,28 @@ export function Modal(props: {
   footer?: ReactNode
   wide?: boolean
 }) {
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
+    // Tab stays inside the dialog: from the last control it wraps to the
+    // first, and back.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') props.onClose()
+      if (e.key !== 'Tab' || !box.current) return
+      const all = [...box.current.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')].filter(
+        (el) => !(el as HTMLButtonElement).disabled,
+      )
+      const at = all.indexOf(document.activeElement as HTMLElement)
+      if (all.length && (at < 0 || (e.shiftKey ? at === 0 : at === all.length - 1))) {
+        e.preventDefault()
+        all[e.shiftKey ? all.length - 1 : 0].focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [props.onClose])
   return (
     <div className="overlay center" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className={cx('modal', props.wide && 'wide')}>
+      <div ref={box} className={cx('modal', props.wide && 'wide')}>
         <div className="modal-head">
           {props.icon}
           <div className="grow">
@@ -57,8 +71,15 @@ interface ConfirmReq {
 }
 const useConfirm = create<{ req: ConfirmReq | null }>(() => ({ req: null }))
 
+/** Shows req, answering "no" to the one it replaces so that one's caller
+ * isn't left waiting. */
+function showConfirm(req: ConfirmReq) {
+  useConfirm.getState().req?.resolve(false)
+  useConfirm.setState({ req })
+}
+
 export function confirmDialog(opts: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
-  return new Promise((resolve) => useConfirm.setState({ req: { ...opts, resolve } }))
+  return new Promise((resolve) => showConfirm({ ...opts, resolve }))
 }
 
 /** A confirm that opens at once, before its message is known (it shows
@@ -67,7 +88,7 @@ export function openConfirm(opts: Omit<ConfirmReq, 'resolve'>) {
   let mine: ConfirmReq['resolve'] = () => {}
   const result = new Promise<boolean>((resolve) => {
     mine = resolve
-    useConfirm.setState({ req: { ...opts, resolve } })
+    showConfirm({ ...opts, resolve })
   })
   const open = () => useConfirm.getState().req?.resolve === mine
   return {
@@ -103,10 +124,12 @@ export function ConfirmHost() {
       }
       footer={
         <>
-          <button className="btn ghost" onClick={() => done(false)}>
+          {/* While loading, Cancel has the focus; the confirm button is
+              remounted when it is ready, so it takes the focus then. */}
+          <button className="btn ghost" autoFocus={req.loading} onClick={() => done(false)}>
             Cancel
           </button>
-          <button className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus disabled={req.loading} onClick={() => done(true)}>
+          <button key={req.loading ? 'loading' : 'ready'} className={cx('btn', req.danger ? 'primary' : 'primary')} autoFocus={!req.loading} disabled={req.loading} onClick={() => done(true)}>
             {req.confirm ?? 'Continue'}
           </button>
         </>
