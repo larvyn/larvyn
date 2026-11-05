@@ -106,7 +106,8 @@ export function InspectZip(zipPath: string): $CancellablePromise<$models.Plugin>
 }
 
 /**
- * Install copies the plugin in dir into the plugins folder and turns it on.
+ * Install copies the plugin in dir into the plugins folder and turns it on,
+ * or, for an update, leaves it on or off as it was.
  * granted must hold every permission the plugin asks for: the user saw them
  * in the install dialog. Installing over an existing copy updates it.
  */

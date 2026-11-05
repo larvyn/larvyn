@@ -23,6 +23,7 @@ type market struct {
 	revoked []Revocation
 }
 
+// publish puts acme.horizon at version in the fake marketplace.
 func (m *market) publish(t *testing.T, srv *httptest.Server, version string) {
 	t.Helper()
 	manifest := edit(t, func(x map[string]any) { x["version"] = version })
@@ -38,6 +39,7 @@ func (m *market) publish(t *testing.T, srv *httptest.Server, version string) {
 	}}
 }
 
+// newMarket serves a fake marketplace and points IndexURL at it.
 func newMarket(t *testing.T) (*market, *httptest.Server) {
 	t.Helper()
 	reset(t)
@@ -60,6 +62,7 @@ func newMarket(t *testing.T) (*market, *httptest.Server) {
 	return m, srv
 }
 
+// listing is the only plugin the fake marketplace lists.
 func listing(t *testing.T, s *PluginService) Listing {
 	t.Helper()
 	l, err := s.Marketplace()
@@ -69,6 +72,8 @@ func listing(t *testing.T, s *PluginService) Listing {
 	return l[0]
 }
 
+// A marketplace plugin installs after its dialog and updates to a newer
+// version; a version this Larvyn can't run is not offered as an update.
 func TestMarketplaceInstallAndUpdate(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "1.0.0")
@@ -125,6 +130,7 @@ func TestMarketplaceInstallAndUpdate(t *testing.T) {
 	}
 }
 
+// A plugin installed from a folder is never updated from the marketplace.
 func TestMarketplaceLeavesLocalPluginsAlone(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "2.0.0")
@@ -139,6 +145,7 @@ func TestMarketplaceLeavesLocalPluginsAlone(t *testing.T) {
 	}
 }
 
+// A download that doesn't match the index installs nothing.
 func TestMarketplaceRefusesABadDownload(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "1.0.0")
@@ -164,6 +171,7 @@ func TestMarketplaceRefusesABadDownload(t *testing.T) {
 	}
 }
 
+// A revoked version is turned off and can't be turned on again.
 func TestRevokedPluginTurnsOff(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "1.0.0")
@@ -201,6 +209,8 @@ func TestRevokedPluginTurnsOff(t *testing.T) {
 	}
 }
 
+// A plugin's icon.svg becomes its icon, a file that isn't an SVG means
+// none, and the marketplace shows only an inline SVG.
 func TestPluginIcon(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "1.0.0")
@@ -266,6 +276,7 @@ func TestRevokedRefusedFromEverySource(t *testing.T) {
 	}
 }
 
+// A revocation revokes even without a reason.
 func TestRevocationWithoutReason(t *testing.T) {
 	list := []Revocation{{ID: "acme.horizon", Reason: "  "}}
 	if why := reasonIn(list, "acme.horizon", "1.0.0"); why == "" {
@@ -292,7 +303,7 @@ func TestReinstallOfRecordedRevocation(t *testing.T) {
 	}
 	store.Update(func(d *store.State) {
 		st := d.Plugins["acme.horizon"]
-		st.Enabled, st.Revoked = false, "bad"
+		st.Enabled, st.Revoked, st.OffByRevocation = false, "bad", true // as applyRevoked records it
 		d.Plugins["acme.horizon"] = st
 	})
 	if _, err := s.Install(dir, horizonPerms); err == nil {
@@ -307,6 +318,7 @@ func TestReinstallOfRecordedRevocation(t *testing.T) {
 	}
 }
 
+// A malformed download link or an oversized index is refused.
 func TestBadIndexAndDownloadLinks(t *testing.T) {
 	m, srv := newMarket(t)
 	m.publish(t, srv, "1.0.0")
@@ -327,6 +339,7 @@ func TestBadIndexAndDownloadLinks(t *testing.T) {
 	}
 }
 
+// Only a download from github.com/larvyn/ over https is official.
 func TestOfficial(t *testing.T) {
 	for link, want := range map[string]bool{
 		"https://github.com/larvyn/plugin-examples/releases/download/larvyn.hello-v0.1.1/larvyn.hello-0.1.1.zip": true,
@@ -344,5 +357,49 @@ func TestOfficial(t *testing.T) {
 	m.publish(t, srv, "1.0.0") // served from 127.0.0.1
 	if l := listing(t, &PluginService{}); l.Official {
 		t.Error("a plugin downloaded from elsewhere is not official")
+	}
+}
+
+// An update keeps a plugin the user turned off, off.
+func TestUpdateKeepsPluginOff(t *testing.T) {
+	m, srv := newMarket(t)
+	m.publish(t, srv, "1.0.0")
+	s := &PluginService{}
+	if p, err := s.InstallListing("acme.horizon", "1.0.0", horizonPerms); err != nil || !p.Enabled {
+		t.Fatalf("a new install is on: %+v, %v", p, err)
+	}
+	s.Disable("acme.horizon")
+	m.publish(t, srv, "1.1.0")
+	if p, err := s.InstallListing("acme.horizon", "1.1.0", horizonPerms); err != nil || p.Enabled || p.Manifest.Version != "1.1.0" {
+		t.Errorf("an update keeps it off: %+v, %v", p, err)
+	}
+	s.Enable("acme.horizon", horizonPerms)
+	m.publish(t, srv, "1.2.0")
+	if p, _ := s.InstallListing("acme.horizon", "1.2.0", horizonPerms); !p.Enabled {
+		t.Error("an update keeps it on")
+	}
+}
+
+// A plugin the user turned off stays off through a revocation and a fixed
+// version; one only the revocation turned off comes back on.
+func TestFixedVersionAfterRevocation(t *testing.T) {
+	for _, userOff := range []bool{false, true} {
+		m, srv := newMarket(t)
+		m.publish(t, srv, "1.0.0")
+		s := &PluginService{}
+		if _, err := s.InstallListing("acme.horizon", "1.0.0", horizonPerms); err != nil {
+			t.Fatal(err)
+		}
+		if userOff {
+			s.Disable("acme.horizon")
+		}
+		m.revoked = []Revocation{{ID: "acme.horizon", Versions: []string{"1.0.0"}, Reason: "bad"}}
+		CheckRevoked()
+		m.publish(t, srv, "1.0.1")
+		p, err := s.InstallListing("acme.horizon", "1.0.1", horizonPerms)
+		if err != nil || p.Enabled == userOff {
+			t.Errorf("turned off by the user: %v; after the fixed version: enabled %v, %v", userOff, p.Enabled, err)
+		}
+		applyRevoked(nil)
 	}
 }

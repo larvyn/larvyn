@@ -37,7 +37,7 @@ func TestCodexResumeIDUsesTheOpenRollout(t *testing.T) {
 	var id string
 	var exact bool
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-		if id, exact = CodexResumeID("/app", cmd.Process.Pid, now.UnixMilli(), map[string]bool{}); exact {
+		if id, exact = codexResumeID(codexHome(nil), "/app", cmd.Process.Pid, now.UnixMilli(), map[string]bool{}); exact {
 			break
 		}
 	}
@@ -45,7 +45,7 @@ func TestCodexResumeIDUsesTheOpenRollout(t *testing.T) {
 		t.Fatalf("got %q exact=%v, want the open rollout", id, exact)
 	}
 	// Once stopped it can only guess: the earliest match.
-	if id, exact := CodexResumeID("/app", 0, now.UnixMilli(), map[string]bool{}); id != "external" || exact {
+	if id, exact := codexResumeID(codexHome(nil), "/app", 0, now.UnixMilli(), map[string]bool{}); id != "external" || exact {
 		t.Fatalf("guess %q exact=%v", id, exact)
 	}
 }

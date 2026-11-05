@@ -182,11 +182,16 @@ var editors = map[string][]string{
 	"zed":      {"zed", "{file}:{line}"},
 	"phpstorm": {"phpstorm", "--line", "{line}", "{file}"},
 	"sublime":  {"subl", "{file}:{line}"},
-	"nvim":     {"nvim", "+{line}", "{file}"},
+	"nvim":     {"nvim", "+{line}", "--", "{file}"},
 }
 
 // OpenInEditor opens a file (or folder) at a line in the configured editor.
 func (s *SystemService) OpenInEditor(path string, line int) error {
+	// Paths come from logs, stack traces and artisan output. An absolute path
+	// can't be read as an option or a command (nvim runs "+cmd" arguments).
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("can't open %q: not an absolute path", path)
+	}
 	st := store.CurrentSettings()
 	if line <= 0 {
 		line = 1
@@ -201,6 +206,9 @@ func (s *SystemService) OpenInEditor(path string, line int) error {
 	}
 	if isDir(path) {
 		tmpl = []string{tmpl[0], "{file}"}
+		if tmpl[0] == "nvim" {
+			tmpl = []string{"nvim", "--", "{file}"}
+		}
 	}
 	args := make([]string, 0, len(tmpl))
 	for _, a := range tmpl[1:] {
