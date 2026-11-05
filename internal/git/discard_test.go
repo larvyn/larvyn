@@ -124,6 +124,11 @@ func TestParseStatusZRename(t *testing.T) {
 	if len(files) != 2 || files[0].Path != "new name" || files[1].Path != `a"b` {
 		t.Fatalf("files = %+v", files)
 	}
+	// A worktree-column rename (intent-to-add file) has its source too.
+	files = parseStatusZ(" R renamed.txt\x00orig.txt\x00?? new.txt\x00", nil)
+	if len(files) != 2 || files[0].Path != "renamed.txt" || files[1].Path != "new.txt" {
+		t.Fatalf("worktree rename: files = %+v", files)
+	}
 	stats := parseNumstatZ("1\t2\t\x00old\x00new\x003\t0\tplain\x00")
 	if stats["new"] != [2]int{1, 2} || stats["plain"] != [2]int{3, 0} {
 		t.Fatalf("stats = %v", stats)

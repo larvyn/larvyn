@@ -239,7 +239,9 @@ func parseStatusZ(out string, st *GitStatus) []GitFile {
 		if len(e) < 4 {
 			continue
 		}
-		if e[0] == 'R' || e[0] == 'C' {
+		// Either column can hold the rename: the worktree one does for an
+		// intent-to-add file (BranchDiff runs `add -N` in worktrees).
+		if e[0] == 'R' || e[0] == 'C' || e[1] == 'R' || e[1] == 'C' {
 			i++ // the next entry is where it was renamed or copied from
 		}
 		files = append(files, GitFile{Path: e[3:], Index: string(e[0]), Worktree: string(e[1])})
