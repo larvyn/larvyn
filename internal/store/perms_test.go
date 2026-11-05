@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -76,6 +77,9 @@ func TestHomeDirWithoutHomeEnvIsStable(t *testing.T) {
 	}
 	t.Setenv("LARVYN_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
+	if u, err := user.Current(); err != nil || u.HomeDir == "" {
+		t.Skip("the account has no home in the user database; fallbackHome covers this")
+	}
 	t.Setenv("HOME", "")
 	a, b := HomeDir(), HomeDir()
 	if a != b || strings.HasPrefix(a, os.TempDir()) {
