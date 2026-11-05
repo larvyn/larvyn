@@ -93,11 +93,13 @@ listen()
 const isWindows = () => useStore.getState().platform === 'windows'
 
 /** Paths as a shell (and an agent) reads them: quoted when they need it,
- * with a trailing space so the next word doesn't run into them. */
+ * with a trailing space so the next word doesn't run into them. Quotes are
+ * single, so nothing in a file name ($(…), `…`, %VAR%) is expanded: POSIX
+ * shells and PowerShell (Larvyn's Windows shell) both take them literally. */
 export function quotePaths(paths: string[], windows = isWindows()) {
   const quote = (p: string) => {
-    if (p && (windows ? /^[A-Za-z0-9/\\._\-+=,:@%~]+$/ : /^[A-Za-z0-9/._\-+=,:@%~]+$/).test(p)) return p
-    return windows ? `"${p}"` : `'${p.replace(/'/g, `'\\''`)}'`
+    if (p && (windows ? /^[A-Za-z0-9/\\._\-+:@]+$/ : /^[A-Za-z0-9/._\-+=,:@%~]+$/).test(p)) return p
+    return windows ? `'${p.replace(/'/g, "''")}'` : `'${p.replace(/'/g, `'\\''`)}'`
   }
   return paths.map(quote).join(' ') + ' '
 }
