@@ -324,12 +324,14 @@ export function addProject() {
   set({ addProjectOpen: true })
 }
 
-/** Adds the folder at path as a project and opens it. */
+/** Adds the folder at path as a project and opens it; a folder already
+ * added (by any spelling of its path) just opens. */
 export async function addProjectAt(path: string) {
   try {
+    const before = new Set(get().projects.map((x) => x.id))
     const p = await ProjectService.Add(path)
     selectProject(p.id)
-    toast('success', 'Project added', p.path)
+    if (!before.has(p.id)) toast('success', 'Project added', p.path)
     return true
   } catch (e) {
     toast('error', 'Could not add project', errMsg(e))

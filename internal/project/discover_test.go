@@ -3,7 +3,6 @@ package project
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -72,11 +71,11 @@ func TestDiscoverMarksAddedProjects(t *testing.T) {
 }
 
 func TestDiscoverKeepsFoldersThatDifferInCase(t *testing.T) {
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		t.Skip("the file system ignores case")
-	}
 	root := t.TempDir()
 	writeLaravel(t, filepath.Join(root, "Shop"))
+	if _, err := os.Stat(filepath.Join(root, "shop")); err == nil {
+		t.Skip("this file system ignores case")
+	}
 	writeLaravel(t, filepath.Join(root, "shop"))
 	p := store.Project{ID: store.NewID(), Name: "Shop", Path: filepath.Join(root, "Shop")}
 	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
@@ -92,5 +91,52 @@ func TestDiscoverKeepsFoldersThatDifferInCase(t *testing.T) {
 		if want := filepath.Base(f.Path) == "Shop"; f.Added != want {
 			t.Errorf("%s: added = %v, want %v", f.Path, f.Added, want)
 		}
+	}
+}
+
+func TestSameFolder(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "App")
+	os.MkdirAll(dir, 0o755)
+	if !sameFolder(dir, dir+string(filepath.Separator)) {
+		t.Error("a trailing separator made it another folder")
+	}
+	link := filepath.Join(root, "link")
+	if os.Symlink(dir, link) == nil && !sameFolder(dir, link) {
+		t.Error("a symlink to the folder is not the same folder")
+	}
+	other := filepath.Join(root, "Other")
+	os.MkdirAll(other, 0o755)
+	if sameFolder(dir, other) {
+		t.Error("two folders are the same")
+	}
+	// Case: the same folder where the file system ignores it, two otherwise.
+	lower := filepath.Join(root, "app")
+	_, err := os.Stat(lower)
+	if insensitive := err == nil; sameFolder(dir, lower) != insensitive {
+		t.Errorf("App and app: same = %v, want %v", !insensitive, insensitive)
+	}
+}
+
+func TestAddReturnsTheProjectForTheSameFolder(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "App")
+	os.MkdirAll(dir, 0o755)
+	p := store.Project{ID: store.NewID(), Name: "App", Path: dir}
+	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
+		t.Fatal(err)
+	}
+	defer (&ProjectService{}).Remove(p.ID)
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	// No artisan file in the folder, so Add doesn't ask Flock to serve it.
+	got, err := (&ProjectService{}).Add(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != p.ID {
+		t.Errorf("Add of a symlink to a project's folder made project %s, want %s", got.ID, p.ID)
 	}
 }

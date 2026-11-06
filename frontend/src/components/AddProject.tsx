@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Check, FolderOpen, FolderSearch, RefreshCw } from 'lucide-react'
 import { ProjectService, type Found } from '../../bindings/larvyn/internal/project'
-import { addProjectAt, browseProject, selectProject, useStore } from '../lib/store'
+import { addProjectAt, browseProject, useStore } from '../lib/store'
 import { errMsg } from '../lib/util'
 import { Modal, SearchInput } from './ui'
 
@@ -9,13 +9,6 @@ import { Modal, SearchInput } from './ui'
 let cache: Found[] | null = null
 // Each scan's number: only the newest one's answer is shown.
 let scanSeq = 0
-
-/** What makes two paths the same folder: case counts, except on Windows and
- * macOS, whose file systems ignore it by default (as the backend does). */
-const pathKey = (path: string) => {
-  const platform = useStore.getState().platform
-  return platform === 'windows' || platform === 'darwin' ? path.toLowerCase() : path
-}
 
 /** "Open a project": the Laravel apps found on this computer, with the
  * system folder dialog for anything the scan missed. */
@@ -49,17 +42,14 @@ export function AddProject() {
   if (!open) return null
 
   const close = () => useStore.setState({ addProjectOpen: false })
-  const byPath = new Map(projects.map((p) => [pathKey(p.path), p]))
+  // The backend marks folders already added (it knows when two paths are
+  // the same folder); a project added since the scan is matched by path.
+  const isAdded = (f: Found) => f.added || projects.some((p) => p.path === f.path)
   const q = query.trim().toLowerCase()
   const list = (found ?? []).filter((f) => !q || f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
 
+  // Add returns the existing project for a folder already added.
   const pick = async (f: Found) => {
-    const existing = byPath.get(pathKey(f.path))
-    if (existing) {
-      selectProject(existing.id)
-      close()
-      return
-    }
     setBusy(f.path)
     const ok = await addProjectAt(f.path)
     setBusy('')
@@ -112,20 +102,24 @@ export function AddProject() {
           </div>
         )
       ) : list.length === 0 ? (
-        <div className="empty">
-          <div className="ico">
-            <FolderSearch />
+        // After a failed rescan, the error says it all; "No matches" for a
+        // filter still shows.
+        (q || !error) && (
+          <div className="empty">
+            <div className="ico">
+              <FolderSearch />
+            </div>
+            <h3>{q ? 'No matches' : 'No Laravel projects found'}</h3>
+            <p>{q ? 'Try another name, or choose the folder by hand.' : 'Larvyn looked in your home folder and the usual web roots. Choose the folder by hand instead.'}</p>
+            <button className="btn primary" onClick={browse}>
+              <FolderOpen /> Browse manually…
+            </button>
           </div>
-          <h3>{q ? 'No matches' : 'No Laravel projects found'}</h3>
-          <p>{q ? 'Try another name, or choose the folder by hand.' : 'Larvyn looked in your home folder and the usual web roots. Choose the folder by hand instead.'}</p>
-          <button className="btn primary" onClick={browse}>
-            <FolderOpen /> Browse manually…
-          </button>
-        </div>
+        )
       ) : (
         <div className="add-project-list">
           {list.map((f) => {
-            const added = byPath.has(pathKey(f.path))
+            const added = isAdded(f)
             return (
               <button key={f.path} className="list-item add-project-item" title={f.path} disabled={!!busy} onClick={() => pick(f)}>
                 <div className="grow" style={{ minWidth: 0 }}>

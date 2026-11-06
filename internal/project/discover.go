@@ -40,14 +40,21 @@ var skipDirs = map[string]bool{
 	"$RECYCLE.BIN": true, "System Volume Information": true,
 }
 
-// pathKey is what makes two paths the same folder: case counts, except on
-// Windows and macOS, whose file systems ignore it by default.
-func pathKey(p string) string {
-	p = filepath.Clean(p)
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		return strings.ToLower(p)
+// sameFolder reports whether two paths name the same folder. The file
+// system decides, so case counts exactly where it does (Linux, and
+// case-sensitive volumes on macOS) and symlinked paths match. A folder that
+// no longer exists is compared by its path, ignoring case on Windows.
+func sameFolder(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == b {
+		return true
 	}
-	return p
+	sa, errA := os.Stat(a)
+	sb, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return runtime.GOOS == "windows" && strings.EqualFold(a, b)
+	}
+	return os.SameFile(sa, sb)
 }
 
 // discoverRoots are the folders Discover starts from: the home folder plus
@@ -108,9 +115,30 @@ func (s *ProjectService) Discover() []Found {
 }
 
 func discover(roots []string, maxDepth int, deadline time.Time) []Found {
+	// The folders already added, to mark them: by path, and by identity
+	// for a path spelled another way (case, symlinks).
 	added := map[string]bool{}
+	var addedInfo []os.FileInfo
 	for _, p := range store.Projects() {
-		added[pathKey(p.Path)] = true
+		added[filepath.Clean(p.Path)] = true
+		if st, err := os.Stat(p.Path); err == nil {
+			addedInfo = append(addedInfo, st)
+		}
+	}
+	isAdded := func(dir string) bool {
+		if added[dir] {
+			return true
+		}
+		st, err := os.Stat(dir)
+		if err != nil {
+			return false
+		}
+		for _, a := range addedInfo {
+			if os.SameFile(st, a) {
+				return true
+			}
+		}
+		return false
 	}
 	seen := map[string]bool{}
 	var found []Found
@@ -122,7 +150,7 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			return
 		}
 		visited++
-		key := pathKey(dir)
+		key := filepath.Clean(dir)
 		if seen[key] {
 			return
 		}
@@ -134,7 +162,7 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			if st, err := os.Stat(filepath.Join(dir, ".git")); err == nil && !st.IsDir() {
 				return
 			}
-			f := Found{Path: dir, Name: prettyName(dir), Added: added[key], Modified: mod.UnixMilli()}
+			f := Found{Path: dir, Name: prettyName(dir), Added: isAdded(key), Modified: mod.UnixMilli()}
 			if env := dotenv.Read(filepath.Join(dir, ".env")); env["APP_NAME"] != "" && env["APP_NAME"] != "Laravel" {
 				f.Name = env["APP_NAME"]
 			}
