@@ -794,7 +794,8 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
   border-left: 1px solid var(--line-2); background: var(--bg-1); animation: slidein 0.16s var(--ease);
 }
 .side-panel > .resize { position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: ew-resize; z-index: 3; }
-.side-panel > .resize:hover { background: rgba(255, 255, 255, 0.08); }
+.side-panel > .resize:hover, .side-panel > .resize:focus-visible { background: rgba(255, 255, 255, 0.08); }
+.side-panel > .resize:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .side-panel-head { display: flex; align-items: center; gap: 10px; padding: 0 10px 0 14px; min-height: 50px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .side-panel-head h2 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: -0.015em; }
 .side-panel-head p { margin: 1px 0 0; font-size: 11.5px; color: var(--text-3); }
@@ -815,6 +816,8 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .dv-files-row:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
 .dv-file { margin: 0 12px 12px; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; background: var(--bg-2); scroll-margin-top: 56px; }
 .dv-head { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 10px; height: 36px; font-size: 12.5px; color: var(--text); cursor: pointer; background: var(--bg-3); border-bottom: 1px solid var(--line); }
+.dv-toggle { display: flex; align-items: center; gap: 8px; min-width: 0; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.dv-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 .dv-note { padding: 14px; color: var(--text-3); font-size: 12px; }
 .dv-grid { font-variant-ligatures: none; font-family: var(--mono); font-size: 11.5px; line-height: 1.6; user-select: text; }
 .dv-sep { padding: 3px 10px; color: var(--text-3); background: var(--bg-3); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

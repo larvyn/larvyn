@@ -7,6 +7,49 @@ type Line = { kind: 'ctx' | 'add' | 'del' | 'note'; text: string; old: number; n
 type Hunk = { header: string; lines: Line[] }
 export type DiffFile = { path: string; status: 'added' | 'deleted' | 'renamed' | 'modified'; binary: boolean; adds: number; dels: number; hunks: Hunk[] }
 
+/**
+ * Git quotes paths with unusual characters (non-ASCII, quotes, control
+ * characters) C-style: "caf\303\251.php". This turns one back into the real
+ * name; an unquoted path is returned as is.
+ */
+export function unquotePath(p: string): string {
+  if (!p.startsWith('"')) return p
+  const bytes: number[] = []
+  const esc: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 }
+  const enc = new TextEncoder()
+  for (let i = 1; i < p.length; i++) {
+    const c = p[i]
+    if (c === '"') break
+    if (c !== '\\') {
+      bytes.push(...enc.encode(c))
+      continue
+    }
+    const next = p[++i]
+    if (next === undefined) break
+    if (/[0-7]/.test(next)) {
+      bytes.push(parseInt(p.slice(i, i + 3), 8))
+      i += 2
+    } else bytes.push(esc[next] ?? next.charCodeAt(0))
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes))
+}
+
+/** The new-side path from a `diff --git a/x b/y` header, either side possibly quoted. */
+function headerPath(rest: string): string {
+  let b: string | null = null
+  if (rest.startsWith('"')) {
+    // Skip the quoted a/ path, honouring escaped quotes.
+    let i = 1
+    while (i < rest.length && rest[i] !== '"') i += rest[i] === '\\' ? 2 : 1
+    b = rest.slice(i + 2)
+  } else {
+    const q = rest.indexOf(' "b/')
+    if (q >= 0) b = rest.slice(q + 1)
+    else return rest.match(/^a\/(.*) b\/(.*)$/)?.[2] ?? rest
+  }
+  return unquotePath(b).replace(/^b\//, '')
+}
+
 /** Splits a multi-file unified diff (git diff output) into files and hunks. */
 export function parseDiff(text: string): DiffFile[] {
   const files: DiffFile[] = []
@@ -16,8 +59,7 @@ export function parseDiff(text: string): DiffFile[] {
   let n = 0
   for (const l of text.replace(/\r\n/g, '\n').split('\n')) {
     if (l.startsWith('diff --git ')) {
-      const m = l.match(/^diff --git a\/(.*) b\/(.*)$/)
-      file = { path: m?.[2] ?? l.slice(11), status: 'modified', binary: false, adds: 0, dels: 0, hunks: [] }
+      file = { path: headerPath(l.slice(11)), status: 'modified', binary: false, adds: 0, dels: 0, hunks: [] }
       files.push(file)
       hunk = null
       continue
@@ -26,7 +68,10 @@ export function parseDiff(text: string): DiffFile[] {
     if (!hunk) {
       if (l.startsWith('new file')) file.status = 'added'
       else if (l.startsWith('deleted file')) file.status = 'deleted'
-      else if (l.startsWith('rename to ')) file.status = 'renamed'
+      else if (l.startsWith('rename to ')) {
+        file.status = 'renamed'
+        file.path = unquotePath(l.slice(10))
+      } else if (l.startsWith('+++ ') && l !== '+++ /dev/null') file.path = unquotePath(l.slice(4).replace(/\t$/, '')).replace(/^b\//, '')
       else if (l.startsWith('Binary files')) file.binary = true
     }
     const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/)
@@ -99,10 +144,18 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
   return (
     <div className="dv-file" id={props.id}>
       <div className="dv-head" onClick={() => setOpen(!open)}>
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span className="mono ellipsis grow" title={f.path}>
-          {f.path}
-        </span>
+        <button
+          className="dv-toggle grow"
+          aria-expanded={open}
+          title={f.path}
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(!open)
+          }}
+        >
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span className="mono ellipsis">{f.path}</span>
+        </button>
         {f.status !== 'modified' && <span className={cx('badge', f.status === 'added' ? 'green' : f.status === 'deleted' ? 'red' : '')}>{f.status}</span>}
         <span className="dv-count add">+{f.adds}</span>
         <span className="dv-count del">−{f.dels}</span>

@@ -104,7 +104,21 @@ export function SidePanel(props: {
         }
       }}
     >
-      <div className="resize" onMouseDown={startDrag} />
+      <div
+        className="resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        tabIndex={0}
+        onMouseDown={startDrag}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          const next = clamp(width + (e.key === 'ArrowLeft' ? 24 : -24))
+          setWidth(next)
+          save(key, next)
+        }}
+      />
       <div className="side-panel-head">
         {props.icon && <div className="side-panel-icon">{props.icon}</div>}
         <div className="grow" style={{ minWidth: 0 }}>
