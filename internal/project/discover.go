@@ -40,6 +40,16 @@ var skipDirs = map[string]bool{
 	"$RECYCLE.BIN": true, "System Volume Information": true,
 }
 
+// pathKey is what makes two paths the same folder: case counts, except on
+// Windows and macOS, whose file systems ignore it by default.
+func pathKey(p string) string {
+	p = filepath.Clean(p)
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.ToLower(p)
+	}
+	return p
+}
+
 // discoverRoots are the folders Discover starts from: the home folder plus
 // where common local stacks keep their sites.
 func discoverRoots() []string {
@@ -100,7 +110,7 @@ func (s *ProjectService) Discover() []Found {
 func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 	added := map[string]bool{}
 	for _, p := range store.Projects() {
-		added[strings.ToLower(filepath.Clean(p.Path))] = true
+		added[pathKey(p.Path)] = true
 	}
 	seen := map[string]bool{}
 	var found []Found
@@ -112,7 +122,7 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			return
 		}
 		visited++
-		key := strings.ToLower(filepath.Clean(dir))
+		key := pathKey(dir)
 		if seen[key] {
 			return
 		}

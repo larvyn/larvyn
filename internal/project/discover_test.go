@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -67,5 +68,29 @@ func TestDiscoverMarksAddedProjects(t *testing.T) {
 	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
 	if len(got) != 1 || !got[0].Added {
 		t.Fatalf("want the app marked as added: %+v", got)
+	}
+}
+
+func TestDiscoverKeepsFoldersThatDifferInCase(t *testing.T) {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		t.Skip("the file system ignores case")
+	}
+	root := t.TempDir()
+	writeLaravel(t, filepath.Join(root, "Shop"))
+	writeLaravel(t, filepath.Join(root, "shop"))
+	p := store.Project{ID: store.NewID(), Name: "Shop", Path: filepath.Join(root, "Shop")}
+	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
+		t.Fatal(err)
+	}
+	defer (&ProjectService{}).Remove(p.ID)
+
+	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	if len(got) != 2 {
+		t.Fatalf("found %d projects, want 2: %+v", len(got), got)
+	}
+	for _, f := range got {
+		if want := filepath.Base(f.Path) == "Shop"; f.Added != want {
+			t.Errorf("%s: added = %v, want %v", f.Path, f.Added, want)
+		}
 	}
 }
