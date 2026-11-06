@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"larvyn/internal/proc"
-
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -61,22 +59,45 @@ func dropFor(paths []string, target *application.DropTargetDetails) (FilesDroppe
 	return FilesDropped{Session: id, Paths: paths}, true
 }
 
-// Quoting names how the window quotes paths it pastes, after the shell new
-// terminals start: "posix" (sh, bash, zsh, fish), "powershell" or "cmd".
-func (t *TerminalService) Quoting() string {
-	return quotingFor(runtime.GOOS, proc.DefaultShell()[0])
+// Quoting names how the window quotes paths it pastes into a session, after
+// the program the session runs:
+//   - "posix": sh, bash, zsh, fish… and everything off Windows;
+//   - "powershell": pwsh or Windows PowerShell;
+//   - "cmd": cmd.exe;
+//   - "strict": anything else on Windows (an agent, say, whose input may end
+//     up in either shell), where only quoting both shells read literally is
+//     safe.
+func (t *TerminalService) Quoting(id string) string {
+	s, err := t.get(id)
+	if err != nil {
+		return quotingFor(runtime.GOOS, "")
+	}
+	s.mu.Lock()
+	argv := s.argv
+	s.mu.Unlock()
+	program := ""
+	if len(argv) > 0 {
+		program = argv[0]
+	}
+	return quotingFor(runtime.GOOS, program)
 }
 
-func quotingFor(goos, shell string) string {
+func quotingFor(goos, program string) string {
 	if goos != "windows" {
 		return "posix"
 	}
 	// The path is a Windows one: its base is after the last \ or /.
-	base := strings.ToLower(shell[strings.LastIndexAny(shell, `\/`)+1:])
-	if base == "cmd.exe" || base == "cmd" {
+	base := strings.ToLower(program[strings.LastIndexAny(program, `\/`)+1:])
+	base = strings.TrimSuffix(base, ".exe")
+	switch base {
+	case "cmd":
 		return "cmd"
+	case "pwsh", "powershell":
+		return "powershell"
+	case "bash", "sh", "zsh", "fish", "dash":
+		return "posix"
 	}
-	return "powershell"
+	return "strict"
 }
 
 // maxPastedImage is the largest clipboard image SaveImage keeps.

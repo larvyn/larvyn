@@ -7,7 +7,7 @@ import { Events } from '@wailsio/runtime'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { b64ToBytes } from './util'
-import { useStore } from './store'
+import { toast, useStore } from './store'
 
 export const termTheme: ITheme = {
   background: '#0a0a0d',
@@ -72,7 +72,7 @@ function listen() {
     const d = ev.data as { session: string; paths: string[] }
     const e = entries.get(d.session)
     if (!e || !d.paths?.length) return
-    e.term.paste(quotePaths(d.paths))
+    pastePaths(d.session, e.term, d.paths)
     e.term.focus()
   })
   useStore.subscribe((s, prev) => {
@@ -92,28 +92,43 @@ listen()
 
 const isWindows = () => useStore.getState().platform === 'windows'
 
-type Quoting = 'posix' | 'powershell' | 'cmd'
-// How the shell new terminals start reads quotes; the backend knows which
-// shell that is. Until it answers, the platform's usual one.
-let shellQuoting: Quoting | null = null
-TerminalService.Quoting()
-  .then((q) => (shellQuoting = q as Quoting))
-  .catch(() => {})
-const quoting = (): Quoting => shellQuoting ?? (isWindows() ? 'powershell' : 'posix')
+type Quoting = 'posix' | 'powershell' | 'cmd' | 'strict'
 
-/** Paths as the shell (and an agent) reads them, with a trailing space so
- * the next word doesn't run into them. A path that needs quoting is quoted
- * so nothing in a file name ($(…), `…`, &, |) is run:
+/** Paths as the program reads them, with a trailing space so the next word
+ * doesn't run into them, or null for those that can't be quoted safely.
+ * Nothing in a file name ($(…), `…`, &, |) may run when the line is
+ * submitted:
  * - POSIX shells and PowerShell: single quotes, which neither expands;
- * - cmd.exe: double quotes, inside which & | < > ^ are plain characters
- *   (and Windows file names cannot contain a double quote). */
-export function quotePaths(paths: string[], q: Quoting = quoting()) {
-  const quote = (p: string) => {
-    if (q === 'posix') return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
-    if (/^[A-Za-z0-9/\\._\-+:@]+$/.test(p)) return p
-    return q === 'cmd' ? `"${p.replace(/"/g, '')}"` : `'${p.replace(/'/g, "''")}'`
+ * - cmd.exe: double quotes, inside which & | < > ^ are plain characters;
+ *   but cmd expands %VAR% even there, so a path with % is refused;
+ * - strict (another program on Windows, whose input may reach either
+ *   shell): double quotes, refusing what PowerShell ($, `) or cmd (%)
+ *   would expand inside them.
+ * Windows file names cannot contain a double quote. */
+export function quotePath(p: string, q: Quoting): string | null {
+  if (q === 'posix') return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+  if (/^[A-Za-z0-9/\\._\-+:@]+$/.test(p)) return p
+  if (p.includes('"')) return null
+  if (q === 'powershell') return `'${p.replace(/'/g, "''")}'`
+  if (p.includes('%') || (q === 'strict' && /[$`]/.test(p))) return null
+  return `"${p}"`
+}
+
+/** Pastes paths into a session, quoted for the program it runs. The quoting
+ * is asked for each time, so a paste never goes out with a guess; when the
+ * backend can't say, Windows gets the strict rules. */
+async function pastePaths(id: string, term: Terminal, paths: string[]) {
+  const q = (await TerminalService.Quoting(id).catch(() => (isWindows() ? 'strict' : 'posix'))) as Quoting
+  const quoted: string[] = []
+  const refused: string[] = []
+  for (const p of paths.filter(Boolean)) {
+    const out = quotePath(p, q)
+    if (out === null) refused.push(p)
+    else quoted.push(out)
   }
-  return paths.filter(Boolean).map(quote).join(' ') + ' '
+  if (quoted.length) term.paste(quoted.join(' ') + ' ')
+  if (refused.length)
+    toast('error', refused.length === 1 ? 'Path not pasted' : `${refused.length} paths not pasted`, `${refused.join(', ')}: the name has characters this terminal's shell would expand. Rename it or type the path yourself.`)
 }
 
 /** Paths in a text/uri-list (files copied in a file manager). A file URL
@@ -159,7 +174,7 @@ function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
   if (!data || data.getData('text/plain')) return false
   const files = fileURIs(data.getData('text/uri-list'))
   if (files.length) {
-    term.paste(quotePaths(files))
+    pastePaths(id, term, files)
     return true
   }
   const image = [...data.items].find((it) => it.kind === 'file' && it.type.startsWith('image/'))
@@ -175,7 +190,7 @@ function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
   if (!file) return false
   blobToBase64(file)
     .then((b64) => TerminalService.SaveImage(b64))
-    .then((path) => term.paste(quotePaths([path])))
+    .then((path) => pastePaths(id, term, [path]))
     .catch((e) => console.error('could not paste the image', e))
   return true
 }

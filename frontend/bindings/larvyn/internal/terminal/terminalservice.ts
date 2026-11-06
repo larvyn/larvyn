@@ -47,11 +47,17 @@ export function Output(id: string): $CancellablePromise<string> {
 }
 
 /**
- * Quoting names how the window quotes paths it pastes, after the shell new
- * terminals start: "posix" (sh, bash, zsh, fish), "powershell" or "cmd".
+ * Quoting names how the window quotes paths it pastes into a session, after
+ * the program the session runs:
+ *   - "posix": sh, bash, zsh, fish… and everything off Windows;
+ *   - "powershell": pwsh or Windows PowerShell;
+ *   - "cmd": cmd.exe;
+ *   - "strict": anything else on Windows (an agent, say, whose input may end
+ *     up in either shell), where only quoting both shells read literally is
+ *     safe.
  */
-export function Quoting(): $CancellablePromise<string> {
-    return $Call.ByID(3934403160);
+export function Quoting(id: string): $CancellablePromise<string> {
+    return $Call.ByID(3934403160, id);
 }
 
 /**

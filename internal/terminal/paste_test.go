@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -71,18 +72,39 @@ func TestImageExt(t *testing.T) {
 }
 
 func TestQuotingFor(t *testing.T) {
-	cases := []struct{ goos, shell, want string }{
+	cases := []struct{ goos, program, want string }{
 		{"linux", "/bin/zsh", "posix"},
-		{"darwin", "/bin/bash", "posix"},
+		{"darwin", "/usr/local/bin/claude", "posix"},
 		{"windows", `C:\Program Files\PowerShell\7\pwsh.exe`, "powershell"},
 		{"windows", "powershell.exe", "powershell"},
 		{"windows", "cmd.exe", "cmd"},
 		{"windows", `C:\Windows\System32\CMD.EXE`, "cmd"},
+		{"windows", `C:\Program Files\Git\bin\bash.exe`, "posix"},
+		{"windows", `C:\Users\i\.local\bin\claude.exe`, "strict"},
+		{"windows", "", "strict"},
 	}
 	for _, c := range cases {
-		if got := quotingFor(c.goos, c.shell); got != c.want {
-			t.Errorf("quotingFor(%q, %q) = %q, want %q", c.goos, c.shell, got, c.want)
+		if got := quotingFor(c.goos, c.program); got != c.want {
+			t.Errorf("quotingFor(%q, %q) = %q, want %q", c.goos, c.program, got, c.want)
 		}
+	}
+}
+
+func TestQuotingFollowsTheSessionsProgram(t *testing.T) {
+	Sessions.mu.Lock()
+	Sessions.sessions["quoting-cmd"] = &session{info: SessionInfo{ID: "quoting-cmd"}, argv: []string{`C:\Windows\System32\cmd.exe`}}
+	Sessions.mu.Unlock()
+	defer func() {
+		Sessions.mu.Lock()
+		delete(Sessions.sessions, "quoting-cmd")
+		Sessions.mu.Unlock()
+	}()
+	want := "posix"
+	if runtime.GOOS == "windows" {
+		want = "cmd"
+	}
+	if got := Sessions.Quoting("quoting-cmd"); got != want {
+		t.Errorf("Quoting = %q, want %q", got, want)
 	}
 }
 
