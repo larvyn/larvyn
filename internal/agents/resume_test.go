@@ -45,6 +45,21 @@ func TestAgentWithoutResumeStartsAfresh(t *testing.T) {
 	}
 }
 
+// Codex resumes by id only: with none recorded it starts afresh, which is
+// not a resume (restore keeps its old output and leaves it for Relaunch).
+func TestCodexResumesOnlyWithAnID(t *testing.T) {
+	bin := fakeBinary(t, "codex")
+	t.Setenv("PATH", filepath.Dir(bin))
+	argv, resumes, err := RelaunchArgv(terminal.SessionSpec{Kind: "agent", Key: "codex"}, false)
+	if err != nil || resumes || len(argv) != 1 {
+		t.Fatalf("no id: argv %v resumes %v err %v", argv, resumes, err)
+	}
+	argv, resumes, _ = RelaunchArgv(terminal.SessionSpec{Kind: "agent", Key: "codex", Meta: map[string]string{"resumeId": "x"}}, false)
+	if want := []string{"resume", "x"}; !resumes || !reflect.DeepEqual(argv[1:], want) {
+		t.Fatalf("with id: argv %v resumes %v", argv, resumes)
+	}
+}
+
 func TestCodexSessionIDMatchesFolderAndTime(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("CODEX_HOME", root)
