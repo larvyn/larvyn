@@ -408,12 +408,14 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
 }
 
 /** The current time, refreshed every interval ms. */
-export function useNow(interval = 1000) {
+export function useNow(interval = 1000, enabled = true) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
+    if (!enabled) return
+    setNow(Date.now())
     const t = setInterval(() => setNow(Date.now()), interval)
     return () => clearInterval(t)
-  }, [interval])
+  }, [interval, enabled])
   return now
 }
 
