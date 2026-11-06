@@ -103,6 +103,11 @@ const isWindows = () => useStore.getState().platform === 'windows'
  *   straight or curly (PowerShell reads “ ” „ as quotes too). */
 export function quotePath(p: string, windows = isWindows()): string | null {
   if (!windows) return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+  // A trailing backslash would escape the closing quote in Git Bash and
+  // leave the rest of the line unquoted; a folder's path means the same
+  // without it (a drive root keeps a dot: C:\.).
+  p = p.replace(/\\+$/, '')
+  if (/^[A-Za-z]:$/.test(p)) p += '\\.'
   if (/^[A-Za-z0-9/._\-+:@]+$/.test(p)) return p
   if (/["“”„$`%!]/.test(p)) return null
   return `"${p}"`
