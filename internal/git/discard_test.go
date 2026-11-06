@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"larvyn/internal/proc"
@@ -15,7 +16,9 @@ func newRepo(t *testing.T) string {
 		t.Skip("git not installed")
 	}
 	repo := t.TempDir()
-	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+	// core.autocrlf off: Windows runners turn it on globally, and a restored
+	// file would come back with CRLF line endings.
+	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}, {"config", "core.autocrlf", "false"}} {
 		if _, err := proc.Git(repo, args...); err != nil {
 			t.Fatal(err)
 		}
@@ -31,6 +34,9 @@ func newRepo(t *testing.T) string {
 // A file whose name contains " -> " used to be read as a rename to "..", and
 // Discard then deleted the project's parent folder (#51).
 func TestDiscardRenameLookalikeStaysInside(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows drops trailing dots from file names: x -> .. can't exist there")
+	}
 	parent := t.TempDir()
 	repo := filepath.Join(parent, "app")
 	os.Rename(newRepo(t), repo)
