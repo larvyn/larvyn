@@ -4,7 +4,7 @@ import { AlertTriangle, Bug, CheckCircle2, Info, Search, X, XCircle } from 'luci
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { attach } from '../lib/terms'
 import { useStore } from '../lib/store'
-import { cx } from '../lib/util'
+import { cx, load, save } from '../lib/util'
 
 /** A dialog over the window: Escape or a click outside closes it. */
 export function Modal(props: {
@@ -54,6 +54,85 @@ export function Modal(props: {
         {props.footer && <div className="modal-foot">{props.footer}</div>}
       </div>
     </div>
+  )
+}
+
+/**
+ * A panel docked to the right of a view, beside its content instead of over
+ * it. Drag the left edge to resize; the width is remembered per `id`.
+ * Escape closes it while focus is inside the panel.
+ */
+export function SidePanel(props: {
+  id: string
+  title: ReactNode
+  subtitle?: ReactNode
+  icon?: ReactNode
+  actions?: ReactNode
+  onClose: () => void
+  children: ReactNode
+  footer?: ReactNode
+  width?: number
+  className?: string
+}) {
+  const key = 'sidepanel:' + props.id
+  const [width, setWidth] = useState<number>(() => load<number | null>(key, null) ?? props.width ?? Math.round(window.innerWidth * 0.48))
+  const clamp = (w: number) => Math.max(360, Math.min(Math.round(window.innerWidth * 0.72), w))
+  const startDrag = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = width
+    let last = startW
+    document.body.style.cursor = 'ew-resize'
+    const move = (ev: MouseEvent) => setWidth((last = clamp(startW + startX - ev.clientX)))
+    const up = () => {
+      document.body.style.cursor = ''
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+      save(key, last)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+  return (
+    <aside
+      className={cx('side-panel', props.className)}
+      style={{ width: clamp(width) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          props.onClose()
+        }
+      }}
+    >
+      <div
+        className="resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        tabIndex={0}
+        onMouseDown={startDrag}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          const next = clamp(width + (e.key === 'ArrowLeft' ? 24 : -24))
+          setWidth(next)
+          save(key, next)
+        }}
+      />
+      <div className="side-panel-head">
+        {props.icon && <div className="side-panel-icon">{props.icon}</div>}
+        <div className="grow" style={{ minWidth: 0 }}>
+          <h2 className="ellipsis">{props.title}</h2>
+          {props.subtitle && <p className="ellipsis">{props.subtitle}</p>}
+        </div>
+        {props.actions}
+        <button className="icon-btn" title="Close (Esc)" onClick={props.onClose}>
+          <X />
+        </button>
+      </div>
+      <div className="side-panel-body">{props.children}</div>
+      {props.footer && <div className="side-panel-foot">{props.footer}</div>}
+    </aside>
   )
 }
 
