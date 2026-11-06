@@ -47,20 +47,6 @@ export function Output(id: string): $CancellablePromise<string> {
 }
 
 /**
- * Quoting names how the window quotes paths it pastes into a session, after
- * the program the session runs:
- *   - "posix": sh, bash, zsh, fish… and everything off Windows;
- *   - "powershell": pwsh or Windows PowerShell;
- *   - "cmd": cmd.exe;
- *   - "strict": anything else on Windows (an agent, say, whose input may end
- *     up in either shell), where only quoting both shells read literally is
- *     safe.
- */
-export function Quoting(id: string): $CancellablePromise<string> {
-    return $Call.ByID(3934403160, id);
-}
-
-/**
  * Relaunch starts a stopped terminal's program again in the same session:
  * an agent resumes its conversation when it can, anything else runs its
  * command again.
