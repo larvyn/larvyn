@@ -103,7 +103,6 @@ export function Agents() {
   const [busy, setBusy] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
   const [diffFor, setDiffFor] = useState<string | null>(null)
-  const now = useNow(1000)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -148,7 +147,6 @@ export function Agents() {
     }
   }
 
-  const statusOf = (s: SessionInfo) => agentStatus({ ...s, lastActivity: activity.get(s.id) ?? s.lastActivity } as SessionInfo, now)
   const shown = focused ? agents.filter((a) => a.id === focused) : agents
 
   const reviewing = agents.find((a) => a.id === diffFor && a.meta?.worktree)
@@ -285,8 +283,6 @@ export function Agents() {
               <AgentCard
                 key={a.id}
                 s={a}
-                status={statusOf(a)}
-                now={now}
                 focused={!!focused}
                 onFocus={() => setFocused(focused ? null : a.id)}
                 reviewing={diffFor === a.id}
@@ -301,8 +297,12 @@ export function Agents() {
   )
 }
 
-function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused: boolean; reviewing: boolean; onFocus: () => void; onDiff: () => void }) {
-  const { s, status } = props
+function AgentCard(props: { s: SessionInfo; focused: boolean; reviewing: boolean; onFocus: () => void; onDiff: () => void }) {
+  const { s } = props
+  // The clock ticks here, not in the view: only this card re-renders each
+  // second, and only while its agent runs.
+  const now = useNow(1000, s.running)
+  const status: Status = agentStatus({ ...s, lastActivity: activity.get(s.id) ?? s.lastActivity } as SessionInfo, now)
   const { id } = useActive()
   const [msg, setMsg] = useState('')
   const color = s.meta?.color || '#888'
@@ -337,7 +337,7 @@ function AgentCard(props: { s: SessionInfo; status: Status; now: number; focused
               </>
             )}
             {' · '}
-            {duration((s.running ? props.now : s.endedAt) - s.startedAt)}
+            {duration((s.running ? now : s.endedAt) - s.startedAt)}
           </div>
         </div>
         {props.reviewing && (

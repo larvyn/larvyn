@@ -68,3 +68,11 @@ Lista de trabajo para Larvyn. Cada tarea es independiente: se puede pasar tal cu
 - [ ] Definir los tokens de color del tema claro en `frontend/src/styles/app.css` junto a los del oscuro.
 - [ ] Ajustar el tema de xterm para que las terminales sigan siendo legibles.
 - [ ] Selector en Settings: oscuro, claro o según el sistema.
+
+## 11. Volver a xterm estable
+
+Las terminales usan betas de xterm (#103): `@xterm/xterm` 6.1.0-beta.300 y `@xterm/addon-webgl` 0.20.0-beta.297, más fit, search y web-links de la misma fecha. Son las únicas versiones con los arreglos del atlas WebGL compartido (xtermjs/xterm.js#6042 y #6043). La 0.19.0 estable puede mostrar texto corrupto con varias terminales.
+
+- [ ] Cuando salgan xterm 6.1.0 y addon-webgl 0.20.0 estables, cambiar los cinco paquetes `@xterm/*` a esas versiones (`npm view @xterm/xterm dist-tags`).
+- [ ] Probar con varios agentes en la grilla: texto correcto, WebGL activo y sin pérdidas de contexto al cambiar de vista.
+- [ ] Revisar si el cursor de las terminales sin foco vuelve a verse (con la beta no se dibuja el contorno).

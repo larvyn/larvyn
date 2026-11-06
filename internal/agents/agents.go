@@ -167,8 +167,12 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 		argv = append(argv, yoloFlags[kind.Base]...)
 	}
 	if fn, ok := resumeArgs[kind.Base]; ok && !(shared && resumesByFolder[kind.Base]) {
-		resumes = true
-		argv = append(argv, fn(spec)...)
+		// No arguments (Codex with no recorded conversation) is a fresh
+		// start, not a resume: there is nothing it would show again.
+		if a := fn(spec); a != nil {
+			resumes = true
+			argv = append(argv, a...)
+		}
 	}
 	return argv, resumes, nil
 }

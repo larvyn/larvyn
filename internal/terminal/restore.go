@@ -279,7 +279,6 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 		ids[saved.ID] = s.info.ID
 		all = append(all, s)
 		runs[s] = run
-		t.add(s)
 	}
 	// Decide who shares a folder before anything starts: starting refreshes
 	// the activity that decision is based on.
@@ -287,18 +286,37 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 	for _, s := range all {
 		shared[s] = sharesFolder(s, all)
 	}
+	// Only an agent that picks its conversation up comes back on its own;
+	// the rest wait for Relaunch. One that does reprints that conversation
+	// when it starts, so its saved output would show twice and be drawn
+	// twice: it starts on a clean screen instead. Decided before the
+	// sessions are listed, so the UI never takes the old output. The output
+	// is put back if the agent cannot start.
+	held := map[*session][]byte{}
+	for _, s := range all {
+		if !runs[s] || s.spec.Kind != "agent" {
+			continue
+		}
+		if _, resumes, err := AgentRelaunch(s.spec, shared[s]); err != nil || !resumes {
+			runs[s] = false
+			continue
+		}
+		held[s] = s.buf
+		s.buf = []byte("\x1b[2m── resuming the previous conversation ──\x1b[0m\r\n")
+	}
+	for _, s := range all {
+		t.add(s)
+	}
 	for _, s := range all {
 		if !runs[s] {
 			continue
 		}
-		if s.spec.Kind == "agent" {
-			// Only an agent that picks its conversation up comes back on its
-			// own; the rest wait for Relaunch.
-			if _, resumes, err := AgentRelaunch(s.spec, shared[s]); err != nil || !resumes {
-				continue
-			}
-		}
 		if err := t.relaunch(s, shared[s]); err != nil {
+			if old, ok := held[s]; ok {
+				s.mu.Lock()
+				s.buf = old
+				s.mu.Unlock()
+			}
 			t.output(s, []byte("\x1b[31mCould not restart: "+err.Error()+"\x1b[0m\r\n"))
 			store.AppendLog("warn", "restore "+s.info.Title+": "+err.Error())
 		}

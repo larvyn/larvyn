@@ -2,6 +2,7 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { Events } from '@wailsio/runtime'
 import { SystemService } from '../../bindings/larvyn/internal/system'
@@ -37,6 +38,8 @@ interface Entry {
   term: Terminal
   fit: FitAddon
   search: SearchAddon
+  webgl?: WebglAddon
+  webglCanvas?: HTMLCanvasElement
   el: HTMLDivElement
   opened: boolean
   ready: boolean
@@ -80,6 +83,7 @@ function listen() {
     const ids = new Set(s.sessions.map((x) => x.id))
     for (const [id, e] of entries) {
       if (!ids.has(id)) {
+        disableWebgl(e)
         e.term.dispose()
         e.el.remove()
         entries.delete(id)
@@ -89,6 +93,55 @@ function listen() {
   })
 }
 listen()
+
+// The GPU renderer: xterm's DOM one rebuilds rows as elements on every
+// redraw, which agents' TUIs (spinners, status lines) do many times a second,
+// and that kept WebKitGTK's main thread busy with several of them on screen.
+// A terminal holds a WebGL context only while mounted, since WebKit caps how
+// many can be alive. If WebGL is missing or keeps losing its context, the
+// app stays on the DOM renderer.
+let webglOff = false
+let webglLosses = 0
+
+/** Draws e with WebGL, unless WebGL is off for this run or already on. */
+function enableWebgl(e: Entry) {
+  if (webglOff || e.webgl) return
+  try {
+    const gl = new WebglAddon()
+    gl.onContextLoss(() => {
+      if (++webglLosses >= 3) webglOff = true
+      disableWebgl(e)
+    })
+    const before = new Set(e.el.querySelectorAll('canvas'))
+    e.term.loadAddon(gl)
+    e.webgl = gl
+    // The addon's own canvas, to free its context when it goes.
+    e.webglCanvas = [...e.el.querySelectorAll('canvas')].find((c) => !before.has(c))
+  } catch {
+    webglOff = true
+  }
+}
+
+/** Puts e back on the DOM renderer and frees its WebGL context. */
+function disableWebgl(e: Entry) {
+  const gl = e.webgl
+  const canvas = e.webglCanvas
+  e.webgl = e.webglCanvas = undefined
+  try {
+    gl?.dispose()
+  } catch {}
+  // dispose() only removes the canvas; its context would stay alive, and
+  // count against WebKit's cap, until garbage collected. Freed after the
+  // addon stopped listening, so this is not counted as a context loss.
+  try {
+    canvas?.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext()
+  } catch {}
+}
+
+// Glyphs are cached in a texture; once the web font arrives, redraw with it.
+document.fonts?.addEventListener('loadingdone', () => {
+  for (const e of entries.values()) e.webgl?.clearTextureAtlas()
+})
 
 const isWindows = () => useStore.getState().platform === 'windows'
 
@@ -307,6 +360,7 @@ export function attach(id: string, container: HTMLElement, focus = false): () =>
     e.term.open(e.el)
     e.opened = true
   }
+  enableWebgl(e)
   const doFit = () => {
     if (!container.isConnected || container.clientWidth === 0) return
     try {
@@ -321,7 +375,10 @@ export function attach(id: string, container: HTMLElement, focus = false): () =>
   ro.observe(container)
   return () => {
     ro.disconnect()
-    if (e.el.parentElement === container) container.removeChild(e.el)
+    // Already moved to another container: it is still on screen there.
+    if (e.el.parentElement !== container) return
+    disableWebgl(e)
+    container.removeChild(e.el)
   }
 }
 

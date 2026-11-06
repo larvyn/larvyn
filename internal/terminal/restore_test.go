@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -251,6 +252,51 @@ func TestRestoreResumesOneAgentPerFolder(t *testing.T) {
 	for _, s := range ts.List() {
 		if want := s.Title == "latest"; s.Running != want {
 			t.Errorf("%s running = %v, want %v", s.Title, s.Running, want)
+		}
+	}
+}
+
+// An agent that resumes reprints its conversation, so its saved output is not
+// replayed; one that waits for Relaunch, or fails to start, keeps it.
+func TestRestoreDropsSavedOutputOfResumingAgents(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+	t.Setenv("LARVYN_HOME", t.TempDir())
+	store.Reload()
+	t.Cleanup(store.Reload)
+	root := t.TempDir()
+	_ = store.Update(func(d *store.State) { d.Projects = []store.Project{{ID: "p1", Path: root}} })
+	prev := AgentRelaunch
+	t.Cleanup(func() { AgentRelaunch = prev })
+	AgentRelaunch = func(spec SessionSpec, shared bool) ([]string, bool, error) {
+		switch spec.Key {
+		case "resumes":
+			return []string{"sh", "-c", "sleep 30"}, true, nil
+		case "broken":
+			return []string{"larvyn-no-such-agent"}, true, nil
+		}
+		return []string{"sh"}, false, nil
+	}
+	ts := &TerminalService{sessions: map[string]*session{}}
+	defer ts.ServiceShutdown()
+	var saved []savedSession
+	for _, key := range []string{"resumes", "waits", "broken"} {
+		dir := filepath.Join(root, key)
+		_ = os.Mkdir(dir, 0o755)
+		saved = append(saved, savedSession{ID: key, ProjectID: "p1", Kind: "agent", Key: key, Title: key, Cwd: dir,
+			Running: true, Scrollback: []byte("old output of " + key + "\r\n")})
+	}
+	ts.restoreWorkspace(savedWorkspace{Version: workspaceVersion, Sessions: saved})
+	for _, s := range ts.List() {
+		snap, err := ts.Snapshot(s.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, _ := base64.StdEncoding.DecodeString(snap.Data)
+		kept := strings.Contains(string(out), "old output of "+s.Key)
+		if want := s.Key != "resumes"; kept != want {
+			t.Errorf("%s: saved output kept = %v, want %v; got %q", s.Key, kept, want, out)
 		}
 	}
 }
