@@ -92,27 +92,46 @@ listen()
 
 const isWindows = () => useStore.getState().platform === 'windows'
 
-/** Paths as a shell (and an agent) reads them: quoted when they need it,
- * with a trailing space so the next word doesn't run into them. Quotes are
- * single, so nothing in a file name ($(…), `…`, %VAR%) is expanded: POSIX
- * shells and PowerShell (Larvyn's Windows shell) both take them literally. */
-export function quotePaths(paths: string[], windows = isWindows()) {
+type Quoting = 'posix' | 'powershell' | 'cmd'
+// How the shell new terminals start reads quotes; the backend knows which
+// shell that is. Until it answers, the platform's usual one.
+let shellQuoting: Quoting | null = null
+TerminalService.Quoting()
+  .then((q) => (shellQuoting = q as Quoting))
+  .catch(() => {})
+const quoting = (): Quoting => shellQuoting ?? (isWindows() ? 'powershell' : 'posix')
+
+/** Paths as the shell (and an agent) reads them, with a trailing space so
+ * the next word doesn't run into them. A path that needs quoting is quoted
+ * so nothing in a file name ($(…), `…`, &, |) is run:
+ * - POSIX shells and PowerShell: single quotes, which neither expands;
+ * - cmd.exe: double quotes, inside which & | < > ^ are plain characters
+ *   (and Windows file names cannot contain a double quote). */
+export function quotePaths(paths: string[], q: Quoting = quoting()) {
   const quote = (p: string) => {
-    if (p && (windows ? /^[A-Za-z0-9/\\._\-+:@]+$/ : /^[A-Za-z0-9/._\-+=,:@%~]+$/).test(p)) return p
-    return windows ? `'${p.replace(/'/g, "''")}'` : `'${p.replace(/'/g, `'\\''`)}'`
+    if (q === 'posix') return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+    if (/^[A-Za-z0-9/\\._\-+:@]+$/.test(p)) return p
+    return q === 'cmd' ? `"${p.replace(/"/g, '')}"` : `'${p.replace(/'/g, "''")}'`
   }
-  return paths.map(quote).join(' ') + ' '
+  return paths.filter(Boolean).map(quote).join(' ') + ' '
 }
 
-/** Local paths in a text/uri-list (files copied in a file manager). */
-function fileURIs(list: string) {
+/** Paths in a text/uri-list (files copied in a file manager). A file URL
+ * with a host is a network share: a UNC path on Windows, skipped elsewhere,
+ * where no path names it. */
+export function fileURIs(list: string, windows = isWindows()) {
   const out: string[] = []
   for (const line of list.split(/\r?\n/)) {
     const l = line.trim()
     if (!l.startsWith('file://')) continue
     try {
-      let path = decodeURIComponent(new URL(l).pathname)
-      if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1).replace(/\//g, '\\') // file:///C:/x
+      const url = new URL(l)
+      let path = decodeURIComponent(url.pathname)
+      const host = url.hostname && url.hostname !== 'localhost' ? url.hostname : ''
+      if (windows) {
+        if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1) // file:///C:/x
+        path = (host ? `//${host}${path}` : path).replace(/\//g, '\\')
+      } else if (host) continue
       out.push(path)
     } catch {}
   }
@@ -130,11 +149,12 @@ function blobToBase64(blob: Blob) {
 
 /** A paste with no text in it, as other terminals handle one:
  * - copied files are pasted as their quoted paths;
- * - otherwise (a screenshot) Ctrl+V goes to the program, and agents such as
- *   Claude Code and Codex read the image from the clipboard themselves.
- *   Windows console programs expect the terminal to do the pasting, so
- *   there the image is saved to a file and its path pasted instead.
- * Returns false for a text paste, which xterm handles as usual. */
+ * - a screenshot: Ctrl+V goes to the program, and agents such as Claude
+ *   Code and Codex read the image from the clipboard themselves. Windows
+ *   console programs expect the terminal to do the pasting, so there the
+ *   image is saved to a file and its path pasted instead.
+ * Returns false otherwise (text, or only formats a terminal can't paste,
+ * such as text/html), and xterm handles the paste as usual. */
 function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
   if (!data || data.getData('text/plain')) return false
   const files = fileURIs(data.getData('text/uri-list'))
@@ -142,13 +162,18 @@ function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
     term.paste(quotePaths(files))
     return true
   }
+  const image = [...data.items].find((it) => it.kind === 'file' && it.type.startsWith('image/'))
   if (!isWindows()) {
+    // A shell takes a stray ^V as "insert the next key literally", so it is
+    // only sent for an image. The webview may also hand over an image-only
+    // clipboard with no formats at all; the program reads it all the same.
+    if (!image && !data.types.some((t) => t.startsWith('image/')) && data.types.length) return false
     TerminalService.Write(id, '\x16')
     return true
   }
-  const image = [...data.items].find((it) => it.kind === 'file' && it.type.startsWith('image/'))?.getAsFile()
-  if (!image) return false
-  blobToBase64(image)
+  const file = image?.getAsFile()
+  if (!file) return false
+  blobToBase64(file)
     .then((b64) => TerminalService.SaveImage(b64))
     .then((path) => term.paste(quotePaths([path])))
     .catch((e) => console.error('could not paste the image', e))

@@ -47,6 +47,14 @@ export function Output(id: string): $CancellablePromise<string> {
 }
 
 /**
+ * Quoting names how the window quotes paths it pastes, after the shell new
+ * terminals start: "posix" (sh, bash, zsh, fish), "powershell" or "cmd".
+ */
+export function Quoting(): $CancellablePromise<string> {
+    return $Call.ByID(3934403160);
+}
+
+/**
  * Relaunch starts a stopped terminal's program again in the same session:
  * an agent resumes its conversation when it can, anything else runs its
  * command again.

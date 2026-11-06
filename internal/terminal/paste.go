@@ -6,8 +6,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"time"
+
+	"larvyn/internal/proc"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -30,17 +34,49 @@ const DropSessionAttr = "data-session"
 // HandleDrop passes files dropped on a terminal to the window. Main calls it
 // from the window's FilesDropped event; drops anywhere else are ignored.
 func HandleDrop(paths []string, target *application.DropTargetDetails) {
+	if d, ok := dropFor(paths, target); ok {
+		emit("term:dropped", d)
+	}
+}
+
+// dropFor is the drop to pass on: files dropped on a running session.
+func dropFor(paths []string, target *application.DropTargetDetails) (FilesDropped, bool) {
 	if target == nil || len(paths) == 0 {
-		return
+		return FilesDropped{}, false
 	}
 	id := target.Attributes[DropSessionAttr]
 	if id == "" {
-		return
+		return FilesDropped{}, false
 	}
-	if _, err := Sessions.get(id); err != nil {
-		return
+	s, err := Sessions.get(id)
+	if err != nil {
+		return FilesDropped{}, false
 	}
-	emit("term:dropped", FilesDropped{Session: id, Paths: paths})
+	s.mu.Lock()
+	running := s.info.Running
+	s.mu.Unlock()
+	if !running {
+		return FilesDropped{}, false // an exited session takes no input
+	}
+	return FilesDropped{Session: id, Paths: paths}, true
+}
+
+// Quoting names how the window quotes paths it pastes, after the shell new
+// terminals start: "posix" (sh, bash, zsh, fish), "powershell" or "cmd".
+func (t *TerminalService) Quoting() string {
+	return quotingFor(runtime.GOOS, proc.DefaultShell()[0])
+}
+
+func quotingFor(goos, shell string) string {
+	if goos != "windows" {
+		return "posix"
+	}
+	// The path is a Windows one: its base is after the last \ or /.
+	base := strings.ToLower(shell[strings.LastIndexAny(shell, `\/`)+1:])
+	if base == "cmd.exe" || base == "cmd" {
+		return "cmd"
+	}
+	return "powershell"
 }
 
 // maxPastedImage is the largest clipboard image SaveImage keeps.

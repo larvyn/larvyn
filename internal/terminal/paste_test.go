@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestSaveImage(t *testing.T) {
@@ -65,5 +67,57 @@ func TestImageExt(t *testing.T) {
 		if got := imageExt([]byte(in)); got != want {
 			t.Errorf("imageExt(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestQuotingFor(t *testing.T) {
+	cases := []struct{ goos, shell, want string }{
+		{"linux", "/bin/zsh", "posix"},
+		{"darwin", "/bin/bash", "posix"},
+		{"windows", `C:\Program Files\PowerShell\7\pwsh.exe`, "powershell"},
+		{"windows", "powershell.exe", "powershell"},
+		{"windows", "cmd.exe", "cmd"},
+		{"windows", `C:\Windows\System32\CMD.EXE`, "cmd"},
+	}
+	for _, c := range cases {
+		if got := quotingFor(c.goos, c.shell); got != c.want {
+			t.Errorf("quotingFor(%q, %q) = %q, want %q", c.goos, c.shell, got, c.want)
+		}
+	}
+}
+
+func TestDropFor(t *testing.T) {
+	add := func(id string, running bool) {
+		Sessions.mu.Lock()
+		Sessions.sessions[id] = &session{info: SessionInfo{ID: id, Running: running}}
+		Sessions.mu.Unlock()
+		t.Cleanup(func() {
+			Sessions.mu.Lock()
+			delete(Sessions.sessions, id)
+			Sessions.mu.Unlock()
+		})
+	}
+	add("drop-live", true)
+	add("drop-exited", false)
+	on := func(id string) *application.DropTargetDetails {
+		return &application.DropTargetDetails{Attributes: map[string]string{DropSessionAttr: id}}
+	}
+	files := []string{"/tmp/a.png"}
+
+	if d, ok := dropFor(files, on("drop-live")); !ok || d.Session != "drop-live" || len(d.Paths) != 1 {
+		t.Errorf("a drop on a running session was not passed on: %+v %v", d, ok)
+	}
+	for name, target := range map[string]*application.DropTargetDetails{
+		"exited session":  on("drop-exited"),
+		"unknown session": on("nope"),
+		"not a terminal":  {Attributes: map[string]string{}},
+		"no target":       nil,
+	} {
+		if _, ok := dropFor(files, target); ok {
+			t.Errorf("%s: drop passed on", name)
+		}
+	}
+	if _, ok := dropFor(nil, on("drop-live")); ok {
+		t.Error("a drop without files was passed on")
 	}
 }
