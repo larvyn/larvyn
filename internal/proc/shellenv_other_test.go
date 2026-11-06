@@ -13,6 +13,7 @@ func TestToolDirs(t *testing.T) {
 	t.Setenv("FLOCK_HOME", "/flock-home")
 	got := strings.Join(toolDirs("/Users/me", "", ""), "\n")
 	for _, want := range []string{
+		"/Users/me/.local/bin",
 		"/Users/me/.composer/vendor/bin",
 		"/Users/me/.config/composer/vendor/bin",
 		"/Users/me/Library/Application Support/Herd/bin",

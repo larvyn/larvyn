@@ -287,22 +287,22 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 		shared[s] = sharesFolder(s, all)
 	}
 	// Only an agent that picks its conversation up comes back on its own;
-	// the rest wait for Relaunch. One that does reprints that conversation
-	// when it starts, so its saved output would show twice and be drawn
-	// twice: it starts on a clean screen instead. Decided before the
-	// sessions are listed, so the UI never takes the old output. The output
-	// is put back if the agent cannot start.
-	held := map[*session][]byte{}
+	// the rest wait for Relaunch. Agents never replay their saved output
+	// (see restoreSession), so one that cannot come back says why.
 	for _, s := range all {
 		if !runs[s] || s.spec.Kind != "agent" {
 			continue
 		}
-		if _, resumes, err := AgentRelaunch(s.spec, shared[s]); err != nil || !resumes {
+		_, resumes, err := AgentRelaunch(s.spec, shared[s])
+		switch {
+		case err != nil:
 			runs[s] = false
-			continue
+			s.buf = []byte("\x1b[31m" + err.Error() + "\x1b[0m\r\n")
+		case !resumes:
+			runs[s] = false
+		default:
+			s.buf = []byte("\x1b[2m── resuming the previous conversation ──\x1b[0m\r\n")
 		}
-		held[s] = s.buf
-		s.buf = []byte("\x1b[2m── resuming the previous conversation ──\x1b[0m\r\n")
 	}
 	for _, s := range all {
 		t.add(s)
@@ -312,11 +312,6 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 			continue
 		}
 		if err := t.relaunch(s, shared[s]); err != nil {
-			if old, ok := held[s]; ok {
-				s.mu.Lock()
-				s.buf = old
-				s.mu.Unlock()
-			}
 			t.output(s, []byte("\x1b[31mCould not restart: "+err.Error()+"\x1b[0m\r\n"))
 			store.AppendLog("warn", "restore "+s.info.Title+": "+err.Error())
 		}
@@ -361,7 +356,12 @@ func (t *TerminalService) restoreSession(saved savedSession, savedAt int64) (s *
 		Command: command, ExitCode: saved.ExitCode, Stopped: saved.Stopped || saved.Running, Restored: true,
 		StartedAt: now, EndedAt: now, LastActivity: firstNonZero(saved.LastActivity, now), Meta: spec.Meta,
 	}}
-	s.buf = restoredScrollback(saved.Scrollback, savedAt)
+	// An agent's TUI redraws in place with relative cursor moves: a cut tail
+	// of that, replayed at another size, is unreadable. Its conversation is
+	// kept by the agent and comes back on resume, so it starts clean.
+	if spec.Kind != "agent" {
+		s.buf = restoredScrollback(saved.Scrollback, savedAt)
+	}
 	s.seq = 1
 	if !saved.Running {
 		return s, false

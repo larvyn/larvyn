@@ -154,7 +154,7 @@ var resumesByFolder = map[string]bool{"opencode": true, "antigravity": true, "ai
 // with its permission flags and without the first prompt. resumes tells
 // whether the agent can pick its conversation up.
 func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resumes bool, err error) {
-	kind := kindByID(kinds(), spec.Key)
+	kind := sessionKind(spec)
 	if kind == nil {
 		return nil, false, errors.New("unknown agent " + spec.Key)
 	}
@@ -175,6 +175,21 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 		}
 	}
 	return argv, resumes, nil
+}
+
+// sessionKind is the agent a session runs. A custom agent removed and added
+// again gets a new id, so its sessions find it by name.
+func sessionKind(spec terminal.SessionSpec) *AgentKind {
+	all := kinds()
+	if k := kindByID(all, spec.Key); k != nil {
+		return k
+	}
+	for i := range all {
+		if all[i].Custom && all[i].Name == spec.Meta["agentName"] {
+			return &all[i]
+		}
+	}
+	return nil
 }
 
 // claudeConfigDir is where Claude Code keeps its conversations: the

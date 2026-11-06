@@ -80,6 +80,8 @@ func toolDirs(home, composerHome, xdgConfig string) []string {
 	}
 	if home != "" {
 		dirs = append(dirs,
+			// Claude Code's native installer, pipx and uv put CLIs here.
+			filepath.Join(home, ".local", "bin"),
 			filepath.Join(home, ".composer", "vendor", "bin"),
 			filepath.Join(home, "Library", "Application Support", "Herd", "bin"),
 		)
