@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -12,8 +13,7 @@ import (
 )
 
 func TestSaveImage(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
-	t.Setenv("TMP", os.Getenv("TMPDIR")) // Windows
+	t.Setenv("LARVYN_HOME", t.TempDir())
 	png := []byte("\x89PNG\r\n\x1a\nrest-of-image")
 	s := &TerminalService{}
 	path, err := s.SaveImage(base64.StdEncoding.EncodeToString(png))
@@ -22,6 +22,11 @@ func TestSaveImage(t *testing.T) {
 	}
 	if filepath.Ext(path) != ".png" || !strings.HasPrefix(path, pastedImageDir()) {
 		t.Errorf("unexpected path %q", path)
+	}
+	if runtime.GOOS != "windows" {
+		if st, err := os.Stat(pastedImageDir()); err != nil || st.Mode().Perm() != 0o700 {
+			t.Errorf("the image folder is not private: %v %v", st.Mode(), err)
+		}
 	}
 	if b, _ := os.ReadFile(path); string(b) != string(png) {
 		t.Errorf("saved %q, want the image bytes", b)
@@ -36,8 +41,7 @@ func TestSaveImage(t *testing.T) {
 }
 
 func TestSaveImageCleansOldImages(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
-	t.Setenv("TMP", os.Getenv("TMPDIR"))
+	t.Setenv("LARVYN_HOME", t.TempDir())
 	dir := pastedImageDir()
 	os.MkdirAll(dir, 0o700)
 	old := filepath.Join(dir, "paste-old.png")

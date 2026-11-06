@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"larvyn/internal/store"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -64,8 +66,11 @@ const maxPastedImage = 25 << 20
 // for the agent the path was pasted to to read it.
 const pastedImageTTL = 24 * time.Hour
 
-// pastedImageDir is where SaveImage writes clipboard images.
-func pastedImageDir() string { return filepath.Join(os.TempDir(), "larvyn-paste") }
+// pastedImageDir is where SaveImage writes clipboard images: inside
+// Larvyn's own folder in the user's profile, never the shared temp dir,
+// where another account could have made the folder first and read what is
+// saved in it.
+func pastedImageDir() string { return filepath.Join(store.HomeDir(), "paste") }
 
 // SaveImage writes a pasted clipboard image (PNG, JPEG, GIF or WebP, as
 // base64) to a temporary file and returns its path, for the window to paste
@@ -87,6 +92,7 @@ func (t *TerminalService) SaveImage(data string) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
+	_ = os.Chmod(dir, 0o700)
 	cleanPastedImages(dir, time.Now().Add(-pastedImageTTL))
 	path := filepath.Join(dir, "paste-"+strconv.FormatInt(time.Now().UnixNano(), 36)+ext)
 	if err := os.WriteFile(path, b, 0o600); err != nil {

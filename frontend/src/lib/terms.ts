@@ -7,7 +7,7 @@ import { Events } from '@wailsio/runtime'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { b64ToBytes } from './util'
-import { toast, useStore } from './store'
+import { fail, toast, useStore } from './store'
 
 export const termTheme: ITheme = {
   background: '#0a0a0d',
@@ -119,7 +119,9 @@ function pastePaths(term: Terminal, paths: string[]) {
   const quoted: string[] = []
   const refused: string[] = []
   for (const p of paths.filter(Boolean)) {
-    const out = quotePath(p)
+    // A control character (a newline, Ctrl+U…) in a file name would act as
+    // a key press where the program doesn't ask for bracketed paste.
+    const out = /[\u0000-\u001f\u007f-\u009f]/.test(p) ? null : quotePath(p)
     if (out === null) refused.push(p)
     else quoted.push(out)
   }
@@ -128,7 +130,7 @@ function pastePaths(term: Terminal, paths: string[]) {
     toast(
       'error',
       refused.length === 1 ? 'Path not pasted' : `${refused.length} paths not pasted`,
-      `${refused.join(', ')}: the name has characters ($ \` % ! or quotes) a Windows shell would expand. Rename it or type the path yourself.`,
+      `${refused.join(', ')}: the name has characters the shell would run or expand (control characters, or $ \` % ! and quotes on Windows). Rename it or type the path yourself.`,
     )
 }
 
@@ -192,7 +194,10 @@ function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
   blobToBase64(file)
     .then((b64) => TerminalService.SaveImage(b64))
     .then((path) => pastePaths(term, [path]))
-    .catch((e) => console.error('could not paste the image', e))
+    .catch((e) => {
+      console.error('could not paste the image', e)
+      fail('Could not paste the image')(e)
+    })
   return true
 }
 
