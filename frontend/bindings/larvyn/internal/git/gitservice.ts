@@ -47,7 +47,10 @@ export function Diff(target: string, path: string, staged: boolean): $Cancellabl
 }
 
 /**
- * Discard throws away changes to a path.
+ * Discard throws away changes to a path, as `git status` reports it
+ * (relative to the repository root). Untracked files are deleted, but only
+ * the exact file git lists as untracked, inside the repository; anything
+ * else is restored from HEAD.
  */
 export function Discard(target: string, path: string): $CancellablePromise<void> {
     return $Call.ByID(3595195561, target, path);

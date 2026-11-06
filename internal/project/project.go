@@ -164,7 +164,7 @@ func (s *ProjectService) Add(path string) (store.Project, error) {
 		return store.Project{}, errors.New("folder not found: " + path)
 	}
 	for _, p := range store.Projects() {
-		if strings.EqualFold(filepath.Clean(p.Path), path) {
+		if sameFolder(p.Path, path) {
 			return p, nil
 		}
 	}

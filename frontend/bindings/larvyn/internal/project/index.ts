@@ -9,6 +9,7 @@ export {
 export type {
     FlockInfo,
     FlockServed,
+    Found,
     Package,
     ProjectImages,
     ProjectInfo

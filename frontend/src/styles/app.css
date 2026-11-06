@@ -605,6 +605,9 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .welcome-projects-head { font-size: 11px; font-weight: 620; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px 4px; }
 .welcome-project { display: flex; align-items: center; gap: 10px; width: 100%; }
 .welcome-project-path { font-size: 11px; max-width: 55%; }
+.add-project-list { display: flex; flex-direction: column; gap: 2px; min-height: 120px; }
+.add-project-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding-top: 7px; padding-bottom: 7px; }
+.add-project-path { font-size: 11px; margin-top: 2px; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 34px; }
 .feature { padding: 14px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.015); }
 .feature svg { width: 17px; height: 17px; color: var(--accent); }
