@@ -79,6 +79,16 @@ export function Restore(): $CancellablePromise<{ [_ in string]?: $models.Project
 }
 
 /**
+ * SaveImage writes a pasted clipboard image (PNG, JPEG, GIF or WebP, as
+ * base64) to a temporary file and returns its path, for the window to paste
+ * where the program reads images from paths rather than the clipboard.
+ * Images saved more than a day ago are deleted.
+ */
+export function SaveImage(data: string): $CancellablePromise<string> {
+    return $Call.ByID(897199997, data);
+}
+
+/**
  * SetLayout records the terminal tabs of every project, so they can be put
  * back after a restart.
  */

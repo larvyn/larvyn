@@ -25,6 +25,7 @@ import (
 	"larvyn/internal/updater"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	// Linux: runs WebKitGTK without its sandbox where AppArmor blocks it.
 	_ "larvyn/internal/platform"
@@ -136,7 +137,7 @@ func main() {
 		},
 	})
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:      "main",
 		Title:     "Larvyn",
 		Width:     1440,
@@ -154,6 +155,11 @@ func main() {
 		},
 		BackgroundColour: application.NewRGB(9, 9, 11),
 		URL:              "/",
+		// Files dropped on a terminal are typed in as their paths.
+		EnableFileDrop: true,
+	})
+	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		terminal.HandleDrop(e.Context().DroppedFiles(), e.Context().DropTargetDetails())
 	})
 
 	if err := app.Run(); err != nil {

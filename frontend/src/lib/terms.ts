@@ -7,7 +7,7 @@ import { Events } from '@wailsio/runtime'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { b64ToBytes } from './util'
-import { useStore } from './store'
+import { fail, toast, useStore } from './store'
 
 export const termTheme: ITheme = {
   background: '#0a0a0d',
@@ -67,6 +67,14 @@ function listen() {
       e.term.write(b64ToBytes(d.data))
     }
   })
+  // Files dropped on a terminal: their paths, quoted, as a paste.
+  Events.On('term:dropped', (ev: any) => {
+    const d = ev.data as { session: string; paths: string[] }
+    const e = entries.get(d.session)
+    if (!e || !d.paths?.length) return
+    pastePaths(e.term, d.paths)
+    e.term.focus()
+  })
   useStore.subscribe((s, prev) => {
     if (s.sessions === prev.sessions) return
     const ids = new Set(s.sessions.map((x) => x.id))
@@ -81,6 +89,117 @@ function listen() {
   })
 }
 listen()
+
+const isWindows = () => useStore.getState().platform === 'windows'
+
+/** A path as the shell reads it, or null when it can't be quoted safely.
+ * Nothing in a file name may run, or expand, when the line is submitted:
+ * - off Windows: single quotes, which POSIX shells and fish take literally;
+ * - on Windows, the terminal may be PowerShell, cmd.exe (delayed expansion
+ *   on or off), Git Bash, or one started inside another, and Larvyn can't
+ *   tell which reads the line. So one rule safe in all of them: double
+ *   quotes, refusing what any of them expands or ends a string with there:
+ *   $ and ` (PowerShell, bash), % and ! (cmd), and every double quote,
+ *   straight or curly (PowerShell reads “ ” „ as quotes too). */
+export function quotePath(p: string, windows = isWindows()): string | null {
+  if (!windows) return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+  // A trailing backslash would escape the closing quote in Git Bash and
+  // leave the rest of the line unquoted; a folder's path means the same
+  // without it (a drive root keeps a dot: C:\.).
+  p = p.replace(/\\+$/, '')
+  if (/^[A-Za-z]:$/.test(p)) p += '\\.'
+  if (/^[A-Za-z0-9/._\-+:@]+$/.test(p)) return p
+  if (/["“”„$`%!]/.test(p)) return null
+  return `"${p}"`
+}
+
+/** Pastes paths into a terminal, quoted; a path that can't be quoted safely
+ * is left out, and a toast says so. */
+function pastePaths(term: Terminal, paths: string[]) {
+  const quoted: string[] = []
+  const refused: string[] = []
+  for (const p of paths.filter(Boolean)) {
+    // A control character (a newline, Ctrl+U…) in a file name would act as
+    // a key press where the program doesn't ask for bracketed paste.
+    const out = /[\u0000-\u001f\u007f-\u009f]/.test(p) ? null : quotePath(p)
+    if (out === null) refused.push(p)
+    else quoted.push(out)
+  }
+  if (quoted.length) term.paste(quoted.join(' ') + ' ')
+  if (refused.length)
+    toast(
+      'error',
+      refused.length === 1 ? 'Path not pasted' : `${refused.length} paths not pasted`,
+      `${refused.join(', ')}: the name has characters the shell would run or expand (control characters, or $ \` % ! and quotes on Windows). Rename it or type the path yourself.`,
+    )
+}
+
+/** Paths in a text/uri-list (files copied in a file manager). A file URL
+ * with a host is a network share: a UNC path on Windows, skipped elsewhere,
+ * where no path names it. */
+export function fileURIs(list: string, windows = isWindows()) {
+  const out: string[] = []
+  for (const line of list.split(/\r?\n/)) {
+    const l = line.trim()
+    if (!l.startsWith('file://')) continue
+    try {
+      const url = new URL(l)
+      let path = decodeURIComponent(url.pathname)
+      const host = url.hostname && url.hostname !== 'localhost' ? url.hostname : ''
+      if (windows) {
+        if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1) // file:///C:/x
+        path = (host ? `//${host}${path}` : path).replace(/\//g, '\\')
+      } else if (host) continue
+      out.push(path)
+    } catch {}
+  }
+  return out
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(blob)
+  })
+}
+
+/** A paste with no text in it, as other terminals handle one:
+ * - copied files are pasted as their quoted paths;
+ * - a screenshot: Ctrl+V goes to the program, and agents such as Claude
+ *   Code and Codex read the image from the clipboard themselves. Windows
+ *   console programs expect the terminal to do the pasting, so there the
+ *   image is saved to a file and its path pasted instead.
+ * Returns false otherwise (text, or only formats a terminal can't paste,
+ * such as text/html), and xterm handles the paste as usual. */
+function pasteNonText(id: string, term: Terminal, data: DataTransfer | null) {
+  if (!data || data.getData('text/plain')) return false
+  const files = fileURIs(data.getData('text/uri-list'))
+  if (files.length) {
+    pastePaths(term, files)
+    return true
+  }
+  const image = [...data.items].find((it) => it.kind === 'file' && it.type.startsWith('image/'))
+  if (!isWindows()) {
+    // A shell takes a stray ^V as "insert the next key literally", so it is
+    // only sent for an image. The webview may also hand over an image-only
+    // clipboard with no formats at all; the program reads it all the same.
+    if (!image && !data.types.some((t) => t.startsWith('image/')) && data.types.length) return false
+    TerminalService.Write(id, '\x16')
+    return true
+  }
+  const file = image?.getAsFile()
+  if (!file) return false
+  blobToBase64(file)
+    .then((b64) => TerminalService.SaveImage(b64))
+    .then((path) => pastePaths(term, [path]))
+    .catch((e) => {
+      console.error('could not paste the image', e)
+      fail('Could not paste the image')(e)
+    })
+  return true
+}
 
 // Keys the app handles even while a terminal has focus.
 function isAppShortcut(ev: KeyboardEvent) {
@@ -124,7 +243,7 @@ function getEntry(id: string): Entry {
       return false
     }
     if (mod && ev.key.toLowerCase() === 'v' && !ev.shiftKey) {
-      return false // the browser paste event reaches xterm by itself
+      return false // the browser paste event reaches xterm (and pasteNonText) by itself
     }
     return true
   })
@@ -137,6 +256,20 @@ function getEntry(id: string): Entry {
   term.onResize(({ cols, rows }) => TerminalService.Resize(id, cols, rows))
   const el = document.createElement('div')
   el.className = 'term-host'
+  // A Wails file drop target: main hands files dropped here back as
+  // term:dropped for this session.
+  el.setAttribute('data-file-drop-target', '')
+  el.setAttribute('data-session', id)
+  // Before xterm's own listener, which only knows text.
+  el.addEventListener(
+    'paste',
+    (ev) => {
+      if (!pasteNonText(id, term, ev.clipboardData)) return
+      ev.preventDefault()
+      ev.stopImmediatePropagation()
+    },
+    true,
+  )
   e = { term, fit, search, el, opened: false, ready: false, lastSeq: 0, pending: [] }
   entries.set(id, e)
   const entry = e
