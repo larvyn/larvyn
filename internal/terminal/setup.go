@@ -74,12 +74,15 @@ func (t *TerminalService) runStep(s *session, line string) error {
 
 // nextStep is called when a session's process ended with code. During the
 // setup it starts the next step, or the program after the last one, and
-// reports true: the session goes on. Otherwise it reports false.
-func (t *TerminalService) nextStep(s *session, code int) bool {
+// reports handled: the session goes on. Otherwise exit is the code the
+// session ended with: code, or -1 when the next step or the program could
+// not start, so a session whose agent never ran doesn't look like it exited
+// cleanly.
+func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int) {
 	s.mu.Lock()
 	if !s.inSetup {
 		s.mu.Unlock()
-		return false
+		return false, code
 	}
 	stopped := s.info.Stopped || (!s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second)
 	step := s.step
@@ -90,7 +93,7 @@ func (t *TerminalService) nextStep(s *session, code int) bool {
 			t.output(s, []byte(fmt.Sprintf("\r\n\x1b[31mSetup failed (exit %d): %s\x1b[0m\r\n"+
 				"The agent did not start. Fix the problem, then Relaunch to start it without the setup.\r\n", code, step)))
 		}
-		return false
+		return false, code
 	}
 	if len(s.setup) > 0 {
 		line := s.setup[0]
@@ -101,10 +104,10 @@ func (t *TerminalService) nextStep(s *session, code int) bool {
 			s.mu.Lock()
 			s.inSetup, s.setup, s.started = false, nil, nil
 			s.mu.Unlock()
-			return false
+			return false, -1
 		}
 		t.broadcast()
-		return true
+		return true, code
 	}
 	s.inSetup = false
 	spec, started := s.spec, s.started
@@ -114,12 +117,12 @@ func (t *TerminalService) nextStep(s *session, code int) bool {
 	argv, _ := resolveArgv(spec)
 	if err := t.spawn(s, argv, spec.Cols, spec.Rows); err != nil {
 		t.output(s, []byte("\r\n\x1b[31mCould not start "+spec.Title+": "+err.Error()+"\x1b[0m\r\n"))
-		return false
+		return false, -1
 	}
 	t.touch()
 	t.broadcast()
 	if started != nil {
 		go started(s.snapshotInfo())
 	}
-	return true
+	return true, code
 }

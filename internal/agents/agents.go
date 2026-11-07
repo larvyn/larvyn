@@ -442,7 +442,11 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 // (it may not be committed yet).
 func worktreeSetup(worktree, root string) []string {
 	if l := projectfile.Load(worktree); l.Exists {
-		return l.File.Worktree.Setup
+		if l.Error == "" {
+			return l.File.Worktree.Setup
+		}
+		// A new worktree has no last good version to fall back on.
+		store.AppendLog("warn", "worktree "+projectfile.Rel+": "+l.Error+"; using the main folder's setup")
 	}
 	return projectfile.Load(root).File.Worktree.Setup
 }

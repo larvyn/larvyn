@@ -87,3 +87,17 @@ func TestNoSetupIsAPlainStart(t *testing.T) {
 		t.Fatalf("got %q started=%v", out, started.Load())
 	}
 }
+
+func TestProgramThatCannotStartIsNotACleanExit(t *testing.T) {
+	s, err := StartAfterSetup(SessionSpec{Kind: "run", Key: "setup-nostart", Cwd: os.TempDir(), Argv: []string{"/nonexistent/larvyn-agent"}},
+		[]string{"echo step"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer Sessions.Close(s.ID)
+	info := waitExit(t, "setup-nostart")
+	out, _ := Sessions.Output(s.ID)
+	if info.ExitCode == 0 || !strings.Contains(out, "Could not start") {
+		t.Fatalf("got %+v %q", info, out)
+	}
+}

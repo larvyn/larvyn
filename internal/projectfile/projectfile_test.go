@@ -75,6 +75,7 @@ func TestLoadKeepsTheLastGoodVersion(t *testing.T) {
 	if l := Load(root); l.Exists || l.Error != "" {
 		t.Fatalf("no file: %+v", l)
 	}
+	Changed(root) // the watcher's first look
 	writeFile(t, root, `{"apiVersion": 1, "commands": [{"id": "a", "title": "A", "run": "echo a"}]}`)
 	if !Changed(root) {
 		t.Fatal("a new file should count as a change")
@@ -87,8 +88,8 @@ func TestLoadKeepsTheLastGoodVersion(t *testing.T) {
 	if l.Error == "" || len(l.File.Commands) != 1 || l.File.Commands[0].ID != "a" {
 		t.Fatalf("a broken file should keep the last version: %+v", l)
 	}
-	if Changed(root) {
-		t.Fatal("nothing changed since the last load")
+	if !Changed(root) || Changed(root) {
+		t.Fatal("the broken write is one change, reported once")
 	}
 	os.Remove(Path(root))
 	if !Changed(root) || Load(root).Exists || len(Load(root).File.Commands) != 0 {
@@ -185,5 +186,30 @@ func TestExampleLoads(t *testing.T) {
 	}
 	if len(l.File.Commands) == 0 || len(l.File.Stack) == 0 || len(l.File.Plugins) == 0 || len(l.File.Worktree.Setup) == 0 {
 		t.Fatalf("the example should show every section: %+v", l.File)
+	}
+}
+
+// A Load between two changes must not hide the change from the watcher.
+func TestLoadDoesNotTakeTheWatchersChange(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, `{"apiVersion": 1}`)
+	if Changed(root) {
+		t.Fatal("the first look is no change")
+	}
+	writeFile(t, root, `{"apiVersion": 1, "commands": [{"id": "a", "title": "A", "run": "x"}]}`)
+	if len(Load(root).File.Commands) != 1 {
+		t.Fatal("Load should read the new file")
+	}
+	if !Changed(root) {
+		t.Fatal("the watcher should still see the change")
+	}
+	if Changed(root) {
+		t.Fatal("reported twice")
+	}
+	if err := EditCommands(root, func([]Command) ([]Command, error) { return nil, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !Changed(root) {
+		t.Fatal("an edit through Larvyn should count as a change too")
 	}
 }

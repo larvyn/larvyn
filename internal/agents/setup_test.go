@@ -26,3 +26,14 @@ func TestWorktreeSetupPrefersTheBranchFile(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestWorktreeSetupSkipsABrokenBranchFile(t *testing.T) {
+	root, wt := t.TempDir(), t.TempDir()
+	for dir, body := range map[string]string{root: `{"apiVersion": 1, "worktree": {"setup": ["composer install"]}}`, wt: `{"apiVersion": 1,`} {
+		os.MkdirAll(filepath.Join(dir, projectfile.Dir), 0o755)
+		os.WriteFile(projectfile.Path(dir), []byte(body), 0o644)
+	}
+	if got := worktreeSetup(wt, root); len(got) != 1 || got[0] != "composer install" {
+		t.Fatalf("a branch file that doesn't parse should fall back to the main folder's: %q", got)
+	}
+}

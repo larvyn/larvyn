@@ -301,7 +301,8 @@ func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	if cmd.ProcessState != nil {
 		code = cmd.ProcessState.ExitCode()
 	}
-	if t.nextStep(s, code) {
+	handled, code := t.nextStep(s, code)
+	if handled {
 		return
 	}
 	s.mu.Lock()

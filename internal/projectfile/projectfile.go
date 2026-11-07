@@ -119,12 +119,23 @@ var (
 func Path(root string) string { return filepath.Join(root, Dir, Name) }
 
 type cached struct {
+	// valid is set once the entry holds a read of the file.
+	valid  bool
 	mod    time.Time
 	size   int64
 	exists bool
 	loaded Loaded
 	// good is the last version that parsed.
 	good *File
+	// reported is the file state Changed last saw, kept apart from the
+	// read cache so a Load can't take a change before the watcher sees it.
+	reported *fileState
+}
+
+type fileState struct {
+	mod    time.Time
+	size   int64
+	exists bool
 }
 
 var (
@@ -134,33 +145,38 @@ var (
 
 // Load reads the project's file, from the cache while it has not changed.
 func Load(root string) Loaded {
-	l, _ := load(root)
-	return l
+	return load(root)
 }
 
-// Changed reads the file again if it changed since the last Load and
-// reports whether it did. The first look at a project counts as no change.
+// Changed reads the file again if it changed and reports whether it did
+// since the last call to Changed for this project, whatever Load read in
+// between. The first look at a project counts as no change.
 func Changed(root string) bool {
-	_, changed := load(root)
-	return changed
+	load(root)
+	mu.Lock()
+	defer mu.Unlock()
+	c := cache[Path(root)]
+	now := fileState{mod: c.mod, size: c.size, exists: c.exists}
+	before := c.reported
+	c.reported = &now
+	return before != nil && *before != now
 }
 
-func load(root string) (Loaded, bool) {
+func load(root string) Loaded {
 	path := Path(root)
 	st, statErr := os.Lstat(path)
 	exists := statErr == nil
 	mu.Lock()
 	defer mu.Unlock()
 	c := cache[path]
-	if c != nil && c.exists == exists && (!exists || (st.ModTime().Equal(c.mod) && st.Size() == c.size)) {
-		return c.loaded, false
+	if c != nil && c.valid && c.exists == exists && (!exists || (st.ModTime().Equal(c.mod) && st.Size() == c.size)) {
+		return c.loaded
 	}
-	first := c == nil
 	if c == nil {
 		c = &cached{}
 		cache[path] = c
 	}
-	c.exists = exists
+	c.valid, c.exists = true, exists
 	c.loaded = Loaded{Path: path, Exists: exists}
 	if exists {
 		c.mod, c.size = st.ModTime(), st.Size()
@@ -180,15 +196,19 @@ func load(root string) (Loaded, bool) {
 			c.loaded.File = *c.good
 		}
 	} else {
+		c.mod, c.size = time.Time{}, 0
 		c.good = nil
 	}
-	return c.loaded, !first
+	return c.loaded
 }
 
 // Forget drops what is cached about a project, so the next Load reads it.
+// What Changed last reported stays, so the watcher still sees the change.
 func Forget(root string) {
 	mu.Lock()
-	delete(cache, Path(root))
+	if c := cache[Path(root)]; c != nil {
+		cache[Path(root)] = &cached{reported: c.reported}
+	}
 	mu.Unlock()
 }
 
