@@ -43,6 +43,8 @@ interface Entry {
   el: HTMLDivElement
   opened: boolean
   ready: boolean
+  /** Settles once the saved output has been replayed. */
+  loaded: Promise<void>
   lastSeq: number
   pending: { seq: number; data: string }[]
 }
@@ -325,10 +327,10 @@ function getEntry(id: string): Entry {
     },
     true,
   )
-  e = { term, fit, search, el, opened: false, ready: false, lastSeq: 0, pending: [] }
+  e = { term, fit, search, el, opened: false, ready: false, loaded: Promise.resolve(), lastSeq: 0, pending: [] }
   entries.set(id, e)
   const entry = e
-  TerminalService.Snapshot(id)
+  entry.loaded = TerminalService.Snapshot(id)
     .then((snap) => {
       entry.lastSeq = snap.seq
       if (!snap.data) return
@@ -393,11 +395,12 @@ export function termSelection(id: string) {
   return entries.get(id)?.term.getSelection() ?? ''
 }
 
-/** Pastes text into a session's terminal, as Cmd+V would. */
+/** Pastes text into a session's terminal, as Cmd+V would. It waits for the
+ * replay of saved output, which drops what is typed meanwhile. */
 export function pasteInTerm(id: string, text: string) {
   const e = entries.get(id)
-  e?.term.paste(text)
   e?.term.focus()
+  return e?.loaded.then(() => e.term.paste(text))
 }
 
 export function clearTerm(id: string) {
