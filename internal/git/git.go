@@ -14,6 +14,7 @@ import (
 
 	"larvyn/internal/dotenv"
 	"larvyn/internal/proc"
+	"larvyn/internal/safefile"
 	"larvyn/internal/store"
 )
 
@@ -140,8 +141,10 @@ func (g *GitService) Diff(target, path string, staged bool) (string, error) {
 	}
 	out, err := proc.Git(dir, args...)
 	if err == nil && out == "" && path != "" {
-		// Untracked file: show it as all-new.
-		if b, rerr := os.ReadFile(filepath.Join(dir, path)); rerr == nil && len(b) < 1<<20 {
+		// Untracked file: show it as all-new. Only a regular file under 1 MB,
+		// and not through a symlink, which could lead to a device
+		// (/dev/zero) or out of the repository.
+		if b, rerr := safefile.ReadRegularNoFollow(filepath.Join(dir, path), 1<<20-1); rerr == nil {
 			lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
 			var sb strings.Builder
 			sb.WriteString("new file " + path + "\n@@ -0,0 +1," + strconv.Itoa(len(lines)) + " @@\n")
