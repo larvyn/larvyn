@@ -67,6 +67,13 @@ export function TitleBar() {
   const view = useStore((s) => s.view)
   return (
     <div className={cx('titlebar', platform === 'darwin' && 'mac')} onDoubleClick={() => Window.ToggleMaximise()}>
+      {platform === 'darwin' && (
+        <div className="lights" onDoubleClick={(e) => e.stopPropagation()}>
+          <button className="l-close" onClick={() => Window.Close()} aria-label="Close" />
+          <button className="l-min" onClick={() => Window.Minimise()} aria-label="Minimise" />
+          <button className="l-max" onClick={() => Window.ToggleFullscreen()} aria-label="Full screen" />
+        </div>
+      )}
       <div className="brand">
         <div className="brand-mark">
           <Logo />
