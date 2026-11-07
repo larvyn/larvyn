@@ -277,6 +277,8 @@ function getEntry(id: string): Entry {
     allowProposedApi: true,
     scrollback: 20000,
     macOptionIsMeta: true,
+    // Option-drag selects even while a program (an agent's TUI) uses the mouse.
+    macOptionClickForcesSelection: true,
     drawBoldTextInBrightColors: false,
     fontWeightBold: '600',
   })
@@ -384,6 +386,18 @@ export function attach(id: string, container: HTMLElement, focus = false): () =>
 
 export function focusTerm(id: string) {
   entries.get(id)?.term.focus()
+}
+
+/** The text selected in a session's terminal, "" when nothing is. */
+export function termSelection(id: string) {
+  return entries.get(id)?.term.getSelection() ?? ''
+}
+
+/** Pastes text into a session's terminal, as Cmd+V would. */
+export function pasteInTerm(id: string, text: string) {
+  const e = entries.get(id)
+  e?.term.paste(text)
+  e?.term.focus()
 }
 
 export function clearTerm(id: string) {
