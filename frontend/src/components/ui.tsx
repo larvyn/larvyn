@@ -4,8 +4,8 @@ import { create } from 'zustand'
 import { Clipboard } from '@wailsio/runtime'
 import { AlertTriangle, Bug, CheckCircle2, Info, Search, X, XCircle } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { attach, pasteInTerm, termSelection } from '../lib/terms'
-import { useStore } from '../lib/store'
+import { attach, focusTerm, pasteInTerm, termSelection } from '../lib/terms'
+import { fail, useStore } from '../lib/store'
 import { cx, isMac, load, save } from '../lib/util'
 
 /** A dialog over the window: Escape or a click outside closes it. */
@@ -382,18 +382,19 @@ function TermMenu({ x, y, sel, id, onClose }: { x: number; y: number; sel: strin
     }
   }, [onClose])
   const mod = isMac ? '⌘' : 'Ctrl+'
-  const run = (f: () => Promise<unknown>) => () => {
+  const run = (title: string, f: () => Promise<unknown>) => () => {
+    focusTerm(id) // before the menu goes, so the next key reaches the terminal
     onClose()
-    f().catch(() => {})
+    f().catch(fail(title))
   }
   return createPortal(
     <div ref={box} className="ntm" style={{ left: x, top: y, width: 160 }} role="menu">
       <div className="ntm-list">
-        <button className="ntm-item" role="menuitem" disabled={!sel} onClick={run(() => Clipboard.SetText(sel))}>
+        <button className="ntm-item" role="menuitem" disabled={!sel} onClick={run('Could not copy', () => Clipboard.SetText(sel))}>
           <span className="ntm-label">Copy</span>
           <span className="ntm-hint">{mod}C</span>
         </button>
-        <button className="ntm-item" role="menuitem" onClick={run(() => Clipboard.Text().then((t) => pasteInTerm(id, t)))}>
+        <button className="ntm-item" role="menuitem" onClick={run('Could not paste', () => Clipboard.Text().then((t) => pasteInTerm(id, t)))}>
           <span className="ntm-label">Paste</span>
           <span className="ntm-hint">{mod}V</span>
         </button>
