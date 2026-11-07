@@ -51,6 +51,22 @@ func TestCustomAgentWorksLikeItsBase(t *testing.T) {
 	}
 }
 
+// A custom agent removed and added again gets a new id; its sessions still
+// relaunch, and resume, through the agent with their name.
+func TestReaddedCustomAgentStillResumes(t *testing.T) {
+	bin := fakeBinary(t, "claude-os")
+	setCustom(t, store.CustomAgent{ID: "custom-new", Name: "Claude OS", Base: "claude", Command: bin})
+	spec := terminal.SessionSpec{Kind: "agent", Key: "custom-old", Meta: map[string]string{"agentName": "Claude OS", "resumeId": "abc"}}
+	argv, resumes, err := RelaunchArgv(spec, false)
+	if want := []string{bin, "--session-id", "abc"}; err != nil || !resumes || !reflect.DeepEqual(argv, want) {
+		t.Fatalf("got %v %v %v, want %v", argv, resumes, err, want)
+	}
+	spec.Meta["agentName"] = "Someone else"
+	if _, _, err := RelaunchArgv(spec, false); err == nil {
+		t.Fatal("a session of an agent that is gone must not relaunch")
+	}
+}
+
 // Custom agents can't replace a built-in one, and incomplete ones are left
 // out rather than offered.
 func TestCustomAgentsThatAreLeftOut(t *testing.T) {

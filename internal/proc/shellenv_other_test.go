@@ -13,6 +13,7 @@ func TestToolDirs(t *testing.T) {
 	t.Setenv("FLOCK_HOME", "/flock-home")
 	got := strings.Join(toolDirs("/Users/me", "", ""), "\n")
 	for _, want := range []string{
+		"/Users/me/.local/bin",
 		"/Users/me/.composer/vendor/bin",
 		"/Users/me/.config/composer/vendor/bin",
 		"/Users/me/Library/Application Support/Herd/bin",
@@ -43,14 +44,21 @@ func TestAddToolDirsKeepsShellOrder(t *testing.T) {
 	if parts[0] != "/usr/bin" || parts[1] != "/bin" {
 		t.Fatalf("shell entries should stay first: %v", parts)
 	}
-	found := false
+	local := filepath.Join(home, ".local", "bin")
+	found, foundLocal := false, false
 	for _, p := range parts {
 		if p == bin {
 			found = true
 		}
-		if strings.HasPrefix(p, home) && p != bin {
+		if p == local {
+			foundLocal = true
+		}
+		if strings.HasPrefix(p, home) && p != bin && p != local {
 			t.Errorf("added a folder that does not exist: %s", p)
 		}
+	}
+	if !foundLocal {
+		t.Errorf("%s must be added even before it exists: %v", local, parts)
 	}
 	if !found {
 		t.Fatalf("%s not added: %v", bin, parts)

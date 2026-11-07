@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -256,9 +257,10 @@ func TestRestoreResumesOneAgentPerFolder(t *testing.T) {
 	}
 }
 
-// An agent that resumes reprints its conversation, so its saved output is not
-// replayed; one that waits for Relaunch, or fails to start, keeps it.
-func TestRestoreDropsSavedOutputOfResumingAgents(t *testing.T) {
+// An agent's saved output is a TUI's redraws, unreadable when replayed, so no
+// agent replays it: one that resumes reprints its conversation, and one that
+// cannot come back says why.
+func TestRestoreNeverReplaysAgentOutput(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sh")
 	}
@@ -275,13 +277,15 @@ func TestRestoreDropsSavedOutputOfResumingAgents(t *testing.T) {
 			return []string{"sh", "-c", "sleep 30"}, true, nil
 		case "broken":
 			return []string{"larvyn-no-such-agent"}, true, nil
+		case "missing":
+			return nil, false, errors.New("missing-agent is not installed")
 		}
 		return []string{"sh"}, false, nil
 	}
 	ts := &TerminalService{sessions: map[string]*session{}}
 	defer ts.ServiceShutdown()
 	var saved []savedSession
-	for _, key := range []string{"resumes", "waits", "broken"} {
+	for _, key := range []string{"resumes", "waits", "broken", "missing"} {
 		dir := filepath.Join(root, key)
 		_ = os.Mkdir(dir, 0o755)
 		saved = append(saved, savedSession{ID: key, ProjectID: "p1", Kind: "agent", Key: key, Title: key, Cwd: dir,
@@ -294,9 +298,23 @@ func TestRestoreDropsSavedOutputOfResumingAgents(t *testing.T) {
 			t.Fatal(err)
 		}
 		out, _ := base64.StdEncoding.DecodeString(snap.Data)
-		kept := strings.Contains(string(out), "old output of "+s.Key)
-		if want := s.Key != "resumes"; kept != want {
-			t.Errorf("%s: saved output kept = %v, want %v; got %q", s.Key, kept, want, out)
+		if strings.Contains(string(out), "old output of") {
+			t.Errorf("%s: saved output replayed: %q", s.Key, out)
+		}
+		if s.Key == "missing" && !strings.Contains(string(out), "missing-agent is not installed") {
+			t.Errorf("missing: the reason it cannot resume is not shown: %q", out)
+		}
+		if s.Key == "missing" && s.Running {
+			t.Error("missing: must wait for Relaunch")
+		}
+		if s.Key == "resumes" && !strings.Contains(string(out), "resuming the previous conversation") {
+			t.Errorf("resumes: no resuming placeholder: %q", out)
+		}
+		if s.Key == "waits" && (len(out) != 0 || s.Running) {
+			t.Errorf("waits: must be empty and stopped, got running=%v %q", s.Running, out)
+		}
+		if s.Key == "broken" && !strings.Contains(string(out), "Could not restart") {
+			t.Errorf("broken: restart error not shown: %q", out)
 		}
 	}
 }
