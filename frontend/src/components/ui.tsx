@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { create } from 'zustand'
+import { Clipboard } from '@wailsio/runtime'
 import { AlertTriangle, Bug, CheckCircle2, Info, Search, X, XCircle } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
-import { attach } from '../lib/terms'
-import { useStore } from '../lib/store'
-import { cx, load, save } from '../lib/util'
+import { attach, focusTerm, pasteInTerm, termSelection } from '../lib/terms'
+import { fail, useStore } from '../lib/store'
+import { cx, isMac, load, save } from '../lib/util'
 
 /** A dialog over the window: Escape or a click outside closes it. */
 export function Modal(props: {
@@ -351,7 +353,55 @@ export function TermPane({ id, focus, className, style }: { id: string; focus?: 
     if (!ref.current) return
     return attach(id, ref.current, focus)
   }, [id])
-  return <div ref={ref} className={cx('term-slot', className)} style={style} />
+  const [menu, setMenu] = useState<{ x: number; y: number; sel: string } | null>(null)
+  const onMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenu({ x: Math.min(e.clientX, window.innerWidth - 168), y: Math.min(e.clientY, window.innerHeight - 84), sel: termSelection(id) })
+  }
+  return (
+    <>
+      <div ref={ref} className={cx('term-slot', className)} style={style} onContextMenu={onMenu} />
+      {menu && <TermMenu {...menu} id={id} onClose={() => setMenu(null)} />}
+    </>
+  )
+}
+
+/** The terminal's right-click menu: Copy the selection, Paste the clipboard. */
+function TermMenu({ x, y, sel, id, onClose }: { x: number; y: number; sel: string; id: string; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const down = (e: MouseEvent) => !box.current?.contains(e.target as Node) && onClose()
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('mousedown', down, true)
+    window.addEventListener('keydown', key, true)
+    window.addEventListener('blur', onClose)
+    return () => {
+      window.removeEventListener('mousedown', down, true)
+      window.removeEventListener('keydown', key, true)
+      window.removeEventListener('blur', onClose)
+    }
+  }, [onClose])
+  const mod = isMac ? '⌘' : 'Ctrl+'
+  const run = (title: string, f: () => Promise<unknown>) => () => {
+    focusTerm(id) // before the menu goes, so the next key reaches the terminal
+    onClose()
+    f().catch(fail(title))
+  }
+  return createPortal(
+    <div ref={box} className="ntm" style={{ left: x, top: y, width: 160 }} role="menu">
+      <div className="ntm-list">
+        <button className="ntm-item" role="menuitem" disabled={!sel} onClick={run('Could not copy', () => Clipboard.SetText(sel))}>
+          <span className="ntm-label">Copy</span>
+          <span className="ntm-hint">{mod}C</span>
+        </button>
+        <button className="ntm-item" role="menuitem" onClick={run('Could not paste', () => Clipboard.Text().then((t) => pasteInTerm(id, t)))}>
+          <span className="ntm-label">Paste</span>
+          <span className="ntm-hint">{mod}V</span>
+        </button>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 /** The notifications in the corner; an error one can be reported. */
