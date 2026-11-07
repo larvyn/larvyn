@@ -213,3 +213,15 @@ func TestLoadDoesNotTakeTheWatchersChange(t *testing.T) {
 		t.Fatal("an edit through Larvyn should count as a change too")
 	}
 }
+
+// An edit between the window's first read and the watcher's first look is
+// still a change.
+func TestChangeBeforeTheWatchersFirstLook(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, `{"apiVersion": 1}`)
+	Load(root)
+	writeFile(t, root, `{"apiVersion": 1, "commands": [{"id": "a", "title": "A", "run": "x"}]}`)
+	if !Changed(root) {
+		t.Fatal("the edit after the first read should be reported")
+	}
+}

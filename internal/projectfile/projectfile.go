@@ -149,8 +149,8 @@ func Load(root string) Loaded {
 }
 
 // Changed reads the file again if it changed and reports whether it did
-// since the last call to Changed for this project, whatever Load read in
-// between. The first look at a project counts as no change.
+// since the last call to Changed for this project (or since the first read
+// of it), whatever Load read in between.
 func Changed(root string) bool {
 	load(root)
 	mu.Lock()
@@ -198,6 +198,11 @@ func load(root string) Loaded {
 	} else {
 		c.mod, c.size = time.Time{}, 0
 		c.good = nil
+	}
+	if c.reported == nil {
+		// The first read is the watcher's baseline: an edit made after the
+		// window read the file, before the watcher's first look, still counts.
+		c.reported = &fileState{mod: c.mod, size: c.size, exists: c.exists}
 	}
 	return c.loaded
 }
