@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"larvyn/internal/agents"
@@ -94,6 +95,29 @@ func init() {
 			return terminal.SessionInfo{}, s.Stop(projectID, key)
 		}
 		return terminal.SessionInfo{}, fmt.Errorf("unknown stack action %q", action)
+	}
+	// The plugins a project's .larvyn/project.json lists: installed, in its
+	// version range, and on in the project.
+	project.PluginCheck = func(id, versionRange, projectID string) string {
+		for _, p := range plugins.Load() {
+			if p.Manifest.ID != id {
+				continue
+			}
+			switch {
+			case versionRange != "" && !plugins.Compatible(versionRange, p.Manifest.Version):
+				return fmt.Sprintf("version %s is installed; the project needs %s", p.Manifest.Version, versionRange)
+			case p.Revoked != "":
+				return "revoked: " + p.Revoked
+			case p.Error != "":
+				return p.Error
+			case !p.Enabled:
+				return "installed but off: turn it on in Settings → Plugins"
+			case slices.Contains(p.OffIn, projectID):
+				return "turned off in this project"
+			}
+			return ""
+		}
+		return "missing"
 	}
 	stack.Inspect = func(p store.Project) stack.Facts {
 		info := project.Inspect(p)

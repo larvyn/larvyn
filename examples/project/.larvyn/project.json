@@ -1,0 +1,22 @@
+{
+  "apiVersion": 1,
+  "commands": [
+    { "id": "fresh", "title": "Fresh database with seed data", "run": "php artisan migrate:fresh --seed" },
+    { "id": "lint", "title": "Fix code style", "run": "vendor/bin/pint" },
+    { "id": "types", "title": "Generate IDE helpers", "run": "php artisan ide-helper:generate && php artisan ide-helper:models -N" }
+  ],
+  "stack": [
+    { "key": "ssr", "title": "Inertia SSR", "argv": ["php", "artisan", "inertia:start-ssr"] }
+  ],
+  "plugins": [
+    "larvyn.mailpit",
+    { "id": "larvyn.horizon", "version": ">=1.0.0" }
+  ],
+  "worktree": {
+    "setup": [
+      "composer install --no-interaction",
+      "npm install",
+      "php artisan migrate --seed --force"
+    ]
+  }
+}

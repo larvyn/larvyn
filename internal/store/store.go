@@ -32,6 +32,16 @@ type Project struct {
 	// AppURLBeforeFlock is the APP_URL the project had before Larvyn pointed
 	// it at Flock's site, so it can go back when Flock stops serving it.
 	AppURLBeforeFlock string `json:"appUrlBeforeFlock,omitempty"`
+	// Commands are the user's own commands for this project, for ⌘K and the
+	// project's actions. The team's shared ones live in .larvyn/project.json.
+	Commands []Command `json:"commands,omitempty"`
+}
+
+// Command is a shell command a project runs in a terminal, as written.
+type Command struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Run   string `json:"run"`
 }
 
 // Settings are the user's global preferences.
@@ -267,6 +277,9 @@ func (s *Store) Update(fn func(d *State)) error {
 func (d State) clone() State {
 	c := d
 	c.Projects = append([]Project(nil), d.Projects...)
+	for i := range c.Projects {
+		c.Projects[i].Commands = append([]Command(nil), c.Projects[i].Commands...)
+	}
 	if d.Plugins != nil {
 		c.Plugins = make(map[string]PluginState, len(d.Plugins))
 		for id, p := range d.Plugins {

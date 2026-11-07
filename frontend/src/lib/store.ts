@@ -54,6 +54,9 @@ interface State {
   paletteOpen: boolean
   paletteQuery: string
   newProjectOpen: boolean
+  // A search for Settings → Plugins → Marketplace to open with, e.g. the id
+  // of a plugin the project file needs.
+  pluginSearch: string
   addProjectOpen: boolean // the "Open a project" picker is on screen
   onboarding: boolean // the first-run setup is on screen
   sidebar: boolean
@@ -77,6 +80,7 @@ const initial: State = {
   paletteOpen: false,
   paletteQuery: '',
   newProjectOpen: false,
+  pluginSearch: '',
   addProjectOpen: false,
   onboarding: false,
   sidebar: true,

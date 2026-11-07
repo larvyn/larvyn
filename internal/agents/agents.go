@@ -15,6 +15,7 @@ import (
 	"larvyn/internal/composer"
 	"larvyn/internal/flock"
 	"larvyn/internal/proc"
+	"larvyn/internal/projectfile"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 )
@@ -377,6 +378,7 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 	}
 	cwd := proc.FirstNonEmpty(req.Cwd, p.Path)
 	meta := map[string]string{"agent": kind.ID, "agentName": kind.Name, "color": kind.Color, "prompt": req.Prompt}
+	var setup []string
 	if req.Worktree {
 		path, branch, err := CreateWorktree(p.ID, kind.ID+"-"+title, req.Base)
 		if err != nil {
@@ -389,7 +391,13 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 			// Flock serves every worktree of a site at its own .test domain
 			// and sets it up itself (dependencies, .env, database), so
 			// installing here too would race its composer and npm installs.
+			// It replaces the project file's worktree.setup for the same
+			// reason.
 			meta["site"] = "flock"
+		} else if setup = worktreeSetup(cwd, p.Path); len(setup) > 0 {
+			// The team's own steps run in the agent's terminal before it
+			// starts; they replace Larvyn's dependency install.
+			meta["setup"] = "1"
 		} else if req.InstallDeps {
 			a.installDeps(p, cwd)
 		}
@@ -413,20 +421,30 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		kind.PromptAsArg = false
 	}
 	argv = append(argv, promptArgs(*kind, req.Prompt)...)
-	sess, err := terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Env: kind.env, Meta: meta})
-	if err != nil {
-		return sess, err
+	typePrompt := func(sess terminal.SessionInfo) {
+		if req.Prompt != "" && !kind.PromptAsArg {
+			go func(id, prompt string) {
+				// Give the TUI time to draw its input box before typing into it.
+				time.Sleep(2500 * time.Millisecond)
+				_ = terminal.Sessions.Write(id, bracketedPaste(prompt))
+				time.Sleep(150 * time.Millisecond)
+				_ = terminal.Sessions.Write(id, "\r")
+			}(sess.ID, req.Prompt)
+		}
 	}
-	if req.Prompt != "" && !kind.PromptAsArg {
-		go func(id, prompt string) {
-			// Give the TUI time to draw its input box before typing into it.
-			time.Sleep(2500 * time.Millisecond)
-			_ = terminal.Sessions.Write(id, bracketedPaste(prompt))
-			time.Sleep(150 * time.Millisecond)
-			_ = terminal.Sessions.Write(id, "\r")
-		}(sess.ID, req.Prompt)
+	// With no setup this is a plain start, and typePrompt runs right after.
+	return terminal.StartAfterSetup(terminal.SessionSpec{ProjectID: p.ID, Kind: "agent", Key: kind.ID, Title: title, Cwd: cwd, Argv: argv, Env: kind.env, Meta: meta},
+		setup, typePrompt)
+}
+
+// worktreeSetup is the worktree.setup of the project file in a new
+// worktree: the branch's own, or the main folder's when the branch has none
+// (it may not be committed yet).
+func worktreeSetup(worktree, root string) []string {
+	if l := projectfile.Load(worktree); l.Exists {
+		return l.File.Worktree.Setup
 	}
-	return sess, nil
+	return projectfile.Load(root).File.Worktree.Setup
 }
 
 // promptArgs are the arguments that hand an agent its first prompt, for

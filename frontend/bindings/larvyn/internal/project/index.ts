@@ -11,6 +11,9 @@ export type {
     FlockServed,
     Found,
     Package,
+    PluginNeed,
+    ProjectCommand,
+    ProjectFileInfo,
     ProjectImages,
     ProjectInfo
 } from "./models.js";

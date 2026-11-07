@@ -4,6 +4,12 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as flock$0 from "../flock/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as projectfile$0 from "../projectfile/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as store$0 from "../store/models.js";
 
 /**
  * FlockInfo is what the Overview's Local site card shows for a project.
@@ -72,6 +78,52 @@ export interface Package {
 }
 
 /**
+ * PluginNeed is a plugin the project file lists.
+ */
+export interface PluginNeed {
+    "id": string;
+    "version": string;
+
+    /**
+     * Problem is "" when the plugin is installed, matches and is on, or
+     * says what is wrong: "missing", or a sentence.
+     */
+    "problem": string;
+}
+
+/**
+ * ProjectCommand is a command for ⌘K and the project actions.
+ */
+export interface ProjectCommand {
+    "id": string;
+    "title": string;
+    "run": string;
+
+    /**
+     * Shared is set for a command from .larvyn/project.json, unset for the
+     * user's own.
+     */
+    "shared": boolean;
+}
+
+/**
+ * ProjectFileInfo is .larvyn/project.json as Larvyn loaded it.
+ */
+export interface ProjectFileInfo {
+    /**
+     * Path is where the file is, or would be.
+     */
+    "path": string;
+    "exists": boolean;
+    "error": string;
+    "warnings": string[] | null;
+    "commands": projectfile$0.Command[] | null;
+    "stack": projectfile$0.StackItem[] | null;
+    "plugins": PluginNeed[] | null;
+    "setup": string[] | null;
+}
+
+/**
  * ProjectImages are the pictures a project's badge can show, as data URLs.
  * Each is "" when the project has none.
  */
@@ -116,6 +168,12 @@ export interface ProjectInfo {
      * it at Flock's site, so it can go back when Flock stops serving it.
      */
     "appUrlBeforeFlock"?: string;
+
+    /**
+     * Commands are the user's own commands for this project, for ⌘K and the
+     * project's actions. The team's shared ones live in .larvyn/project.json.
+     */
+    "commands"?: store$0.Command[] | null;
     "exists": boolean;
     "isLaravel": boolean;
     "laravelVersion": string;
