@@ -58,9 +58,15 @@ func importShellPath() {
 // They go last, so the shell's own order still wins.
 func addToolDirs() {
 	home, _ := os.UserHomeDir()
+	local := ""
+	if home != "" {
+		local = filepath.Join(home, ".local", "bin")
+	}
 	var dirs []string
 	for _, d := range toolDirs(home, os.Getenv("COMPOSER_HOME"), os.Getenv("XDG_CONFIG_HOME")) {
-		if st, err := os.Stat(d); err == nil && st.IsDir() {
+		// ~/.local/bin is kept even before it exists: an agent installed
+		// there while Larvyn runs is then found without a restart.
+		if st, err := os.Stat(d); d == local || err == nil && st.IsDir() {
 			dirs = append(dirs, d)
 		}
 	}

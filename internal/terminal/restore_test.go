@@ -307,6 +307,15 @@ func TestRestoreNeverReplaysAgentOutput(t *testing.T) {
 		if s.Key == "missing" && s.Running {
 			t.Error("missing: must wait for Relaunch")
 		}
+		if s.Key == "resumes" && !strings.Contains(string(out), "resuming the previous conversation") {
+			t.Errorf("resumes: no resuming placeholder: %q", out)
+		}
+		if s.Key == "waits" && (len(out) != 0 || s.Running) {
+			t.Errorf("waits: must be empty and stopped, got running=%v %q", s.Running, out)
+		}
+		if s.Key == "broken" && !strings.Contains(string(out), "Could not restart") {
+			t.Errorf("broken: restart error not shown: %q", out)
+		}
 	}
 }
 

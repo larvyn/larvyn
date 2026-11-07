@@ -178,18 +178,22 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 }
 
 // sessionKind is the agent a session runs. A custom agent removed and added
-// again gets a new id, so its sessions find it by name.
+// again gets a new id, so its sessions find it by name, when only one has it.
 func sessionKind(spec terminal.SessionSpec) *AgentKind {
 	all := kinds()
 	if k := kindByID(all, spec.Key); k != nil {
 		return k
 	}
+	var found *AgentKind
 	for i := range all {
 		if all[i].Custom && all[i].Name == spec.Meta["agentName"] {
-			return &all[i]
+			if found != nil {
+				return nil
+			}
+			found = &all[i]
 		}
 	}
-	return nil
+	return found
 }
 
 // claudeConfigDir is where Claude Code keeps its conversations: the
