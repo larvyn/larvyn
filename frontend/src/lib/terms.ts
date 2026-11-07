@@ -52,6 +52,33 @@ interface Entry {
 
 const entries = new Map<string, Entry>()
 
+const TERM_FONT = '"JetBrains Mono Variable", "Cascadia Code", Consolas, monospace'
+
+/** Fits a terminal to its container, if it is on screen. */
+function fitEntry(e: Entry) {
+  if (!e.opened || !e.el.isConnected || e.el.clientWidth === 0) return
+  try {
+    e.fit.fit()
+  } catch {}
+}
+
+// xterm measures its cell once, when it opens. The font loads lazily
+// (font-display: swap), so a terminal opened before it arrives measures the
+// fallback font, then draws taller JetBrains Mono rows: it holds more rows
+// than fit, and an agent's TUI loses its bottom lines (its input box and
+// status line). Once the font is in, every terminal measures again and fits.
+document.fonts
+  ?.load(`13px ${TERM_FONT}`)
+  .catch(() => {})
+  .then(() => {
+    for (const e of entries.values()) {
+      // xterm measures again only when the option changes: the same fonts,
+      // written differently.
+      e.term.options.fontFamily = e.term.options.fontFamily === TERM_FONT ? TERM_FONT + ' ' : TERM_FONT
+      fitEntry(e)
+    }
+  })
+
 /** Last time each terminal printed something, for agent "working" states. */
 export const activity = new Map<string, number>()
 
@@ -251,7 +278,7 @@ function getEntry(id: string): Entry {
   const fontSize = useStore.getState().settings?.terminalFontSize || 13
   const term = new Terminal({
     theme: termTheme,
-    fontFamily: '"JetBrains Mono Variable", "Cascadia Code", Consolas, monospace',
+    fontFamily: TERM_FONT,
     fontSize,
     lineHeight: 1.22,
     cursorBlink: true,
@@ -347,9 +374,7 @@ export function attach(id: string, container: HTMLElement, focus = false): () =>
   enableWebgl(e)
   const doFit = () => {
     if (!container.isConnected || container.clientWidth === 0) return
-    try {
-      e.fit.fit()
-    } catch {}
+    fitEntry(e)
   }
   requestAnimationFrame(() => {
     doFit()
@@ -397,8 +422,6 @@ export function findInTerm(id: string, q: string, back = false) {
 export function setFontSize(size: number) {
   for (const e of entries.values()) {
     e.term.options.fontSize = size
-    try {
-      e.fit.fit()
-    } catch {}
+    fitEntry(e)
   }
 }

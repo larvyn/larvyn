@@ -414,9 +414,13 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .list-group { padding: 10px 10px 4px; font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-4); display: flex; justify-content: space-between; }
 
 /* terminal */
-.term-host { position: absolute; inset: 0; padding: 8px 4px 4px 10px; }
+.term-host { position: absolute; inset: 0; }
 .term-slot { position: relative; flex: 1; min-height: 0; min-width: 0; background: #0a0a0d; }
-.term-slot .xterm { height: 100%; }
+/* The padding goes on .xterm, not .term-host: xterm's FitAddon takes the
+   parent's full height (padding included, with border-box) and subtracts only
+   .xterm's own padding, so padding on the parent made it fit one row and
+   column too many and the last row was cut off. */
+.term-slot .xterm { height: 100%; padding: 8px 4px 4px 10px; }
 .term-slot .xterm-viewport { background: transparent !important; }
 .term-slot .xterm-viewport::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.1); }
 
