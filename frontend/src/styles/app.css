@@ -93,6 +93,17 @@ a { color: inherit; }
   position: relative;
   z-index: 5;
 }
+.titlebar.mac { padding-left: 18px; }
+/* macOS: the window is frameless, so it draws its own traffic lights. */
+.lights { display: flex; gap: 8px; margin-right: 8px; }
+.lights button { width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 0.5px solid rgba(0, 0, 0, 0.25); display: grid; place-items: center; font-size: 10px; line-height: 1; font-weight: 700; color: transparent; }
+.lights .l-close { background: #ff5f57; }
+.lights .l-min { background: #febc2e; }
+.lights .l-max { background: #28c840; }
+.lights:hover button { color: rgba(0, 0, 0, 0.55); }
+.lights .l-close::after { content: '×'; }
+.lights .l-min::after { content: '−'; }
+.lights .l-max::after { content: '+'; }
 .titlebar .nodrag, .titlebar button, .titlebar input { --wails-draggable: no-drag; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; font-size: 13.5px; }
 .brand-mark {
