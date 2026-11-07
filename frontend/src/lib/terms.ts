@@ -8,6 +8,7 @@ import { Events } from '@wailsio/runtime'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { b64ToBytes } from './util'
+import { quotePath } from './shell'
 import { fail, toast, useStore } from './store'
 
 export const termTheme: ITheme = {
@@ -147,27 +148,6 @@ document.fonts?.addEventListener('loadingdone', () => {
 
 const isWindows = () => useStore.getState().platform === 'windows'
 
-/** A path as the shell reads it, or null when it can't be quoted safely.
- * Nothing in a file name may run, or expand, when the line is submitted:
- * - off Windows: single quotes, which POSIX shells and fish take literally;
- * - on Windows, the terminal may be PowerShell, cmd.exe (delayed expansion
- *   on or off), Git Bash, or one started inside another, and Larvyn can't
- *   tell which reads the line. So one rule safe in all of them: double
- *   quotes, refusing what any of them expands or ends a string with there:
- *   $ and ` (PowerShell, bash), % and ! (cmd), and every double quote,
- *   straight or curly (PowerShell reads “ ” „ as quotes too). */
-export function quotePath(p: string, windows = isWindows()): string | null {
-  if (!windows) return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
-  // A trailing backslash would escape the closing quote in Git Bash and
-  // leave the rest of the line unquoted; a folder's path means the same
-  // without it (a drive root keeps a dot: C:\.).
-  p = p.replace(/\\+$/, '')
-  if (/^[A-Za-z]:$/.test(p)) p += '\\.'
-  if (/^[A-Za-z0-9/._\-+:@]+$/.test(p)) return p
-  if (/["“”„$`%!]/.test(p)) return null
-  return `"${p}"`
-}
-
 /** Pastes paths into a terminal, quoted; a path that can't be quoted safely
  * is left out, and a toast says so. */
 function pastePaths(term: Terminal, paths: string[]) {
@@ -176,7 +156,7 @@ function pastePaths(term: Terminal, paths: string[]) {
   for (const p of paths.filter(Boolean)) {
     // A control character (a newline, Ctrl+U…) in a file name would act as
     // a key press where the program doesn't ask for bracketed paste.
-    const out = /[\u0000-\u001f\u007f-\u009f]/.test(p) ? null : quotePath(p)
+    const out = /[\u0000-\u001f\u007f-\u009f]/.test(p) ? null : quotePath(p, isWindows())
     if (out === null) refused.push(p)
     else quoted.push(out)
   }

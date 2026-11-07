@@ -13,6 +13,7 @@ import (
 	"larvyn/internal/dotenv"
 	"larvyn/internal/flock"
 	"larvyn/internal/proc"
+	"larvyn/internal/safefile"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 
@@ -389,6 +390,11 @@ func sqlitePath(root string, env map[string]string) string {
 	}
 }
 
+// maxManifestSize caps composer.json, composer.lock and package.json, which
+// Inspect reads on its own when projects load: a big composer.lock is a few
+// MB, and one symlinked to a device or a huge file must not hang the app.
+const maxManifestSize = 16 << 20
+
 func Inspect(p store.Project) ProjectInfo {
 	info := ProjectInfo{Project: p, ComposerScripts: map[string]string{}, NpmScripts: map[string]string{}, Counts: map[string]int{}}
 	if _, err := os.Stat(p.Path); err != nil {
@@ -403,7 +409,7 @@ func Inspect(p store.Project) ProjectInfo {
 		RequireDev map[string]string          `json:"require-dev"`
 		Scripts    map[string]json.RawMessage `json:"scripts"`
 	}
-	if b, err := os.ReadFile(filepath.Join(root, "composer.json")); err == nil {
+	if b, err := safefile.ReadRegular(filepath.Join(root, "composer.json"), maxManifestSize); err == nil {
 		_ = json.Unmarshal(b, &composer)
 	}
 	_, hasFramework := composer.Require["laravel/framework"]
@@ -451,7 +457,7 @@ func Inspect(p store.Project) ProjectInfo {
 		Dependencies    map[string]string `json:"dependencies"`
 		DevDependencies map[string]string `json:"devDependencies"`
 	}
-	if b, err := os.ReadFile(filepath.Join(root, "package.json")); err == nil {
+	if b, err := safefile.ReadRegular(filepath.Join(root, "package.json"), maxManifestSize); err == nil {
 		_ = json.Unmarshal(b, &pkg)
 		info.NpmScripts = pkg.Scripts
 		deps := map[string]bool{}
@@ -540,7 +546,7 @@ func parkedServer(root string) string {
 
 func lockedVersions(root string) map[string]string {
 	out := map[string]string{}
-	b, err := os.ReadFile(filepath.Join(root, "composer.lock"))
+	b, err := safefile.ReadRegular(filepath.Join(root, "composer.lock"), maxManifestSize)
 	if err != nil {
 		return out
 	}

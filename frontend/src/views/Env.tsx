@@ -92,7 +92,9 @@ export function Env() {
       if (q && !`${l.key} ${l.value}`.toLowerCase().includes(q.toLowerCase())) return
       const g = l.key.split('_')[0]
       const k = GROUP_LABEL[g] ? g : 'OTHER'
-      map.set(k, [...(map.get(k) ?? []), i])
+      const list = map.get(k)
+      if (list) list.push(i)
+      else map.set(k, [i])
     })
     return [...map.entries()].sort((a, b) => (a[0] === 'APP' ? -1 : b[0] === 'APP' ? 1 : a[0] === 'OTHER' ? 1 : b[0] === 'OTHER' ? -1 : 0))
   }, [lines, q])

@@ -4,6 +4,7 @@ import { LaravelService } from '../../bindings/larvyn/internal/laravel'
 import { artisanRun, toast, useActive, useStore } from '../lib/store'
 import { copy, cx, load, mod, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'
+import { shellLine } from '../lib/shell'
 import { Empty, Loading, SearchInput, useAsync } from '../components/ui'
 
 interface Arg {
@@ -196,7 +197,18 @@ function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; o
     } else if (flags[o.name]) argv.push(`--${o.name}`)
   }
   const missing = args.some((a) => a.is_required && !vals['arg:' + a.name]?.trim())
-  const line = `${php} artisan ${argv.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`
+  const windows = useStore((s) => s.platform) === 'windows'
+  // Quoted for the shell, so a value can't run as code when the line is
+  // pasted; null when some value can't be quoted safely there.
+  const line = shellLine([php, 'artisan', ...argv], windows)
+  const shown = line ?? [php, 'artisan', ...argv].join(' ')
+  const copyLine = () =>
+    line === null
+      ? toast('error', "Can't copy this command", 'A value has characters the shell would run or expand ($ ` % ! or quotes on Windows, or a line break). Use Run, or type it yourself.')
+      : copy(line).then(
+          () => toast('success', 'Copied'),
+          () => toast('error', "Can't copy this command", 'The clipboard is not available.'),
+        )
   const run = () => artisanRun(projectId, argv)
   const formRef = useRef<HTMLDivElement>(null)
   useRunShortcut(() => !missing && run(), { within: formRef })
@@ -219,9 +231,9 @@ function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; o
         <div className="row" style={{ padding: '10px 12px 10px 16px' }}>
           <span className="mono selectable grow" style={{ fontSize: 12.5, color: 'var(--text)', wordBreak: 'break-all' }}>
             <span style={{ color: 'var(--text-3)' }}>$ </span>
-            {line}
+            {shown}
           </span>
-          <button className="btn sm ghost" onClick={() => copy(line).then(() => toast('success', 'Copied'))}>
+          <button className="btn sm ghost" onClick={copyLine}>
             <Copy /> Copy
           </button>
           <button className="btn sm primary" disabled={missing} onClick={run}>

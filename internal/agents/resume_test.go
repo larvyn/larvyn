@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 )
 
@@ -112,5 +113,30 @@ func TestSharedFolderStopsResumeByFolder(t *testing.T) {
 	}
 	if _, resumes, _ := RelaunchArgv(terminal.SessionSpec{Key: "claude", Meta: map[string]string{"resumeId": "x"}}, true); !resumes {
 		t.Fatal("claude resumes by id, shared or not")
+	}
+}
+
+// A session started without approvals comes back with them once the user
+// has switched to Manual (#55).
+func TestRelaunchFollowsCurrentPermissions(t *testing.T) {
+	bin := fakeBinary(t, "codex")
+	t.Setenv("PATH", filepath.Dir(bin))
+	spec := terminal.SessionSpec{Kind: "agent", Key: "codex", Meta: map[string]string{"yolo": "1", "resumeId": "x"}}
+	setPerms := func(v string) {
+		if err := store.Update(func(d *store.State) { d.Settings.AgentPermissions = v }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { setPerms("yolo") })
+
+	setPerms("yolo")
+	argv, _, _ := RelaunchArgv(spec, false)
+	if want := []string{"--dangerously-bypass-approvals-and-sandbox", "resume", "x"}; !reflect.DeepEqual(argv[1:], want) {
+		t.Fatalf("yolo: got %v, want %v", argv[1:], want)
+	}
+	setPerms("manual")
+	argv, _, _ = RelaunchArgv(spec, false)
+	if want := []string{"resume", "x"}; !reflect.DeepEqual(argv[1:], want) {
+		t.Fatalf("manual: got %v, want %v", argv[1:], want)
 	}
 }

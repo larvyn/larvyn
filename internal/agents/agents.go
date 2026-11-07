@@ -163,7 +163,9 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 		return nil, false, errors.New(kind.Name + " is not installed: " + kind.Install)
 	}
 	argv = []string{path}
-	if spec.Meta["yolo"] == "1" {
+	// The current setting wins: a session started without approvals comes
+	// back with them once the user has switched to Manual.
+	if spec.Meta["yolo"] == "1" && store.CurrentSettings().AgentPermissions != "manual" {
 		argv = append(argv, yoloFlags[kind.Base]...)
 	}
 	if fn, ok := resumeArgs[kind.Base]; ok && !(shared && resumesByFolder[kind.Base]) {
