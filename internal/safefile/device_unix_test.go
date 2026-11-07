@@ -22,11 +22,21 @@ func TestDevicesAndFIFOs(t *testing.T) {
 	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
 		t.Skip(err)
 	}
-	done := make(chan error, 3)
+	done := make(chan error, 4)
 	go func() { _, err := ReadRegular(zero, 1<<20); done <- err }()
 	go func() { _, err := ReadRegular(fifo, 1<<20); done <- err }()
-	go func() { _, err := ReadRegularNoFollow(fifo, 1<<20); done <- err }()
-	for i := 0; i < 3; i++ {
+	go func() { _, err := ReadRegularIn(dir, "fifo", 1<<20); done <- err }()
+	// Opening a FIFO, as if one was swapped in after the check, returns at
+	// once and is refused.
+	go func() {
+		f, err := os.OpenFile(fifo, os.O_RDONLY|oNonblock, 0)
+		if err == nil {
+			_, err = readOpened(f, fifo, 1<<20)
+			f.Close()
+		}
+		done <- err
+	}()
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-done:
 			if err == nil {

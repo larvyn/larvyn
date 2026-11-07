@@ -40,10 +40,13 @@ func TestSymlinks(t *testing.T) {
 	if b, err := ReadRegular(link, 10); err != nil || string(b) != "x" {
 		t.Fatalf("ReadRegular should follow a link to a regular file: %q %v", b, err)
 	}
-	if _, err := ReadRegularNoFollow(link, 10); err == nil {
-		t.Fatal("ReadRegularNoFollow followed a symlink")
+	if _, err := ReadRegularIn(dir, "link", 10); err == nil {
+		t.Fatal("ReadRegularIn followed a symlink")
 	}
-	if b, err := ReadRegularNoFollow(target, 10); err != nil || string(b) != "x" {
+	if b, err := ReadRegularIn(dir, "target", 10); err != nil || string(b) != "x" {
 		t.Fatalf("%q %v", b, err)
+	}
+	if _, err := ReadRegularIn(t.TempDir(), "../"+filepath.Base(dir)+"/target", 10); err == nil {
+		t.Fatal("ReadRegularIn read outside its folder")
 	}
 }

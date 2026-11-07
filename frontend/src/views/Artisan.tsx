@@ -205,7 +205,10 @@ function CommandForm({ cmd, fav, onFav, projectId }: { cmd: Cmd; fav: boolean; o
   const copyLine = () =>
     line === null
       ? toast('error', "Can't copy this command", 'A value has characters the shell would run or expand ($ ` % ! or quotes on Windows, or a line break). Use Run, or type it yourself.')
-      : copy(line).then(() => toast('success', 'Copied'))
+      : copy(line).then(
+          () => toast('success', 'Copied'),
+          () => toast('error', "Can't copy this command", 'The clipboard is not available.'),
+        )
   const run = () => artisanRun(projectId, argv)
   const formRef = useRef<HTMLDivElement>(null)
   useRunShortcut(() => !missing && run(), { within: formRef })

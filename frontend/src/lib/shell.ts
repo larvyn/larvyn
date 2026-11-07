@@ -11,7 +11,8 @@
  *   $ and ` (PowerShell, bash), % and ! (cmd), and every double quote,
  *   straight or curly (PowerShell reads “ ” „ as quotes too). */
 export function quotePath(p: string, windows: boolean): string | null {
-  if (!windows) return /^[A-Za-z0-9/._\-+=,:@%~]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+  // No ~: unquoted, a leading ~ (~/x, ~root) expands to a home folder.
+  if (!windows) return /^[A-Za-z0-9/._\-+=,:@%]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
   // A trailing backslash would escape the closing quote in Git Bash and
   // leave the rest of the line unquoted; a folder's path means the same
   // without it (a drive root keeps a dot: C:\.).

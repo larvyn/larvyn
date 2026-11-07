@@ -142,9 +142,9 @@ func (g *GitService) Diff(target, path string, staged bool) (string, error) {
 	out, err := proc.Git(dir, args...)
 	if err == nil && out == "" && path != "" {
 		// Untracked file: show it as all-new. Only a regular file under 1 MB,
-		// and not through a symlink, which could lead to a device
-		// (/dev/zero) or out of the repository.
-		if b, rerr := safefile.ReadRegularNoFollow(filepath.Join(dir, path), 1<<20-1); rerr == nil {
+		// inside the repository and not through a symlink, which could lead
+		// to a device (/dev/zero) or out of it.
+		if b, rerr := safefile.ReadRegularIn(dir, path, 1<<20-1); rerr == nil {
 			lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
 			var sb strings.Builder
 			sb.WriteString("new file " + path + "\n@@ -0,0 +1," + strconv.Itoa(len(lines)) + " @@\n")

@@ -37,8 +37,9 @@ func TestDiffUntracked(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(repo, "link")); err != nil {
 		t.Skip("symlinks unavailable:", err)
 	}
-	out, _ = (&GitService{}).Diff(p.ID, "link", false)
-	if strings.Contains(out, "TOKEN") {
-		t.Fatalf("followed the symlink: %q", out)
+	// git itself shows nothing for an untracked path, and the fallback
+	// refuses the symlink.
+	if out, err := (&GitService{}).Diff(p.ID, "link", false); err != nil || out != "" {
+		t.Fatalf("followed the symlink: %q %v", out, err)
 	}
 }
