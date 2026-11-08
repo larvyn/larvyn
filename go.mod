@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/aymanbagabas/go-pty v0.2.3
+	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/wailsapp/wails/v3 v3.0.0
 	golang.org/x/sys v0.48.0
 )

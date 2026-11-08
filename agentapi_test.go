@@ -152,7 +152,7 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 
 	// A unique start of the id is enough.
 	waitFor(t, "the output", func() bool {
-		out, _ := apiTerminalRead(opened.ID[:6], 0, false)
+		out, _ := apiTerminalRead(opened.ID[:6], 0, false, false)
 		return strings.Contains(out, "hello-from-api")
 	})
 
@@ -168,7 +168,7 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 	}
 	waitFor(t, "the shell", func() bool {
 		_ = apiTerminalWrite(sh.ID, echo, true)
-		out, _ := apiTerminalRead(sh.ID, 0, true)
+		out, _ := apiTerminalRead(sh.ID, 0, true, false)
 		return strings.Contains(out, "id="+sh.ID)
 	})
 

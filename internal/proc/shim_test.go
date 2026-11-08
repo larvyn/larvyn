@@ -29,3 +29,10 @@ func TestUnwrapShim(t *testing.T) {
 		t.Errorf("an .exe stays as is, got %q", got)
 	}
 }
+
+func TestStripANSIKeepsCursorMovesAsSpaces(t *testing.T) {
+	in := "\x1b[1mAccessing\x1b[1Cworkspace:\x1b[0m\x1b[Cdone\x1b[3Cx\x1b]0;title\x07"
+	if got := StripANSI(in); got != "Accessing workspace: done   x" {
+		t.Errorf("got %q", got)
+	}
+}

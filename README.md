@@ -78,6 +78,10 @@ larvyn stack wait serve --port 8000    # or --line '<regexp>' in its output; --t
 larvyn artisan migrate --force         # runs in the caller's folder (its worktree), exits with artisan's code
 larvyn test --filter LoginTest         # runs in a terminal Larvyn shows, prints the failures
 larvyn logs errors --since 1h --trace  # the app's latest log errors
+larvyn agents start "add a CSV export" # another agent, in a new worktree from the caller's branch
+larvyn agents send <id> "also add a test"
+larvyn agents wait <id>                # until it is done (exit 0) or needs attention (exit 2), then its screen
+larvyn agents status <id>              # its status and screen now
 larvyn help                            # every command; --json on any of them for JSON
 ```
 
@@ -85,6 +89,12 @@ A command that fails, a test run with failures and a wait that ends without
 the item being ready exit non-zero. The stack is the project's: it runs in
 its main folder, as in the sidebar. `artisan`, `test` and `logs` work on the
 folder they are called from, so an agent sees its own worktree.
+
+An agent's report is its screen: `agents wait` returns it to the agent that
+waits, and nothing is typed into that agent's terminal. `terminal read`
+shows an agent's screen too, drawn by a terminal emulator, since a TUI's raw
+output is scrambled. Agents can start agents two levels deep below the ones
+you start.
 
 `larvyn api list` lists the methods behind the commands and `larvyn api
 call <method> '<json>'` calls one with JSON params. Outside Larvyn's
