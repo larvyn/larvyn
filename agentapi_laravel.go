@@ -35,11 +35,14 @@ func init() {
 // appRoot is the Laravel app the caller works in when it runs from one of
 // its subfolders (app/Models): the nearest folder up from dir with an
 // artisan file, not above the git checkout (a worktree) or the project.
-// Without one it is the checkout's top folder.
+// Without one it is the checkout's top folder. A project without git has
+// no checkout: the walk goes up to the project's folder.
 func appRoot(p store.Project, dir string) string {
 	top := dir
 	if t, err := proc.Git(dir, "rev-parse", "--show-toplevel"); err == nil {
 		top = filepath.FromSlash(strings.TrimSpace(t))
+	} else if within(dir, p.Path) {
+		top = p.Path
 	}
 	for d := filepath.Clean(dir); ; {
 		if _, err := os.Stat(filepath.Join(d, "artisan")); err == nil {

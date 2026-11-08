@@ -57,6 +57,27 @@ func TestPathsThroughASymlink(t *testing.T) {
 	}
 }
 
+// Case counts as the file system says: two folders that differ only in
+// case are two folders where they can both exist (Linux, a case-sensitive
+// macOS volume), and one where they can't.
+func TestCaseFollowsTheFileSystem(t *testing.T) {
+	dir := t.TempDir()
+	lower := filepath.Join(dir, "app")
+	upper := filepath.Join(dir, "App")
+	os.MkdirAll(filepath.Join(lower, "Models"), 0o755)
+	if err := os.Mkdir(upper, 0o755); err == nil {
+		// Case-sensitive: App is its own folder.
+		if samePath(lower, upper) || within(filepath.Join(lower, "Models"), upper) {
+			t.Error("App and app are two folders here")
+		}
+		return
+	}
+	// Case-insensitive: App is app.
+	if !samePath(lower, upper) || !within(filepath.Join(upper, "Models"), lower) {
+		t.Error("App and app are the same folder here")
+	}
+}
+
 // gitRepo makes a repository with one commit and a worktree next to it.
 func gitRepo(t *testing.T) (main, wt string) {
 	t.Helper()
