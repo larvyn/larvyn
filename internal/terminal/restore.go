@@ -292,11 +292,11 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 	for _, s := range all {
 		if s.spec.Kind == "agent" && s.spec.Meta[SetupPendingMeta] != "" {
 			// The worktree setup failed, or Larvyn closed during it: the
-			// agent never ran, and the folder may be half prepared. Agents
-			// don't replay their output, so this says what happened.
+			// agent never ran, and the folder may be half prepared. Below the
+			// setup's own output (see restoreSession), this says what happened.
 			runs[s] = false
-			s.buf = []byte("\x1b[33mThe worktree setup did not finish (a step failed, or Larvyn closed during it), so the agent was not started.\x1b[0m\r\n" +
-				"Finish the setup in a terminal (the worktree.setup steps in .larvyn/project.json), then Relaunch to start the agent without it.\r\n")
+			s.buf = append(s.buf, "\r\n\x1b[33mThe worktree setup did not finish (a step failed, or Larvyn closed during it), so the agent was not started.\x1b[0m\r\n"+
+				"Finish the setup in a terminal (the worktree.setup steps in .larvyn/project.json), then Relaunch to start the agent without it.\r\n"...)
 			continue
 		}
 		if !runs[s] || s.spec.Kind != "agent" {
@@ -368,7 +368,9 @@ func (t *TerminalService) restoreSession(saved savedSession, savedAt int64) (s *
 	// An agent's TUI redraws in place with relative cursor moves: a cut tail
 	// of that, replayed at another size, is unreadable. Its conversation is
 	// kept by the agent and comes back on resume, so it starts clean.
-	if spec.Kind != "agent" {
+	// With its setup unfinished the agent never ran: the output is only the
+	// setup steps', plain lines worth keeping (why a step failed).
+	if spec.Kind != "agent" || spec.Meta[SetupPendingMeta] != "" {
 		s.buf = restoredScrollback(saved.Scrollback, savedAt)
 	}
 	s.seq = 1

@@ -398,12 +398,13 @@ func TestRestoreHoldsAnAgentWhoseSetupDidNotFinish(t *testing.T) {
 	ts.restoreWorkspace(savedWorkspace{Version: workspaceVersion, Sessions: []savedSession{
 		{ID: "a", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "setup", Cwd: dir, Running: true, Meta: map[string]string{SetupPendingMeta: "1"}},
 		// Its setup failed before Larvyn closed: stopped, and says so too.
-		{ID: "b", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "failed", Cwd: dir, ExitCode: 1, Meta: map[string]string{SetupPendingMeta: "1"}},
+		{ID: "b", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "failed", Cwd: dir, ExitCode: 1, Meta: map[string]string{SetupPendingMeta: "1"},
+			Scrollback: []byte("$ composer install\r\nYour lock file is out of date\r\n")},
 	}})
 	if failed := ts.List()[1]; failed.Running {
 		t.Fatal("a failed setup's agent must stay stopped")
-	} else if out, _ := ts.Output(failed.ID); !strings.Contains(out, "setup did not finish") {
-		t.Fatalf("a failed setup should be explained after a restart: %q", out)
+	} else if out, _ := ts.Output(failed.ID); !strings.Contains(out, "setup did not finish") || !strings.Contains(out, "Your lock file is out of date") {
+		t.Fatalf("a failed setup should be explained after a restart, with its output: %q", out)
 	}
 	s := ts.List()[0]
 	if s.Running {
