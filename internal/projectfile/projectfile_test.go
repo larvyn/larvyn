@@ -266,3 +266,19 @@ func TestBrokenFileAfterAnEditKeepsTheLastLoad(t *testing.T) {
 		t.Fatalf("the last good version should stay: %+v", l)
 	}
 }
+
+// A replacement that keeps the file's size and time is still a change.
+func TestSameSizeAndTimeIsStillAChange(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, `{"apiVersion": 1, "commands": [{"id": "a", "title": "A", "run": "x"}]}`)
+	Changed(root)
+	st, _ := os.Stat(Path(root))
+	os.WriteFile(Path(root), []byte(`{"apiVersion": 1, "commands": [{"id": "b", "title": "B", "run": "x"}]}`), 0o644)
+	os.Chtimes(Path(root), st.ModTime(), st.ModTime())
+	if l := Load(root); l.File.Commands[0].ID != "b" {
+		t.Fatalf("stale: %+v", l.File.Commands)
+	}
+	if !Changed(root) {
+		t.Fatal("the watcher should see it")
+	}
+}

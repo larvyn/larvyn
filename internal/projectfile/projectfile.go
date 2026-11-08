@@ -10,6 +10,7 @@ package projectfile
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"larvyn/internal/safefile"
 )
@@ -121,9 +121,7 @@ func Path(root string) string { return filepath.Join(root, Dir, Name) }
 type cached struct {
 	// valid is set once the entry holds a read of the file.
 	valid  bool
-	mod    time.Time
-	size   int64
-	exists bool
+	state  fileState
 	loaded Loaded
 	// good is the last version that parsed.
 	good *File
@@ -132,10 +130,11 @@ type cached struct {
 	reported *fileState
 }
 
+// fileState identifies what the file holds: by content, not size and
+// time, which a replacement can keep.
 type fileState struct {
-	mod    time.Time
-	size   int64
 	exists bool
+	sum    [sha256.Size]byte
 }
 
 var (
@@ -156,7 +155,7 @@ func Changed(root string) bool {
 	mu.Lock()
 	defer mu.Unlock()
 	c := cache[Path(root)]
-	now := fileState{mod: c.mod, size: c.size, exists: c.exists}
+	now := c.state
 	before := c.reported
 	c.reported = &now
 	return before != nil && *before != now
@@ -164,28 +163,39 @@ func Changed(root string) bool {
 
 func load(root string) Loaded {
 	path := Path(root)
-	st, statErr := os.Lstat(path)
+	// The file is small (at most maxSize) and read whole every time: that
+	// is what tells a change, even one that keeps its size and time.
+	_, statErr := os.Lstat(path)
 	exists := statErr == nil
+	var b []byte
+	var readErr error
+	state := fileState{exists: exists}
+	if exists {
+		b, readErr = safefile.ReadRegularIn(root, filepath.Join(Dir, Name), maxSize)
+		if readErr != nil {
+			state.sum = sha256.Sum256([]byte("error: " + readErr.Error()))
+		} else {
+			state.sum = sha256.Sum256(b)
+		}
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	c := cache[path]
-	if c != nil && c.valid && c.exists == exists && (!exists || (st.ModTime().Equal(c.mod) && st.Size() == c.size)) {
+	if c != nil && c.valid && c.state == state {
 		return c.loaded
 	}
 	if c == nil {
 		c = &cached{}
 		cache[path] = c
 	}
-	c.valid, c.exists = true, exists
+	c.valid, c.state = true, state
 	c.loaded = Loaded{Path: path, Exists: exists}
 	if exists {
-		c.mod, c.size = st.ModTime(), st.Size()
-		b, err := safefile.ReadRegularIn(root, filepath.Join(Dir, Name), maxSize)
-		if err != nil {
-			if errors.Is(err, safefile.ErrTooLarge) {
-				err = fmt.Errorf("%s is larger than %d KB", Rel, maxSize>>10)
+		if readErr != nil {
+			if errors.Is(readErr, safefile.ErrTooLarge) {
+				readErr = fmt.Errorf("%s is larger than %d KB", Rel, maxSize>>10)
 			}
-			c.loaded.Error = err.Error()
+			c.loaded.Error = readErr.Error()
 		} else if f, warnings, err := Parse(b); err != nil {
 			c.loaded.Error = err.Error()
 		} else {
@@ -196,13 +206,13 @@ func load(root string) Loaded {
 			c.loaded.File = *c.good
 		}
 	} else {
-		c.mod, c.size = time.Time{}, 0
 		c.good = nil
 	}
 	if c.reported == nil {
 		// The first read is the watcher's baseline: an edit made after the
 		// window read the file, before the watcher's first look, still counts.
-		c.reported = &fileState{mod: c.mod, size: c.size, exists: c.exists}
+		r := c.state
+		c.reported = &r
 	}
 	return c.loaded
 }
