@@ -38,6 +38,7 @@ func init() {
 		"title?: the terminal's name")
 	api.Register("terminal.close", "Close a terminal the caller opened", apiTerminalClose,
 		"id: the terminal")
+	api.MarkReadOnly("version", "context", "terminal.list", "terminal.read")
 }
 
 // startAPI writes the CLI where terminals find it and opens the socket.

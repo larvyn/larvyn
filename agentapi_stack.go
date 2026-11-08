@@ -35,6 +35,7 @@ func init() {
 		"port?: ready when this port on 127.0.0.1 answers (the HTTP servers' own port by default)",
 		"line?: ready when a line of its output matches this regular expression (Vite's \"ready in\"… by default)",
 		"timeout?: seconds, 60 by default")
+	api.MarkReadOnly("stack.list", "stack.wait")
 }
 
 // StackRow is a line of `larvyn stack list`.

@@ -247,7 +247,11 @@ func readLine(r *bufio.Reader, max int) ([]byte, error) {
 
 // Dial sends one request to the running app, filling in the token, and
 // returns its response.
-func Dial(req Request) (Response, error) {
+func Dial(req Request) (Response, error) { return DialContext(context.Background(), req) }
+
+// DialContext is Dial that gives up when ctx ends; the app then sees the
+// client gone and stops the call (Caller.Ctx).
+func DialContext(ctx context.Context, req Request) (Response, error) {
 	tok, err := os.ReadFile(TokenPath())
 	if err != nil {
 		return Response{}, errors.New("Larvyn is not running (no " + TokenPath() + ")")
@@ -258,11 +262,16 @@ func Dial(req Request) (Response, error) {
 		return Response{}, errors.New("Larvyn is not running: " + err.Error())
 	}
 	defer c.Close()
+	stop := context.AfterFunc(ctx, func() { c.Close() })
+	defer stop()
 	b, _ := json.Marshal(req)
 	if _, err := c.Write(append(b, '\n')); err != nil {
 		return Response{}, err
 	}
 	line, err := readLine(bufio.NewReaderSize(c, 64<<10), 64<<20)
+	if ctx.Err() != nil {
+		return Response{}, ctx.Err()
+	}
 	if err != nil {
 		return Response{}, fmt.Errorf("no answer from Larvyn: %v", err)
 	}

@@ -97,7 +97,10 @@ output is scrambled. Agents can start agents two levels deep below the ones
 you start.
 
 `larvyn api list` lists the methods behind the commands and `larvyn api
-call <method> '<json>'` calls one with JSON params. Outside Larvyn's
+call <method> '<json>'` calls one with JSON params. `larvyn mcp` serves the
+same methods as MCP tools on stdin and stdout, for agents that prefer MCP
+(`claude mcp add larvyn -- larvyn mcp`): `terminal.read` is the
+`terminal_read` tool, and so on. Outside Larvyn's
 terminals it works from a project's folder or one of its worktrees, while
 the app runs.
 

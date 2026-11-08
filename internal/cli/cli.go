@@ -8,6 +8,7 @@
 //	larvyn terminal read <id> --lines 50
 //	larvyn api list
 //	larvyn api call terminal.read '{"id":"…","lines":50}'
+//	larvyn mcp    # the same methods as an MCP server on stdin/stdout (mcp.go)
 //
 // --json prints the result as JSON instead of text.
 //
@@ -59,6 +60,9 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	}
 	cwd, _ := os.Getwd()
 	req := api.Request{Caller: api.Caller{Session: os.Getenv("LARVYN_SESSION"), Cwd: cwd}}
+	if len(words) == 1 && words[0] == "mcp" {
+		return mcpMain(req.Caller)
+	}
 	switch {
 	case len(words) == 0 || words[0] == "help":
 		// The app answers a request with no command with every method.
@@ -129,6 +133,7 @@ func printUsage(w io.Writer, methods []api.Method) {
 		}
 	}
 	fmt.Fprintln(w, "\n  api call <method> '<json>'\n      Call a method with a JSON object of params")
+	fmt.Fprintln(w, "\n  mcp\n      Serve these commands as MCP tools on stdin and stdout: claude mcp add larvyn -- larvyn mcp")
 }
 
 // command is a method as typed: "terminal read <id> [--lines int]".

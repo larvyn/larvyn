@@ -30,6 +30,7 @@ func init() {
 		"since?: only errors newer than this: 10m, 2h…",
 		"limit?: how many, 10 by default",
 		"trace?: add each error's first stack frames")
+	api.MarkReadOnly("logs.errors")
 }
 
 // ArtisanResult is what artisan printed and how it exited.

@@ -6,10 +6,20 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"larvyn/internal/api"
 	"larvyn/internal/store"
 )
+
+var slowCancelled = make(chan bool, 1)
+
+type report struct {
+	Failed int `json:"failed"`
+}
+
+func (report) Text() string  { return "2 tests failed" }
+func (report) ExitCode() int { return 3 }
 
 type row struct {
 	ID      string `json:"id"`
@@ -27,6 +37,17 @@ func TestMain(m *testing.M) {
 	})
 	api.Register("demo.whoami", "Who calls", func(c api.Caller) string { return c.Session })
 	api.Register("demo.add", "Add", func(a, b int) int { return a + b }, "a: first", "b?: second")
+	api.MarkReadOnly("demo.whoami")
+	api.Register("demo.report", "Report", func() report { return report{} })
+	api.Register("demo.slow", "Slow", func(c api.Caller) string {
+		select {
+		case <-c.Ctx.Done():
+			slowCancelled <- true
+		case <-time.After(10 * time.Second):
+			slowCancelled <- false
+		}
+		return "finished"
+	})
 	srv, err := api.Listen()
 	if err != nil {
 		panic(err)
