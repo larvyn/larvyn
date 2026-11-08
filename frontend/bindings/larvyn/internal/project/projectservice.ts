@@ -8,6 +8,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as store$0 from "../store/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as terminal$0 from "../terminal/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -36,6 +39,23 @@ export function Close(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * Commands lists the project's commands: the shared ones, then the user's
+ * own. A local command with the id of a shared one replaces it, so anyone
+ * can tweak a team command for themselves.
+ */
+export function Commands(id: string): $CancellablePromise<$models.ProjectCommand[] | null> {
+    return $Call.ByID(662149787, id);
+}
+
+/**
+ * DeleteCommand removes a command from the project file (shared) or the
+ * user's state.
+ */
+export function DeleteCommand(id: string, commandID: string, shared: boolean): $CancellablePromise<void> {
+    return $Call.ByID(141951395, id, commandID, shared);
+}
+
+/**
  * Discover looks for Laravel projects on this computer, under the home
  * folder and the usual web roots, newest first. It stops looking after a
  * few seconds, so on a very large disk the list may be partial.
@@ -51,6 +71,13 @@ export function Discover(): $CancellablePromise<$models.Found[] | null> {
  */
 export function EnsureSQLite(id: string): $CancellablePromise<boolean> {
     return $Call.ByID(4225355739, id);
+}
+
+/**
+ * File reads the project's .larvyn/project.json.
+ */
+export function File(id: string): $CancellablePromise<$models.ProjectFileInfo> {
+    return $Call.ByID(3348320171, id);
 }
 
 /**
@@ -129,6 +156,17 @@ export function List(): $CancellablePromise<store$0.Project[] | null> {
 }
 
 /**
+ * MoveCommand moves a command between the user's state (toShared false)
+ * and the project file (toShared true), replacing one with the same id
+ * there. It adds the command to the other side first and removes it from
+ * its side after; if that fails, the other side is put back as it was, so a
+ * failed move leaves things as they were.
+ */
+export function MoveCommand(id: string, commandID: string, toShared: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1169617397, id, commandID, toShared);
+}
+
+/**
  * Pick asks for a folder and adds it.
  */
 export function Pick(): $CancellablePromise<store$0.Project | null> {
@@ -165,6 +203,24 @@ export function RepairEnv(id: string): $CancellablePromise<boolean> {
  */
 export function RestoreAppURL(id: string): $CancellablePromise<string> {
     return $Call.ByID(4005914009, id);
+}
+
+/**
+ * RunCommand runs one of the project's commands in a terminal in its
+ * folder. Shared commands run like the rest of the project's code (composer
+ * scripts, artisan): adding a project to Larvyn means trusting it.
+ */
+export function RunCommand(id: string, commandID: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(185288723, id, commandID);
+}
+
+/**
+ * SaveCommand adds a command, or changes the one with its id, in the
+ * project file when Shared is set and in the user's state otherwise. An
+ * empty id is made from the title.
+ */
+export function SaveCommand(id: string, c: $models.ProjectCommand): $CancellablePromise<$models.ProjectCommand> {
+    return $Call.ByID(1307692857, id, c);
 }
 
 /**

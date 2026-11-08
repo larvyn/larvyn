@@ -390,12 +390,13 @@ function AgentCard(props: { s: SessionInfo; focused: boolean; reviewing: boolean
         <div className="afoot">
           <input
             className="input"
-            placeholder="Follow up…"
+            placeholder={s.setup ? 'Setting up the worktree…' : 'Follow up…'}
+            disabled={s.setup}
             value={msg}
             onChange={(e) => setMsg(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}
           />
-          <button className="icon-btn" disabled={!msg.trim()} onClick={send}>
+          <button className="icon-btn" disabled={s.setup || !msg.trim()} onClick={send}>
             <Send />
           </button>
         </div>

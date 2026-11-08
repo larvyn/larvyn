@@ -43,6 +43,12 @@ export interface SessionInfo {
      */
     "restored": boolean;
     "meta": { [_ in string]?: string } | null;
+
+    /**
+     * Setup is set while the steps before the session's program run (see
+     * StartAfterSetup): what is typed goes to them, not to the program.
+     */
+    "setup": boolean;
 }
 
 /**

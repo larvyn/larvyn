@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, ArrowUpCircle, Download, ExternalLink, FileArchive, FolderOpen, FolderPlus, Puzzle, RefreshCw, ShieldAlert, ShieldCheck, Store, Trash2 } from 'lucide-react'
 import { PluginService, type Listing, type Missing, type Permission, type Plugin } from '../../bindings/larvyn/internal/plugins'
 import { ProjectService } from '../../bindings/larvyn/internal/project'
@@ -158,6 +158,16 @@ export function PluginsCard() {
     PluginService.Permissions().then((l) => setPerms(l ?? []))
     PluginService.Folder().then(setFolder)
   }, [])
+  // Opened to find a plugin the project needs (the Overview's Project card).
+  const pluginSearch = useStore((s) => s.pluginSearch)
+  const cardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!pluginSearch) return
+    cardRef.current?.scrollIntoView({ block: 'start' })
+    setTab('market')
+    setQ(pluginSearch)
+    useStore.setState({ pluginSearch: '' })
+  }, [pluginSearch])
 
   /** Checks a plugin, asks for its permissions, then installs it. The same
    * steps for a folder and a .zip (which Larvyn unpacks safely first). The
@@ -302,7 +312,7 @@ export function PluginsCard() {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 18 }}>
+    <div className="card" style={{ marginBottom: 18 }} ref={cardRef}>
       <div className="card-head">
         <h3>
           <Puzzle /> Plugins

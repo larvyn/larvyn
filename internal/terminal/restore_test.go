@@ -378,3 +378,43 @@ func TestSavedShellKeepsItsCurrentFolder(t *testing.T) {
 		t.Fatalf("saved cwd %+v, want %s", ws.Sessions, sub)
 	}
 }
+
+// Larvyn closed during a worktree setup: the agent never ran, so it must
+// not start on its own in a half-prepared folder. Relaunch starts it.
+func TestRestoreHoldsAnAgentWhoseSetupDidNotFinish(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+	t.Setenv("LARVYN_HOME", t.TempDir())
+	store.Reload()
+	t.Cleanup(store.Reload)
+	dir := t.TempDir()
+	_ = store.Update(func(d *store.State) { d.Projects = []store.Project{{ID: "p1", Path: dir}} })
+	prev := AgentRelaunch
+	t.Cleanup(func() { AgentRelaunch = prev })
+	AgentRelaunch = func(SessionSpec, bool) ([]string, bool, error) { return []string{"sh", "-c", "sleep 30"}, true, nil }
+	ts := &TerminalService{sessions: map[string]*session{}}
+	defer ts.ServiceShutdown()
+	ts.restoreWorkspace(savedWorkspace{Version: workspaceVersion, Sessions: []savedSession{
+		{ID: "a", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "setup", Cwd: dir, Running: true, Meta: map[string]string{SetupPendingMeta: "1"}},
+		// Its setup failed before Larvyn closed: stopped, and says so too.
+		{ID: "b", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "failed", Cwd: dir, ExitCode: 1, Meta: map[string]string{SetupPendingMeta: "1"},
+			Scrollback: []byte("$ composer install\r\nYour lock file is out of date\r\n")},
+	}})
+	if failed := ts.List()[1]; failed.Running {
+		t.Fatal("a failed setup's agent must stay stopped")
+	} else if out, _ := ts.Output(failed.ID); !strings.Contains(out, "setup did not finish") || !strings.Contains(out, "Your lock file is out of date") {
+		t.Fatalf("a failed setup should be explained after a restart, with its output: %q", out)
+	}
+	s := ts.List()[0]
+	if s.Running {
+		t.Fatal("an agent whose setup did not finish must not start on its own")
+	}
+	if out, _ := ts.Output(s.ID); !strings.Contains(out, "setup did not finish") {
+		t.Fatalf("it should say why: %q", out)
+	}
+	info, err := ts.Relaunch(s.ID)
+	if err != nil || !info.Running || info.Meta[SetupPendingMeta] != "" {
+		t.Fatalf("Relaunch should start it and clear the mark: %+v %v", info, err)
+	}
+}

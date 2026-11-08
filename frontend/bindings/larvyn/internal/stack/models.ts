@@ -33,4 +33,10 @@ export interface StackItem {
      * Plugin names the plugin that added the item; "" for Larvyn's own.
      */
     "plugin": string;
+
+    /**
+     * Shared is set for an item from the project's .larvyn/project.json.
+     * Its key starts with "project:".
+     */
+    "shared": boolean;
 }

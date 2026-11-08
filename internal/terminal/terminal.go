@@ -55,6 +55,9 @@ type SessionInfo struct {
 	// has not been started again.
 	Restored bool              `json:"restored"`
 	Meta     map[string]string `json:"meta"`
+	// Setup is set while the steps before the session's program run (see
+	// StartAfterSetup): what is typed goes to them, not to the program.
+	Setup bool `json:"setup"`
 }
 
 type TermData struct {
@@ -90,6 +93,13 @@ type session struct {
 	resolvedAt time.Time
 	// interruptAt is when Ctrl+C was last typed; an exit right after it is a stop, not a crash.
 	interruptAt time.Time
+	// setup are the steps still to run before the session's own program
+	// (see StartAfterSetup); started is called once that program runs.
+	setup   []string
+	started func(SessionInfo)
+	// inSetup is set while a setup step runs; step is its command line.
+	inSetup bool
+	step    string
 }
 
 type TerminalService struct {
@@ -294,8 +304,13 @@ func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	if cmd.ProcessState != nil {
 		code = cmd.ProcessState.ExitCode()
 	}
+	handled, code := t.nextStep(s, code)
+	if handled {
+		return
+	}
 	s.mu.Lock()
 	s.info.Running = false
+	s.info.Setup = false
 	s.info.ExitCode = code
 	s.info.EndedAt = time.Now().UnixMilli()
 	if !s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second {

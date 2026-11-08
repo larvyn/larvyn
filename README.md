@@ -30,7 +30,13 @@ points both at Laravel.
 
 `Ctrl K` opens the command palette: navigate, start/stop services, run any
 artisan line (`> migrate:fresh --seed`), a shell line (`$ npm run build`),
-composer/npm scripts, or hand a prompt to an agent or Tinker.
+composer/npm scripts, the project's own commands, or hand a prompt to an
+agent or Tinker.
+
+A team can commit a `.larvyn/project.json` with shared commands, extra
+dev-stack items, the plugins the project needs and the steps that prepare
+each new agent worktree (`composer install`, migrations…). See
+[examples/project](examples/project).
 
 ### Flock (optional)
 
@@ -71,8 +77,11 @@ Flock's `flk` command, as a user would.
   New app, updates, feedback, open in editor) and `plugins` (the plugin
   host: reads and checks the `larvyn.json` of each plugin in the plugins
   folder; see #56).
+- `projectfile` reads and writes a project's `.larvyn/project.json` (see
+  #106): `project` lists and moves its commands, `stack` adds its items and
+  `agents` runs its `worktree.setup` through `terminal.StartAfterSetup`.
 - Base packages the services build on, which never import a service:
-  `store` (projects, settings, the state folder), `proc` (running PHP, artisan
+  `store` (projects, settings, the state folder), `projectfile`, `proc` (running PHP, artisan
   and git, finding programs, the login-shell PATH, killing process trees),
   `composer` (Composer from PATH or Larvyn's own phar), `dotenv`, `flock`
   (the optional Flock local server: its daemon's API and `flk`), `updater`

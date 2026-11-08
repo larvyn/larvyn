@@ -14,6 +14,11 @@ import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 export const FlockServed = "flock:served";
 
 /**
+ * Name of the custom event "projectfile:changed".
+ */
+export const ProjectfileChanged = "projectfile:changed";
+
+/**
  * Name of the custom event "projects:changed".
  */
 export const ProjectsChanged = "projects:changed";

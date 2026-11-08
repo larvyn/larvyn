@@ -56,6 +56,8 @@ import { ago, cx } from '../lib/util'
 import { Toggle, promptDialog } from '../components/ui'
 import { Brand } from '../components/Brand'
 import { FlockCard, isTestUrl, restoreAppUrl } from '../components/FlockCard'
+import { ProjectCommandsCard } from '../components/ProjectCommandsCard'
+import { useProjectFile } from '../components/projectCommands'
 
 const KIND_COLOR: Record<string, string> = {
   queue: 'orange', debug: 'yellow', monitoring: 'cyan', realtime: 'purple', server: 'red', auth: 'blue', starter: 'accent',
@@ -105,12 +107,14 @@ export function Overview() {
   const [pending, setPending] = useState<number | null>(null)
   const [storageLinked, setStorageLinked] = useState<boolean | null>(null)
   const sessKey = sessions.filter((s) => s.projectId === id).map((s) => s.id + s.running).join()
+  const { file, commands } = useProjectFile(id)
 
   useEffect(() => {
     if (!id) return
     StackService.Items(id).then((s) => setStack(s ?? [])).catch(() => {})
     // siteUrl: when Flock starts or stops serving the app, the HTTP server row changes.
-  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules, info?.siteUrl])
+    // file: its stack items join the stack.
+  }, [id, sessKey, info?.hasVendor, info?.hasNodeModules, info?.siteUrl, file])
 
   useEffect(() => {
     if (!id) return
@@ -181,6 +185,13 @@ export function Overview() {
       ]
     : []
   if (info.isLaravel) checks.push(...appUrlCheck(id!, info))
+  if (info.isLaravel && file?.exists)
+    checks.push({
+      key: 'projectfile', label: 'Project file',
+      detail: file.error ? `.larvyn/project.json: ${file.error}` : '.larvyn/project.json loads',
+      ok: !file.error,
+      fix: { label: 'Open it', run: () => SystemService.OpenInEditor(file.path, 1).catch(fail('Could not open the editor')) },
+    })
   const problems = checks.filter((c) => c.ok === false).length
   const running = stack.filter((s) => s.session?.running)
   // While php artisan serve runs, open it: requests then show up in its output. Otherwise the site Flock or Herd serves.
@@ -371,6 +382,8 @@ export function Overview() {
               ))}
             </div>
           )}
+
+          <ProjectCommandsCard id={id!} file={file} commands={commands} />
 
           <div>
             <div className="section-title" style={{ marginTop: 4 }}>

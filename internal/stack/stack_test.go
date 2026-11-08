@@ -2,9 +2,12 @@ package stack
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"larvyn/internal/projectfile"
 	"larvyn/internal/store"
 )
 
@@ -99,5 +102,32 @@ func TestPluginStackItems(t *testing.T) {
 	}
 	if _, err := (&StackService{}).Start(p.ID, "plugin:acme.x:gone"); err == nil || !strings.Contains(err.Error(), "needs nope") {
 		t.Errorf("a missing program must say so: %v", err)
+	}
+}
+
+func TestSharedStackItems(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, projectfile.Dir), 0o755)
+	os.WriteFile(projectfile.Path(dir), []byte(`{"apiVersion": 1, "stack": [
+		{"key": "mail", "title": "Mailpit", "argv": ["mailpit", "--smtp", "127.0.0.1:1025"]},
+		{"key": "ssr", "title": "SSR", "argv": ["php", "artisan", "inertia:start-ssr"]}]}`), 0o644)
+	p := store.Project{ID: "sharedtest", Path: dir}
+	store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) })
+	defer store.Update(func(d *store.State) { d.Projects = nil })
+	items, err := (&StackService{}).Items(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]StackItem{}
+	for _, it := range items {
+		got[it.Key] = it
+	}
+	mail, ssr := got["project:mail"], got["project:ssr"]
+	if !mail.Shared || !mail.Available || mail.Label != "Mailpit" || mail.Argv[0] != "mailpit" {
+		t.Fatalf("mail: %+v", mail)
+	}
+	// A php item needs the project's vendor/ like Larvyn's own.
+	if !ssr.Shared || ssr.Available || ssr.Argv[0] != store.PHP() {
+		t.Fatalf("ssr: %+v", ssr)
 	}
 }

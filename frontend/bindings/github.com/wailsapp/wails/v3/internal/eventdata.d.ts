@@ -19,6 +19,7 @@ declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "flock:served": project$0.FlockServed;
+            "projectfile:changed": string;
             "projects:changed": store$0.Project[] | null;
             "sessions:changed": terminal$0.SessionInfo[] | null;
             "term:data": terminal$0.TermData;

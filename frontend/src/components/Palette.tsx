@@ -23,12 +23,15 @@ import {
   Zap,
   RefreshCw,
   Puzzle,
+  Terminal,
+  Users,
   X,
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { StackService, type StackItem } from '../../bindings/larvyn/internal/stack'
 import { PluginService, type PluginCommand } from '../../bindings/larvyn/internal/plugins'
 import { restartStackItem, runPluginCommand, startStackItem } from './pluginRun'
+import { runProjectCommand, useProjectFile } from './projectCommands'
 import {
   addProject,
   artisanRun,
@@ -76,6 +79,7 @@ export function Palette() {
   const [q, setQ] = useState('')
   const [stack, setStack] = useState<StackItem[]>([])
   const [pluginCmds, setPluginCmds] = useState<PluginCommand[]>([])
+  const { commands: projectCmds } = useProjectFile(id, open)
 
   useEffect(() => {
     if (open) setQ(initialQuery)
@@ -244,6 +248,19 @@ export function Palette() {
                   {s.session?.running ? <RefreshCw /> : <Play />}
                   {s.session?.running ? 'Restart' : 'Start'} {s.label}
                   <span className="hint">{s.description}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          )}
+
+          {project && projectCmds.length > 0 && (
+            <Command.Group heading="Project">
+              {projectCmds.map((c) => (
+                <Command.Item key={c.id} value={'project command ' + c.title + ' ' + c.run} onSelect={act(() => runProjectCommand(id!, c))}>
+                  {c.shared ? <Users /> : <Terminal />} {c.title}
+                  <span className="hint">
+                    {c.shared ? 'shared' : 'only you'} · <span className="mono">{c.run}</span>
+                  </span>
                 </Command.Item>
               ))}
             </Command.Group>

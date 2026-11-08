@@ -9,6 +9,7 @@ import (
 
 	"larvyn/internal/flock"
 	"larvyn/internal/proc"
+	"larvyn/internal/projectfile"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 )
@@ -30,6 +31,9 @@ type StackItem struct {
 	ServedBy string `json:"servedBy"`
 	// Plugin names the plugin that added the item; "" for Larvyn's own.
 	Plugin string `json:"plugin"`
+	// Shared is set for an item from the project's .larvyn/project.json.
+	// Its key starts with "project:".
+	Shared bool `json:"shared"`
 	// NeedConfirm is returned by Start until the user confirmed a plugin
 	// item's command line.
 	NeedConfirm error `json:"-"`
@@ -198,6 +202,9 @@ func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 			Argv: []string{store.PHP(), "artisan", "octane:start", "--watch", fmt.Sprintf("--port=%d", port+100)}, Available: true,
 			URL: fmt.Sprintf("http://127.0.0.1:%d", port+100)})
 	}
+	for _, it := range projectfile.Load(p.Path).File.Stack {
+		add(sharedItem(it))
+	}
 	for _, it := range PluginItems(p) {
 		add(it)
 	}
@@ -234,6 +241,18 @@ func stackItemsFrom(p store.Project) (items []StackItem, fromDevList bool) {
 		items[i].Session = terminal.Find(p.ID, "service", items[i].Key)
 	}
 	return items, fromDevList
+}
+
+// sharedItem is a stack item from the project file. It runs like the rest
+// of the project's code, with no confirmation: adding a project to Larvyn
+// means trusting it.
+func sharedItem(it projectfile.StackItem) StackItem {
+	argv := append([]string(nil), it.Argv...)
+	if argv[0] == "php" {
+		argv[0] = store.PHP()
+	}
+	return StackItem{Key: "project:" + it.Key, Label: it.Title, Description: projectfile.Rel + " · " + strings.Join(it.Argv, " "),
+		Argv: argv, Available: true, Shared: true}
 }
 
 // Items lists the project's stack with what is running.
