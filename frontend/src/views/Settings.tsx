@@ -4,6 +4,7 @@ import { checkForUpdate, installUpdate, useUpdate } from '../lib/update'
 import { Brand } from '../components/Brand'
 import { PluginsCard } from '../components/PluginsCard'
 import { CustomAgentsCard } from '../components/CustomAgentsCard'
+import { AgentSetupCard } from '../components/AgentSetupCard'
 import { resetAgentKinds } from '../components/NewTabMenu'
 import { SystemService, type AppInfo, type Tool } from '../../bindings/larvyn/internal/system'
 import { type Settings as S } from '../../bindings/larvyn/internal/store'
@@ -151,6 +152,8 @@ export function Settings() {
         </div>
 
         <CustomAgentsCard value={v.customAgents ?? []} builtins={agents.filter((a) => !a.custom)} onChange={(customAgents) => set({ customAgents })} />
+
+        <AgentSetupCard />
 
         <PluginsCard />
 

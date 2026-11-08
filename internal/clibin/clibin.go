@@ -64,3 +64,11 @@ func write(path string, b []byte) error {
 	_ = os.Remove(path + ".old")
 	return nil
 }
+
+// Path is the CLI in Dir, as hooks and other programs run it.
+func Path() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(Dir(), "larvyn.exe")
+	}
+	return filepath.Join(Dir(), "larvyn")
+}
