@@ -265,8 +265,8 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
     if (!review || !l || l.kind === 'note') return
     const side = sideOf(l)
     const n = numOf(l)
-    if (e.shiftKey && pick && pick.side === side) setPick({ side, start: Math.min(pick.start, n), end: Math.max(pick.end, n) })
-    else setPick({ side, start: n, end: n })
+    const shift = e.shiftKey
+    setPick((cur) => (shift && cur && cur.side === side ? { side, start: Math.min(cur.start, n), end: Math.max(cur.end, n) } : { side, start: n, end: n }))
   }
   const picked = (l?: Line) => !!(pick && l && l.kind !== 'note' && sideOf(l) === pick.side && numOf(l) >= pick.start && numOf(l) <= pick.end)
   const ends = (l: Line | undefined, p: Pick) => !!l && l.kind !== 'note' && sideOf(l) === p.side && numOf(l) === p.end
