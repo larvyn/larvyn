@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"larvyn/internal/safefile"
 )
+
+// editMu serializes EditCommands.
+var editMu sync.Mutex
 
 // EditCommands changes the commands in the project's file, creating it when
 // there is none. fn gets the commands that loaded and returns the new list.
@@ -17,6 +21,10 @@ import (
 // included, and so is the order of its fields. A file that doesn't parse is
 // not touched: fixing it is up to the user.
 func EditCommands(root string, fn func([]Command) ([]Command, error)) error {
+	// One edit at a time, from the read to the rename, so two edits at once
+	// can't both start from the same file and lose one.
+	editMu.Lock()
+	defer editMu.Unlock()
 	path := Path(root)
 	fields := []field{{"apiVersion", json.RawMessage(fmt.Sprint(APIVersion))}}
 	var raws []json.RawMessage

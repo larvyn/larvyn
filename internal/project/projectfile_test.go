@@ -151,6 +151,9 @@ func TestFailedMoveIsUndone(t *testing.T) {
 
 	// Mine → shared, but the state can't be saved: the file goes back.
 	home := store.HomeDir()
+	if os.Getenv("LARVYN_HOME") == "" || home != os.Getenv("LARVYN_HOME") {
+		t.Fatal("not running in a test home")
+	}
 	os.Chmod(home, 0o500)
 	err = s.MoveCommand(p.ID, "mine", true)
 	os.Chmod(home, 0o755)

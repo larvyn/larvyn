@@ -1,9 +1,11 @@
 package projectfile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -223,5 +225,23 @@ func TestChangeBeforeTheWatchersFirstLook(t *testing.T) {
 	writeFile(t, root, `{"apiVersion": 1, "commands": [{"id": "a", "title": "A", "run": "x"}]}`)
 	if !Changed(root) {
 		t.Fatal("the edit after the first read should be reported")
+	}
+}
+
+func TestConcurrentEditsKeepEveryCommand(t *testing.T) {
+	root := t.TempDir()
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_ = EditCommands(root, func(list []Command) ([]Command, error) {
+				return append(list, Command{ID: fmt.Sprintf("c%d", i), Title: "C", Run: "x"}), nil
+			})
+		}(i)
+	}
+	wg.Wait()
+	if l := Load(root); len(l.File.Commands) != 20 {
+		t.Fatalf("lost edits: %d commands", len(l.File.Commands))
 	}
 }
