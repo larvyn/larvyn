@@ -3,6 +3,7 @@ package agentsetup
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -242,5 +243,60 @@ func TestDefaultsFollowTheEnvironment(t *testing.T) {
 	o, err := Defaults("larvyn")
 	if err != nil || o.ClaudeDir != "/x/claude" || o.CodexDir != "/x/codex" {
 		t.Errorf("%+v %v", o, err)
+	}
+}
+
+func TestAnEmptyHooksListStaysValidJSON(t *testing.T) {
+	o := setup(t)
+	path := filepath.Join(o.CodexDir, "hooks.json")
+	os.WriteFile(path, []byte(`{"hooks": {"SessionStart": [{"hooks": []}]}}`), 0o644)
+	if _, err := Install(o, false); err != nil {
+		t.Fatal(err)
+	}
+	b := read(t, path)
+	if _, err := parse([]byte(b)); err != nil {
+		t.Fatalf("invalid JSON written: %v\n%s", err, b)
+	}
+	if !strings.Contains(b, `"hooks": []`) || !strings.Contains(b, "agents hook") {
+		t.Errorf("hooks.json:\n%s", b)
+	}
+}
+
+func TestASymlinkedSettingsFileStaysALink(t *testing.T) {
+	o := setup(t)
+	path := filepath.Join(o.ClaudeDir, "settings.json")
+	dotfiles := filepath.Join(filepath.Dir(o.ClaudeDir), "dotfiles", "claude-settings.json")
+	os.MkdirAll(filepath.Dir(dotfiles), 0o755)
+	os.Rename(path, dotfiles)
+	if err := os.Symlink(dotfiles, path); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	if _, err := Install(o, false); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Lstat(path); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("the link was replaced by a file")
+	}
+	if !strings.Contains(read(t, dotfiles), "agents hook") {
+		t.Error("the file the link points to has no hook")
+	}
+}
+
+func TestAFolderThatCantBeReadIsNotMissing(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("chmod 000 doesn't lock a folder here")
+	}
+	o := setup(t)
+	parent := filepath.Dir(o.CodexDir)
+	locked := filepath.Join(parent, "locked")
+	os.MkdirAll(locked, 0o755)
+	o.CodexDir = filepath.Join(locked, ".codex")
+	os.MkdirAll(o.CodexDir, 0o755)
+	os.Chmod(locked, 0o000)
+	defer os.Chmod(locked, 0o755)
+	// Codex is installed but its folder can't be read: an error, not a
+	// silent skip.
+	if _, err := Install(o, false); err == nil {
+		t.Error("an unreadable Codex folder was skipped as not installed")
 	}
 }

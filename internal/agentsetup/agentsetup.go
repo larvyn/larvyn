@@ -72,9 +72,11 @@ type Change struct {
 	Note string `json:"note,omitempty"`
 }
 
+// exists is false only for a path that isn't there: a folder that can't be
+// read still counts, so the read or write after it reports why.
 func exists(path string) bool {
 	_, err := os.Stat(path)
-	return err == nil
+	return !os.IsNotExist(err)
 }
 
 // Install writes the skills and hooks, or with dryRun only says what it
@@ -231,7 +233,7 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 			groups = append(groups, g)
 			continue
 		}
-		var keep []*node
+		keep := []*node{}
 		for _, h := range list {
 			cmd := h.obj.getString("command")
 			if h.obj != nil && ours(cmd) {
@@ -301,6 +303,11 @@ func countOurs(start *node) int {
 
 // save writes a settings file, after a backup of what was there.
 func save(path string, old, data []byte) error {
+	// A settings file kept in a dotfiles repo is a symlink: write the file
+	// it points to, so the link stays.
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

@@ -162,8 +162,11 @@ func write(b *strings.Builder, n *node, indent string) {
 			b.WriteString("\n")
 		}
 		b.WriteString(indent + "]")
-	default:
+	case n.raw != nil:
 		b.Write(n.raw)
+	default:
+		// Never an empty value, which would break the whole file.
+		b.WriteString("null")
 	}
 }
 
