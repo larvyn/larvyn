@@ -162,6 +162,23 @@ func TestArtisanRunsInTheCallersWorktree(t *testing.T) {
 	if r := command(api.Caller{Cwd: wt}, "artisan", "serve"); !strings.Contains(r.Error, "doesn't finish") {
 		t.Errorf("serve: %+v", r)
 	}
+	// Its own flags reach artisan; "--" in front is dropped.
+	for _, argv := range [][]string{{"artisan", "route:list", "--json", "--help"}, {"artisan", "--", "route:list", "--json", "--help"}} {
+		r = command(api.Caller{Cwd: wt}, argv...)
+		if r.Text != "ran route:list --json --help" || r.JSON {
+			t.Errorf("%v: %+v", argv, r)
+		}
+	}
+	// --json before the command is Larvyn's.
+	if r := command(api.Caller{Cwd: wt}, "--json", "artisan", "about"); !r.JSON || r.Text != "ran about" {
+		t.Errorf("--json first: %+v", r)
+	}
+	// From a subfolder, artisan runs in the app's root.
+	sub := filepath.Join(wt, "app", "Models")
+	os.MkdirAll(sub, 0o755)
+	if r := command(api.Caller{Cwd: sub}, "artisan", "about"); r.Error != "" || r.Text != "ran about" {
+		t.Errorf("from a subfolder: %+v", r)
+	}
 }
 
 func TestTestsReportTheirFailures(t *testing.T) {
@@ -210,7 +227,11 @@ func TestLogErrors(t *testing.T) {
 		"[" + recent + "] local.ERROR: Undefined variable $user {\"exception\":\"[object] (ErrorException(code: 0): Undefined variable $user at /app/app/Http/Controllers/HomeController.php:14)\n[stacktrace]\n#0 /app/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(255): handleError()\n#1 {main}\n\"}\n"
 	os.WriteFile(filepath.Join(logs, "laravel.log"), []byte(log), 0o644)
 
-	r := command(api.Caller{Cwd: main}, "logs", "errors")
+	// From a subfolder too: the app's own storage/logs.
+	sub := filepath.Join(main, "app", "Http")
+	os.MkdirAll(sub, 0o755)
+	os.WriteFile(filepath.Join(main, "artisan"), []byte("<?php"), 0o644)
+	r := command(api.Caller{Cwd: sub}, "logs", "errors")
 	var got LogErrors
 	json.Unmarshal(r.Result, &got)
 	if r.Error != "" || len(got.Errors) != 2 {

@@ -43,6 +43,9 @@ type Response struct {
 	// Texter); Exit is the CLI's exit code (see Exiter).
 	Text string `json:"text,omitempty"`
 	Exit int    `json:"exit,omitempty"`
+	// JSON is set when the command line asked for --json: the CLI prints
+	// the result as JSON.
+	JSON bool `json:"json,omitempty"`
 	// Usage is set when the command named a group of methods or no method:
 	// what the CLI can show instead of a result.
 	Usage []Method `json:"usage,omitempty"`
@@ -172,12 +175,18 @@ func (s *Server) handle(c net.Conn) {
 func Handle(req Request) Response {
 	var res any
 	var err error
+	jsonOut := false
 	if req.Method != "" {
 		res, err = Call(req.Method, req.Caller, req.Params, nil, nil)
 	} else {
-		words := leadingWords(req.Argv)
+		// Larvyn's own flags before the command: larvyn --json context.
+		argv, opts := req.Argv, cliFlags{help: req.Help}
+		for len(argv) > 0 && opts.take(argv[0]) {
+			argv = argv[1:]
+		}
+		words := leadingWords(argv)
 		name, left, ok := Resolve(words)
-		if ok && req.Help {
+		if ok && opts.help {
 			return Response{Usage: []Method{*lookup(name)}}
 		}
 		if !ok {
@@ -190,13 +199,17 @@ func Handle(req Request) Response {
 			return Response{Error: fmt.Sprintf("unknown command %q (larvyn help lists them)", strings.Join(words, " "))}
 		}
 		// The words Resolve took for the name: "terminal read" or "terminal.read".
-		rest := req.Argv[len(words)-len(left):]
+		rest := argv[len(words)-len(left):]
 		var args []string
 		var flags map[string]string
-		args, flags, err = parseArgv(lookup(name), rest)
+		args, flags, err = parseArgv(lookup(name), rest, &opts)
+		if err == nil && opts.help {
+			return Response{Usage: []Method{*lookup(name)}}
+		}
 		if err == nil {
 			res, err = Call(name, req.Caller, nil, args, flags)
 		}
+		jsonOut = opts.json
 	}
 	if err != nil {
 		return Response{Error: err.Error()}
@@ -205,7 +218,7 @@ func Handle(req Request) Response {
 	if err != nil {
 		return Response{Error: "result: " + err.Error()}
 	}
-	resp := Response{Result: b}
+	resp := Response{Result: b, JSON: jsonOut}
 	if t, ok := res.(Texter); ok {
 		resp.Text = t.Text()
 	}
@@ -213,6 +226,22 @@ func Handle(req Request) Response {
 		resp.Exit = e.ExitCode()
 	}
 	return resp
+}
+
+// cliFlags are the larvyn command's own options, which any command takes.
+type cliFlags struct{ json, help bool }
+
+// take records w when it is one of them.
+func (f *cliFlags) take(w string) bool {
+	switch w {
+	case "--json":
+		f.json = true
+	case "--help", "-h":
+		f.help = true
+	default:
+		return false
+	}
+	return true
 }
 
 // Texter is a result that knows how to print itself for a person: a test
