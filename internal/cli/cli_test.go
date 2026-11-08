@@ -12,7 +12,7 @@ import (
 	"larvyn/internal/store"
 )
 
-var slowCancelled = make(chan bool, 1)
+var slowStarted, slowCancelled = make(chan bool, 1), make(chan bool, 1)
 
 type report struct {
 	Failed int `json:"failed"`
@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 	api.MarkReadOnly("demo.whoami")
 	api.Register("demo.report", "Report", func() report { return report{} })
 	api.Register("demo.slow", "Slow", func(c api.Caller) string {
+		slowStarted <- true
 		select {
 		case <-c.Ctx.Done():
 			slowCancelled <- true
