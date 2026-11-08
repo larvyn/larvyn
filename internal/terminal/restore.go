@@ -290,15 +290,16 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 	// the rest wait for Relaunch. Agents never replay their saved output
 	// (see restoreSession), so one that cannot come back says why.
 	for _, s := range all {
-		if !runs[s] || s.spec.Kind != "agent" {
+		if s.spec.Kind == "agent" && s.spec.Meta[SetupPendingMeta] != "" {
+			// The worktree setup failed, or Larvyn closed during it: the
+			// agent never ran, and the folder may be half prepared. Agents
+			// don't replay their output, so this says what happened.
+			runs[s] = false
+			s.buf = []byte("\x1b[33mThe worktree setup did not finish (a step failed, or Larvyn closed during it), so the agent was not started.\x1b[0m\r\n" +
+				"Finish the setup in a terminal (the worktree.setup steps in .larvyn/project.json), then Relaunch to start the agent without it.\r\n")
 			continue
 		}
-		if s.spec.Meta[SetupPendingMeta] != "" {
-			// Larvyn closed during the worktree setup: the agent never ran,
-			// and the folder may be half prepared.
-			runs[s] = false
-			s.buf = []byte("\x1b[33mLarvyn closed before the worktree setup finished, so the agent was not started.\x1b[0m\r\n" +
-				"Finish the setup in a terminal (the worktree.setup steps in .larvyn/project.json), then Relaunch to start the agent.\r\n")
+		if !runs[s] || s.spec.Kind != "agent" {
 			continue
 		}
 		_, resumes, err := AgentRelaunch(s.spec, shared[s])
