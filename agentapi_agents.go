@@ -173,6 +173,9 @@ func apiAgentSend(id, text string) error {
 	if !s.Running {
 		return fmt.Errorf("agent %s has exited", s.ID)
 	}
+	// The answer acknowledges the bell that asked for it, as looking at the
+	// agent in the UI does; a bell rung after it is a new question.
+	terminal.Sessions.ClearBell(s.ID)
 	if err := (&agents.AgentService{}).Send(s.ID, text); err != nil {
 		return err
 	}
@@ -240,7 +243,7 @@ func report(s terminal.SessionInfo, lines int) AgentReport {
 // question matches what agents show when they wait for an answer: a
 // confirmation (Claude Code's "Enter to confirm · Esc to cancel",
 // Antigravity's "enter Confirm"), a trust prompt, a yes/no.
-var question = regexp.MustCompile(`(?i)enter to confirm|enter confirm|do you trust|trust this folder|\((y/n|yes/no)\)|\[y/n\]|allow (this|the) |do you want to (proceed|continue|allow|make)|esc to cancel`)
+var question = regexp.MustCompile(`(?i)enter to confirm|enter confirm|do you trust|trust this folder|\((y/n|yes/no)\)|\[y/n\]|allow (this|the) [^\n]*\?|do you want to (proceed|continue|allow|make)|esc to cancel`)
 
 // asks reports whether a screen ends on a question. Agents draw it at the
 // bottom, so only the last lines count: once answered, it scrolls up into
