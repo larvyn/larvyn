@@ -173,12 +173,15 @@ func (s *ProjectService) DeleteCommand(id, commandID string, shared bool) error 
 
 // MoveCommand moves a command between the user's state (toShared false)
 // and the project file (toShared true), replacing one with the same id
-// there.
+// there. It adds the command to the other side first and removes it from
+// its side after; if that fails, the other side is put back as it was, so a
+// failed move leaves things as they were.
 func (s *ProjectService) MoveCommand(id, commandID string, toShared bool) error {
 	p, ok := store.FindProject(id)
 	if !ok {
 		return errors.New("project not found")
 	}
+	shared := projectfile.Load(p.Path).File.Commands
 	var cmd *projectfile.Command
 	if toShared {
 		for _, c := range p.Commands {
@@ -188,7 +191,7 @@ func (s *ProjectService) MoveCommand(id, commandID string, toShared bool) error 
 			}
 		}
 	} else {
-		for _, c := range projectfile.Load(p.Path).File.Commands {
+		for _, c := range shared {
 			if c.ID == commandID {
 				c := c
 				cmd = &c
@@ -198,41 +201,64 @@ func (s *ProjectService) MoveCommand(id, commandID string, toShared bool) error 
 	if cmd == nil {
 		return fmt.Errorf("no command %s to move", commandID)
 	}
-	// Add it to the other side first: if that fails, nothing is lost.
-	if toShared {
-		if err := projectfile.EditCommands(p.Path, func(list []projectfile.Command) ([]projectfile.Command, error) {
-			return upsert(list, *cmd), nil
-		}); err != nil {
-			return err
-		}
-		err := editLocal(id, func(list []store.Command) []store.Command {
-			var out []store.Command
-			for _, c := range list {
-				if c.ID != commandID {
-					out = append(out, c)
-				}
-			}
-			return out
-		})
-		emit("projectfile:changed", id)
-		return err
-	}
-	if err := editLocal(id, func(list []store.Command) []store.Command {
-		out := []store.Command{}
+	defer emit("projectfile:changed", id)
+	withoutLocal := func(list []store.Command) []store.Command {
+		var out []store.Command
 		for _, c := range list {
 			if c.ID != commandID {
 				out = append(out, c)
 			}
 		}
-		return append(out, store.Command(*cmd))
+		return out
+	}
+
+	if toShared {
+		// The shared command it replaces, if any, to put back on failure.
+		var replaced *projectfile.Command
+		for _, c := range shared {
+			if c.ID == commandID {
+				c := c
+				replaced = &c
+			}
+		}
+		if err := projectfile.EditCommands(p.Path, func(list []projectfile.Command) ([]projectfile.Command, error) {
+			return upsert(list, *cmd), nil
+		}); err != nil {
+			return err
+		}
+		if err := editLocal(id, withoutLocal); err != nil {
+			undo := projectfile.EditCommands(p.Path, func(list []projectfile.Command) ([]projectfile.Command, error) {
+				if replaced != nil {
+					return upsert(list, *replaced), nil
+				}
+				return remove(list, commandID), nil
+			})
+			return errors.Join(err, wrapUndo(undo))
+		}
+		return nil
+	}
+
+	before := append([]store.Command(nil), p.Commands...)
+	if err := editLocal(id, func(list []store.Command) []store.Command {
+		return append(withoutLocal(list), store.Command(*cmd))
 	}); err != nil {
 		return err
 	}
-	err := projectfile.EditCommands(p.Path, func(list []projectfile.Command) ([]projectfile.Command, error) {
+	if err := projectfile.EditCommands(p.Path, func(list []projectfile.Command) ([]projectfile.Command, error) {
 		return remove(list, commandID), nil
-	})
-	emit("projectfile:changed", id)
-	return err
+	}); err != nil {
+		undo := editLocal(id, func([]store.Command) []store.Command { return before })
+		return errors.Join(err, wrapUndo(undo))
+	}
+	return nil
+}
+
+// wrapUndo says that putting things back after a failed move failed too.
+func wrapUndo(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("and it could not be undone: %w", err)
 }
 
 // RunCommand runs one of the project's commands in a terminal in its

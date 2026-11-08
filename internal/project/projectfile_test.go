@@ -1,6 +1,7 @@
 package project
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -111,5 +112,53 @@ func TestFileReportsPlugins(t *testing.T) {
 	}
 	if !info.Exists || len(info.Plugins) != 2 || info.Plugins[0].Problem != "" || info.Plugins[1].Problem != "missing" || len(info.Warnings) != 1 {
 		t.Fatalf("got %+v", info)
+	}
+}
+
+// A move whose second half fails leaves both sides as they were.
+func TestFailedMoveIsUndone(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores read-only folders")
+	}
+	s := &ProjectService{}
+	p := addTestProject(t, `{"apiVersion": 1, "commands": [{"id": "seed", "title": "Team seed", "run": "php artisan db:seed"}]}`)
+	if _, err := s.SaveCommand(p.ID, ProjectCommand{ID: "mine", Title: "Mine", Run: "echo mine"}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := func() []string {
+		list, _ := s.Commands(p.ID)
+		var out []string
+		for _, c := range list {
+			out = append(out, fmt.Sprintf("%s:%v:%s", c.ID, c.Shared, c.Run))
+		}
+		return out
+	}
+	want := fmt.Sprint(snapshot())
+
+	// Shared → mine, but the project file can't be written: the local copy goes.
+	dir := filepath.Join(p.Path, projectfile.Dir)
+	os.Chmod(dir, 0o500)
+	err := s.MoveCommand(p.ID, "seed", false)
+	os.Chmod(dir, 0o755)
+	if err == nil {
+		t.Fatal("the move should fail")
+	}
+	if got := fmt.Sprint(snapshot()); got != want {
+		t.Fatalf("not undone:\n got %s\nwant %s", got, want)
+	}
+
+	// Mine → shared, but the state can't be saved: the file goes back.
+	home := store.HomeDir()
+	os.Chmod(home, 0o500)
+	err = s.MoveCommand(p.ID, "mine", true)
+	os.Chmod(home, 0o755)
+	if err == nil {
+		t.Fatal("the move should fail")
+	}
+	if got := fmt.Sprint(snapshot()); got != want {
+		t.Fatalf("not undone:\n got %s\nwant %s", got, want)
+	}
+	if l := projectfile.Load(p.Path); len(l.File.Commands) != 1 || l.File.Commands[0].ID != "seed" {
+		t.Fatalf("file: %+v", l.File.Commands)
 	}
 }
