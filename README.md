@@ -60,6 +60,26 @@ without Docker. Larvyn works without it; once it is installed, Larvyn uses it:
 Larvyn reads Flock's daemon API on its unix socket and makes changes with
 Flock's `flk` command, as a user would.
 
+### The `larvyn` command
+
+Agents running in Larvyn can use it too (#107). Every terminal Larvyn
+opens has the `larvyn` command on its PATH, and it talks to the running app:
+
+```
+larvyn context                         # project, worktree, branch, local URL, dev stack
+larvyn terminal list                   # this project's terminals
+larvyn terminal read <id> --lines 50   # a terminal's last lines as plain text
+larvyn terminal write <id> "php artisan migrate" --enter
+larvyn terminal open --command "npm run build"
+larvyn terminal close <id>             # only terminals it opened itself
+larvyn help                            # every command; --json on any of them for JSON
+```
+
+`larvyn api list` lists the methods behind the commands and `larvyn api
+call <method> '<json>'` calls one with JSON params. Outside Larvyn's
+terminals it works from a project's folder or one of its worktrees, while
+the app runs.
+
 ## How it works
 
 - `main.go` only wires the app: it registers the services with Wails,
@@ -86,6 +106,17 @@ Flock's `flk` command, as a user would.
   `composer` (Composer from PATH or Larvyn's own phar), `dotenv`, `flock`
   (the optional Flock local server: its daemon's API and `flk`), `updater`
   (self-update) and `platform` (OS start-up tweaks).
+- The local API (`internal/api`, #107): the app listens on `larvyn.sock` in
+  the state folder (a unix socket on every system, only the user may
+  connect) and checks the token it writes to `api.token` at each start;
+  never an HTTP server. Methods are registered in `agentapi.go` from the
+  services with a description per param and describe themselves, so the
+  CLI (`internal/cli`) has no list of commands. On Linux and macOS the app's
+  binary runs the CLI when given a command; Windows builds the app as a GUI
+  program, so it carries the console build of `cmd/larvyn` instead
+  (`internal/clibin`, built by `build:cli`). Either way it is put in the
+  state folder's `bin`, first on every terminal's PATH, and each terminal
+  gets `LARVYN_SESSION` so the CLI knows which one it runs in.
 - `internal/laravel/bridge.php`: embedded PHP script that boots the project's
   Laravel app and answers one JSON request (database, models, migrations,
   queues, schedule, tinker). Answers follow a marker so boot noise never

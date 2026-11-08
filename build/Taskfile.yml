@@ -173,6 +173,16 @@ tasks:
 
 
 
+  build:cli:
+    label: build:cli ({{.CLI_OS}}/{{.CLI_ARCH}})
+    summary: Builds the larvyn CLI for Windows (cmd/larvyn), which the app carries and writes to its state folder (internal/clibin)
+    cmds:
+      - go build -trimpath -buildvcs=false -ldflags="-w -s" -o "internal/clibin/bin/larvyn-{{.CLI_ARCH}}.exe" ./cmd/larvyn
+    env:
+      GOOS: '{{.CLI_OS}}'
+      GOARCH: '{{.CLI_ARCH}}'
+      CGO_ENABLED: 0
+
   generate:bindings:
     summary: Generates bindings for the frontend
     run: once

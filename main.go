@@ -8,11 +8,13 @@ import (
 	"embed"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"larvyn/internal/agents"
+	"larvyn/internal/cli"
 	"larvyn/internal/files"
 	"larvyn/internal/git"
 	"larvyn/internal/laravel"
@@ -130,6 +132,10 @@ func init() {
 }
 
 func main() {
+	// `larvyn context` and the rest: the CLI, not the app (internal/cli).
+	if cli.IsCommand(os.Args[1:]) {
+		os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	updater.Version = version
 	updater.Cleanup()
 	// Turn off plugins the marketplace revoked since the last start.
@@ -186,7 +192,10 @@ func main() {
 		terminal.HandleDrop(e.Context().DroppedFiles(), e.Context().DropTargetDetails())
 	})
 
-	if err := app.Run(); err != nil {
+	stopAPI := startAPI()
+	err := app.Run()
+	stopAPI()
+	if err != nil {
 		log.Fatal(err)
 	}
 }

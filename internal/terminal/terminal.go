@@ -116,6 +116,22 @@ type TerminalService struct {
 // the other services start their terminals through it.
 var Sessions = &TerminalService{sessions: map[string]*session{}, persist: true}
 
+// BinDir is the folder with the larvyn CLI, put first on every terminal's
+// PATH; main sets it once it has written the CLI there.
+var BinDir string
+
+// prependPath puts dir first on the PATH in env. Windows spells it Path.
+func prependPath(env []string, dir string) []string {
+	for i, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		if strings.EqualFold(k, "PATH") {
+			env[i] = k + "=" + dir + string(os.PathListSeparator) + v
+			return env
+		}
+	}
+	return append(env, "PATH="+dir)
+}
+
 // Find returns the newest session of a project with this kind and key, or nil.
 // It is a function rather than a method so Wails does not bind it.
 func Find(projectID, kind, key string) *SessionInfo { return Sessions.find(projectID, kind, key) }
@@ -236,6 +252,7 @@ func (t *TerminalService) spawn(s *session, argv []string, cols, rows int) error
 	s.mu.Lock()
 	cmd.Dir = s.info.Cwd
 	extra := s.spec.Env
+	id := s.info.ID
 	s.mu.Unlock()
 	// A terminal can show colour even if Larvyn itself was started with
 	// NO_COLOR or TERM=dumb.
@@ -246,7 +263,12 @@ func (t *TerminalService) spawn(s *session, argv []string, cols, rows int) error
 			env = append(env, kv)
 		}
 	}
-	env = append(env, "TERM=xterm-256color", "COLORTERM=truecolor", "LARVYN=1")
+	// LARVYN_SESSION tells the larvyn CLI which terminal it runs in (see
+	// internal/api), and BinDir puts it on the PATH.
+	env = append(env, "TERM=xterm-256color", "COLORTERM=truecolor", "LARVYN=1", "LARVYN_SESSION="+id)
+	if BinDir != "" {
+		env = prependPath(env, BinDir)
+	}
 	for k, v := range extra {
 		env = append(env, k+"="+v)
 	}
