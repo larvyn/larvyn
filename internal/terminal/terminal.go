@@ -310,6 +310,7 @@ func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	}
 	s.mu.Lock()
 	s.info.Running = false
+	s.info.Setup = false
 	s.info.ExitCode = code
 	s.info.EndedAt = time.Now().UnixMilli()
 	if !s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second {

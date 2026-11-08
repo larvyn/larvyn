@@ -293,6 +293,14 @@ func (t *TerminalService) restoreWorkspace(ws savedWorkspace) map[string]Project
 		if !runs[s] || s.spec.Kind != "agent" {
 			continue
 		}
+		if s.spec.Meta[SetupPendingMeta] != "" {
+			// Larvyn closed during the worktree setup: the agent never ran,
+			// and the folder may be half prepared.
+			runs[s] = false
+			s.buf = []byte("\x1b[33mLarvyn closed before the worktree setup finished, so the agent was not started.\x1b[0m\r\n" +
+				"Finish the setup in a terminal (the worktree.setup steps in .larvyn/project.json), then Relaunch to start the agent.\r\n")
+			continue
+		}
 		_, resumes, err := AgentRelaunch(s.spec, shared[s])
 		switch {
 		case err != nil:
@@ -508,6 +516,13 @@ func (t *TerminalService) relaunch(s *session, shared bool) error {
 	if err := t.spawn(s, argv, spec.Cols, spec.Rows); err != nil {
 		return err
 	}
+	// Relaunching starts the program without the setup: the user was told.
+	s.mu.Lock()
+	if s.spec.Meta[SetupPendingMeta] != "" {
+		s.spec.Meta = withMeta(s.spec.Meta, SetupPendingMeta, "")
+		s.info.Meta = s.spec.Meta
+	}
+	s.mu.Unlock()
 	t.touch()
 	t.broadcast()
 	return nil

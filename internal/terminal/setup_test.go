@@ -44,9 +44,12 @@ func TestSetupRunsBeforeTheProgram(t *testing.T) {
 	if !s.Setup {
 		t.Fatal("the session should say it is in its setup")
 	}
+	if s.Meta[SetupPendingMeta] == "" {
+		t.Fatal("the pending setup should be saved with the session")
+	}
 	info := waitExit(t, "setup-ok")
-	if info.Setup {
-		t.Fatal("the setup is over")
+	if info.Setup || info.Meta[SetupPendingMeta] != "" {
+		t.Fatalf("the setup is over: %+v", info)
 	}
 	out, _ := Sessions.Output(s.ID)
 	one, two, prog := strings.Index(out, "step-one\r\n"), strings.Index(out, "step-two\r\n"), strings.Index(out, "program-ran")

@@ -9,6 +9,25 @@ import (
 	"larvyn/internal/store"
 )
 
+// SetupPendingMeta marks, in a session's meta, a setup that has not
+// finished: a session restored with it does not start on its own.
+const SetupPendingMeta = "setupPending"
+
+// withMeta is a copy of meta with key set to value, or removed when value
+// is "". The copy keeps the caller's map, and the UI's, unchanged.
+func withMeta(meta map[string]string, key, value string) map[string]string {
+	out := make(map[string]string, len(meta)+1)
+	for k, v := range meta {
+		out[k] = v
+	}
+	if value == "" {
+		delete(out, key)
+	} else {
+		out[key] = value
+	}
+	return out
+}
+
 // StartAfterSetup starts a session that first runs setup, shell command
 // lines one after another in the same terminal, and then the program spec
 // describes. Each step's output shows in the session, under its command
@@ -42,6 +61,9 @@ func (t *TerminalService) startAfterSetup(spec SessionSpec, setup []string, star
 	if spec.Kind == "" {
 		spec.Kind = "shell"
 	}
+	// Saved with the session: if Larvyn closes before the setup is done, the
+	// restored session must not start its program in a half-prepared folder.
+	spec.Meta = withMeta(spec.Meta, SetupPendingMeta, "1")
 	now := time.Now().UnixMilli()
 	s := &session{spec: spec, info: SessionInfo{
 		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
@@ -112,7 +134,6 @@ func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int
 		return true, code
 	}
 	s.inSetup = false
-	s.info.Setup = false
 	spec, started := s.spec, s.started
 	s.started = nil
 	s.mu.Unlock()
@@ -122,6 +143,13 @@ func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int
 		t.output(s, []byte("\r\n\x1b[31mCould not start "+spec.Title+": "+err.Error()+"\x1b[0m\r\n"))
 		return false, -1
 	}
+	// Only now: until the program runs, a follow-up would reach the old
+	// process, not the agent.
+	s.mu.Lock()
+	s.info.Setup = false
+	s.spec.Meta = withMeta(s.spec.Meta, SetupPendingMeta, "")
+	s.info.Meta = s.spec.Meta
+	s.mu.Unlock()
 	t.touch()
 	t.broadcast()
 	if started != nil {
