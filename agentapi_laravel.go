@@ -32,6 +32,28 @@ func init() {
 		"trace?: add each error's first stack frames")
 }
 
+// appRoot is the Laravel app the caller works in when it runs from one of
+// its subfolders (app/Models): the nearest folder up from dir with an
+// artisan file, not above the git checkout (a worktree) or the project.
+// Without one it is the checkout's top folder.
+func appRoot(p store.Project, dir string) string {
+	top := dir
+	if t, err := proc.Git(dir, "rev-parse", "--show-toplevel"); err == nil {
+		top = filepath.FromSlash(strings.TrimSpace(t))
+	}
+	for d := filepath.Clean(dir); ; {
+		if _, err := os.Stat(filepath.Join(d, "artisan")); err == nil {
+			return d
+		}
+		parent := filepath.Dir(d)
+		if samePath(d, top) || samePath(d, p.Path) || parent == d {
+			break
+		}
+		d = parent
+	}
+	return top
+}
+
 // ArtisanResult is what artisan printed and how it exited.
 type ArtisanResult struct {
 	Code   int    `json:"code"`
@@ -49,10 +71,11 @@ func apiArtisan(c api.Caller, args []string) (ArtisanResult, error) {
 	case "serve", "queue:work", "queue:listen", "horizon", "schedule:work", "pail", "reverb:start", "octane:start", "tinker":
 		return ArtisanResult{}, fmt.Errorf("artisan %s doesn't finish: use larvyn stack start, or larvyn terminal open --command", args[0])
 	}
-	_, dir, _, err := callerProject(c)
+	p, dir, _, err := callerProject(c)
 	if err != nil {
 		return ArtisanResult{}, err
 	}
+	dir = appRoot(p, dir)
 	res, err := proc.Artisan(dir, 10*time.Minute, args...)
 	out := strings.TrimRight(proc.StripANSI(res.Stdout), "\n")
 	if e := strings.TrimSpace(proc.StripANSI(res.Stderr)); e != "" {
@@ -130,9 +153,7 @@ func apiTest(c api.Caller, filter string, parallel bool, timeout int) (TestRun, 
 	if err != nil {
 		return TestRun{}, err
 	}
-	if top, err := proc.Git(dir, "rev-parse", "--show-toplevel"); err == nil {
-		dir = filepath.FromSlash(strings.TrimSpace(top))
-	}
+	dir = appRoot(p, dir)
 	junit := junitFor(p, dir)
 	_ = os.MkdirAll(filepath.Dir(junit), 0o700)
 	_ = os.Remove(junit)
@@ -247,10 +268,11 @@ func logTime(s string) (time.Time, bool) {
 }
 
 func apiLogErrors(c api.Caller, since string, limit int, trace bool) (LogErrors, error) {
-	_, dir, _, err := callerProject(c)
+	p, dir, _, err := callerProject(c)
 	if err != nil {
 		return LogErrors{}, err
 	}
+	dir = appRoot(p, dir)
 	var after time.Time
 	if since != "" {
 		d, err := time.ParseDuration(since)
