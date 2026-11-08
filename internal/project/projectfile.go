@@ -51,6 +51,11 @@ type ProjectFileInfo struct {
 	Setup    []string                `json:"setup"`
 }
 
+// commandsMu makes each change to the commands (save, delete, move) happen
+// whole, from reading them to the last write or its undo: two moves of the
+// same command at once could otherwise each remove the other's copy.
+var commandsMu sync.Mutex
+
 // PluginCheck tells whether a plugin the project needs is ready: "" when it
 // is, "missing" when it is not installed, otherwise what is wrong. main sets
 // it from the plugin host, so this package does not depend on it.
@@ -107,6 +112,8 @@ func commandsOf(p store.Project) []ProjectCommand {
 // project file when Shared is set and in the user's state otherwise. An
 // empty id is made from the title.
 func (s *ProjectService) SaveCommand(id string, c ProjectCommand) (ProjectCommand, error) {
+	commandsMu.Lock()
+	defer commandsMu.Unlock()
 	p, ok := store.FindProject(id)
 	if !ok {
 		return c, errors.New("project not found")
@@ -145,6 +152,8 @@ func (s *ProjectService) SaveCommand(id string, c ProjectCommand) (ProjectComman
 // DeleteCommand removes a command from the project file (shared) or the
 // user's state.
 func (s *ProjectService) DeleteCommand(id, commandID string, shared bool) error {
+	commandsMu.Lock()
+	defer commandsMu.Unlock()
 	p, ok := store.FindProject(id)
 	if !ok {
 		return errors.New("project not found")
@@ -177,6 +186,8 @@ func (s *ProjectService) DeleteCommand(id, commandID string, shared bool) error 
 // its side after; if that fails, the other side is put back as it was, so a
 // failed move leaves things as they were.
 func (s *ProjectService) MoveCommand(id, commandID string, toShared bool) error {
+	commandsMu.Lock()
+	defer commandsMu.Unlock()
 	p, ok := store.FindProject(id)
 	if !ok {
 		return errors.New("project not found")

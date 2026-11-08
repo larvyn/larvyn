@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 
 	"larvyn/internal/projectfile"
@@ -165,5 +166,26 @@ func TestFailedMoveIsUndone(t *testing.T) {
 	}
 	if l := projectfile.Load(p.Path); len(l.File.Commands) != 1 || l.File.Commands[0].ID != "seed" {
 		t.Fatalf("file: %+v", l.File.Commands)
+	}
+}
+
+// Moves of one command in both directions at once never lose it.
+func TestConcurrentMovesKeepTheCommand(t *testing.T) {
+	s := &ProjectService{}
+	p := addTestProject(t, "")
+	if _, err := s.SaveCommand(p.ID, ProjectCommand{ID: "seed", Title: "Seed", Run: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(toShared bool) {
+			defer wg.Done()
+			_ = s.MoveCommand(p.ID, "seed", toShared)
+		}(i%2 == 0)
+	}
+	wg.Wait()
+	if list, _ := s.Commands(p.ID); len(list) != 1 {
+		t.Fatalf("want the command once, got %v", ids(list))
 	}
 }
