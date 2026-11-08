@@ -245,3 +245,24 @@ func TestConcurrentEditsKeepEveryCommand(t *testing.T) {
 		t.Fatalf("lost edits: %d commands", len(l.File.Commands))
 	}
 }
+
+// An edit through Larvyn, then the file breaks before the next read: the
+// last version that loaded is kept, not nothing.
+func TestBrokenFileAfterAnEditKeepsTheLastLoad(t *testing.T) {
+	root := t.TempDir()
+	if err := EditCommands(root, func(list []Command) ([]Command, error) {
+		return append(list, Command{ID: "a", Title: "A", Run: "x"}), nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	Load(root)
+	if err := EditCommands(root, func(list []Command) ([]Command, error) {
+		return append(list, Command{ID: "b", Title: "B", Run: "x"}), nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, root, `{"apiVersion": 1,`)
+	if l := Load(root); l.Error == "" || len(l.File.Commands) == 0 {
+		t.Fatalf("the last good version should stay: %+v", l)
+	}
+}

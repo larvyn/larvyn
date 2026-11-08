@@ -4,7 +4,7 @@ import { ProjectService, type ProjectCommand, type ProjectFileInfo } from '../..
 import { setView, toast, useStore } from '../lib/store'
 import { errMsg } from '../lib/util'
 import { promptDialog } from './ui'
-import { showSession } from './pluginRun'
+import { PLUGINS_CHANGED, showSession } from './pluginRun'
 
 /** The project's commands and its .larvyn/project.json, read again when the
  * file changes on disk (git pull, branch switch) or Larvyn edits it. */
@@ -20,6 +20,14 @@ export function useProjectFile(id: string | null | undefined, enabled = true) {
   useEffect(() => {
     if (!id || !enabled) return
     return Events.On('projectfile:changed', (ev: any) => ev.data === id && setRev((r) => r + 1))
+  }, [id, enabled])
+  // A plugin installed, turned on or off: the plugins the file lists may be
+  // ready now, or not any more.
+  useEffect(() => {
+    if (!id || !enabled) return
+    const reload = () => setRev((r) => r + 1)
+    window.addEventListener(PLUGINS_CHANGED, reload)
+    return () => window.removeEventListener(PLUGINS_CHANGED, reload)
   }, [id, enabled])
   useEffect(() => {
     if (!id || !enabled) return

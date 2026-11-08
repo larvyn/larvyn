@@ -212,7 +212,9 @@ func load(root string) Loaded {
 func Forget(root string) {
 	mu.Lock()
 	if c := cache[Path(root)]; c != nil {
-		cache[Path(root)] = &cached{reported: c.reported}
+		// The last good version stays too: if the file breaks before the
+		// next read, its commands and stack items are still there.
+		cache[Path(root)] = &cached{good: c.good, reported: c.reported}
 	}
 	mu.Unlock()
 }
