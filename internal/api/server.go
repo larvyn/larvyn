@@ -163,7 +163,7 @@ func Handle(req Request) Response {
 		res, err = Call(req.Method, req.Caller, req.Params, nil, nil)
 	} else {
 		words := leadingWords(req.Argv)
-		name, _, ok := Resolve(words)
+		name, left, ok := Resolve(words)
 		if ok && req.Help {
 			return Response{Usage: []Method{*lookup(name)}}
 		}
@@ -176,7 +176,8 @@ func Handle(req Request) Response {
 			}
 			return Response{Error: fmt.Sprintf("unknown command %q (larvyn help lists them)", strings.Join(words, " "))}
 		}
-		rest := req.Argv[strings.Count(name, ".")+1:]
+		// The words Resolve took for the name: "terminal read" or "terminal.read".
+		rest := req.Argv[len(words)-len(left):]
 		var args []string
 		var flags map[string]string
 		args, flags, err = parseArgv(lookup(name), rest)

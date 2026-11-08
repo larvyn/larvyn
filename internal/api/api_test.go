@@ -67,6 +67,8 @@ func TestArgvBecomesParams(t *testing.T) {
 		{[]string{"test", "echo", "hi", "--upper=false"}, "hi@s1"},
 		// -- ends the flags.
 		{[]string{"test", "echo", "--", "--upper"}, "--upper@s1"},
+		// The name as help prints it, with a dot.
+		{[]string{"test.echo", "hi", "2"}, "hihi@s1"},
 	}
 	for _, c := range cases {
 		if got := result(t, call(t, c.argv...)); got != c.want {

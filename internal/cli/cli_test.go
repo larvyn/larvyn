@@ -76,6 +76,9 @@ func TestErrorsExitNonZero(t *testing.T) {
 	if _, _, code := runCLI("api", "call"); code != 2 {
 		t.Errorf("api call without a method: %d", code)
 	}
+	if _, errOut, code := runCLI("api", "call", "demo.add", "{a:1}"); code != 2 || !strings.Contains(errOut, "must be JSON") {
+		t.Errorf("api call with bad JSON: %d %q", code, errOut)
+	}
 }
 
 func TestHelp(t *testing.T) {

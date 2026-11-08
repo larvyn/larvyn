@@ -73,6 +73,10 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		}
 		req.Method = words[2]
 		if len(words) == 4 {
+			if !json.Valid([]byte(words[3])) {
+				fmt.Fprintln(stderr, `larvyn: the params must be JSON, like '{"id":"abc"}'`)
+				return 2
+			}
 			req.Params = json.RawMessage(words[3])
 		}
 	default:
