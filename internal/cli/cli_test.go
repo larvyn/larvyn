@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -38,6 +39,13 @@ func TestMain(m *testing.M) {
 	api.Register("demo.whoami", "Who calls", func(c api.Caller) string { return c.Session })
 	api.Register("demo.add", "Add", func(a, b int) int { return a + b }, "a: first", "b?: second")
 	api.MarkReadOnly("demo.whoami")
+	api.Register("context", "Context", func(c api.Caller) (map[string]any, error) {
+		if c.Session == "gone" {
+			return nil, errors.New("terminal not found")
+		}
+		return map[string]any{"project": "shop", "path": "/w/shop", "dir": "/w/wt/fix", "worktree": true, "branch": "larvyn/fix",
+			"url": "https://fix.shop.test", "terminal": c.Session, "stack": []map[string]any{{"key": "vite", "running": true}, {"key": "queue", "running": false}}}, nil
+	})
 	api.Register("demo.report", "Report", func() report { return report{} })
 	api.Register("demo.slow", "Slow", func(c api.Caller) string {
 		select {

@@ -90,6 +90,17 @@ the item being ready exit non-zero. The stack is the project's: it runs in
 its main folder, as in the sidebar. `artisan`, `test` and `logs` work on the
 folder they are called from, so an agent sees its own worktree.
 
+Settings → Agents → **Set up agents** (or `larvyn agents setup`) teaches the
+agents about it: a `larvyn` skill in Claude Code (`~/.claude/skills`, or
+`CLAUDE_CONFIG_DIR`) and in `~/.agents/skills` for Codex and others, and a
+session-start hook in Claude Code's `settings.json` and Codex's
+`hooks.json` (`CODEX_HOME`) that tells an agent started in Larvyn its
+project, worktree, branch, URL and dev stack. Outside Larvyn's terminals the
+hook prints nothing. Only installed agents are set up, settings files keep
+their order and get a `.larvyn-backup`, `--dry-run` lists the changes, and
+`larvyn agents remove` takes everything out again. Codex asks you once to
+review the new hook (`/hooks`).
+
 An agent's report is its screen: `agents wait` returns it to the agent that
 waits, and nothing is typed into that agent's terminal. `terminal read`
 shows an agent's screen too, drawn by a terminal emulator, since a TUI's raw

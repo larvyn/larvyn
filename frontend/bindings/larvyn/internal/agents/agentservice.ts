@@ -7,6 +7,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as agentsetup$0 from "../agentsetup/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as terminal$0 from "../terminal/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -40,6 +43,15 @@ export function Launch(req: $models.LaunchRequest): $CancellablePromise<terminal
  */
 export function Send(sessionID: string, text: string): $CancellablePromise<void> {
     return $Call.ByID(1388024608, sessionID, text);
+}
+
+/**
+ * SetupAgents installs the larvyn skill and session hook in the installed
+ * agents' config (Settings → Agents, larvyn agents setup), or with remove
+ * takes them out. With dryRun it only lists what it would change.
+ */
+export function SetupAgents(remove: boolean, dryRun: boolean): $CancellablePromise<agentsetup$0.Change[] | null> {
+    return $Call.ByID(3753525749, remove, dryRun);
 }
 
 /**
