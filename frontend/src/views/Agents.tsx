@@ -41,7 +41,7 @@ import { activity } from '../lib/terms'
 import { copy, cx, duration, errMsg, initials, load, mod, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'
 import { Empty, SidePanel, TermPane, confirmDialog, useNow } from '../components/ui'
-import { FileDiff as FileDiffView, firstLine, parseDiff } from '../components/DiffView'
+import { FileDiff as FileDiffView, firstLine, parseDiff, reviewMessage, type Comment, type Review } from '../components/DiffView'
 import { Brand, brandUrl } from '../components/Brand'
 
 const TEMPLATES = [
@@ -473,6 +473,27 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
   const files = useMemo(() => (text ? parseDiff(text) : []), [text])
   const adds = files.reduce((n, f) => n + f.adds, 0)
   const dels = files.reduce((n, f) => n + f.dels, 0)
+  // Line comments, sent to the agent as one follow-up. Unsent ones last
+  // while the panel is open.
+  const [comments, setComments] = useState<Comment[]>([])
+  const nextId = useRef(1)
+  const [sending, setSending] = useState(false)
+  const review: Review = {
+    comments,
+    onSave: (c) =>
+      setComments((cur) => (c.id ? cur.map((x) => (x.id === c.id ? { ...x, ...c, id: x.id } : x)) : [...cur, { ...c, id: nextId.current++ }])),
+    onDelete: (cid) => setComments((cur) => cur.filter((x) => x.id !== cid)),
+  }
+  const sendComments = () => {
+    setSending(true)
+    AgentService.Send(s.id, reviewMessage(comments))
+      .then(() => {
+        setComments([])
+        toast('success', `Sent ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} to ${s.meta?.agentName || 'the agent'}`)
+      })
+      .catch(fail('Could not send the comments'))
+      .finally(() => setSending(false))
+  }
   const open = (path: string, line: number) => SystemService.OpenInEditor(`${wt.replace(/\/$/, '')}/${path}`, line).catch(fail('Editor'))
   const jump = (i: number) => document.getElementById(`dv-${s.id}-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
@@ -510,6 +531,16 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
           <span className="faint" style={{ fontSize: 12, marginRight: 'auto' }}>
             {files.length} {files.length === 1 ? 'file' : 'files'} · <span className="dv-count add">+{adds}</span> <span className="dv-count del">−{dels}</span>
           </span>
+          {comments.length > 0 && (
+            <button
+              className="btn sm primary"
+              disabled={sending || !s.running}
+              title={s.running ? 'Send every comment to the agent as one message' : 'The agent has exited'}
+              onClick={sendComments}
+            >
+              {sending ? <span className="spinner" /> : <Send />} Send {comments.length} {comments.length === 1 ? 'comment' : 'comments'} to agent
+            </button>
+          )}
           <button className="btn sm danger" onClick={() => discardAttempt(id!, s).then((ok) => ok && onClose())}>
             <Trash2 /> Discard
           </button>
@@ -542,6 +573,9 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
                 <Rows3 /> Unified
               </button>
             </div>
+            <span className="faint" style={{ fontSize: 11.5, marginLeft: 10 }}>
+              Click a line number to comment
+            </span>
             <span className="spacer" />
             <button className="btn sm ghost" onClick={() => copy(text).then(() => toast('success', 'Diff copied'))}>
               <Copy /> Copy diff
@@ -561,7 +595,7 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
               ))}
           </div>
           {files.map((f, i) => (
-            <FileDiffView key={f.path} id={`dv-${s.id}-${i}`} file={f} mode={shownMode} onOpen={() => open(f.path, firstLine(f))} />
+            <FileDiffView key={f.path} id={`dv-${s.id}-${i}`} file={f} mode={shownMode} review={review} onOpen={() => open(f.path, firstLine(f))} />
           ))}
         </>
       )}
