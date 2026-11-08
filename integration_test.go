@@ -15,6 +15,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// The fake agent of agentapi_agents_test.go: this binary, started by
+	// Larvyn as a custom agent.
+	if os.Getenv("LARVYN_FAKE_AGENT") != "" {
+		fakeAgent()
+		os.Exit(0)
+	}
 	home, _ := os.MkdirTemp("", "larvyn-test")
 	os.Setenv("LARVYN_HOME", home)
 	store.Reload()

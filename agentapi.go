@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"larvyn/internal/api"
 	"larvyn/internal/clibin"
@@ -23,10 +24,11 @@ func init() {
 	api.Register("context", "Where the caller runs: project, worktree, branch, local URL and the dev stack", apiContext)
 	api.Register("terminal.list", "List the terminals of the caller's project", apiTerminalList,
 		"all?: every project's terminals, not just the caller's")
-	api.Register("terminal.read", "Print a terminal's last lines as plain text", apiTerminalRead,
+	api.Register("terminal.read", "Print a terminal's last lines as plain text, or what its screen shows (the default for agents)", apiTerminalRead,
 		"id: the terminal (terminal list shows them; a unique start of the id is enough)",
 		"lines?: how many lines, 100 by default",
-		"all?: the whole scrollback")
+		"all?: the whole scrollback",
+		"screen?: what the screen shows now, as a terminal draws it")
 	api.Register("terminal.write", "Type text into a terminal", apiTerminalWrite,
 		"id: the terminal",
 		"text: what to type",
@@ -243,10 +245,18 @@ func findTerminal(id string) (terminal.SessionInfo, error) {
 	return terminal.SessionInfo{}, fmt.Errorf("%q matches %d terminals: give more of the id", id, len(found))
 }
 
-func apiTerminalRead(id string, lines int, all bool) (string, error) {
+func apiTerminalRead(id string, lines int, all, screen bool) (string, error) {
 	s, err := findTerminal(id)
 	if err != nil {
 		return "", err
+	}
+	// An agent's TUI draws with the cursor: its raw output is scrambled.
+	if screen || (s.Kind == "agent" && lines == 0 && !all) {
+		out, err := terminal.Screen(s.ID)
+		if err != nil || lines <= 0 {
+			return out, err
+		}
+		return lastLines(out, lines), nil
 	}
 	out, err := terminal.Sessions.Output(s.ID)
 	if err != nil {
@@ -295,6 +305,12 @@ func apiTerminalWrite(id, text string, enter bool) error {
 	}
 	if enter {
 		text += "\r"
+	}
+	if s.Kind == "agent" {
+		// An answer to its question: agents wait gives it time to go on,
+		// and the bell that asked is seen.
+		prompted.Store(s.ID, time.Now())
+		terminal.Sessions.ClearBell(s.ID)
 	}
 	return terminal.Sessions.Write(s.ID, text)
 }

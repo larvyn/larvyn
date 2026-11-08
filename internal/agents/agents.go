@@ -353,7 +353,32 @@ type LaunchRequest struct {
 	Cwd         string `json:"cwd"`
 	InstallDeps bool   `json:"installDeps"`
 	Base        string `json:"base"`
+	// Meta is added to the session's meta (the local API marks the agent
+	// that started this one); not part of the frontend's bindings.
+	Meta map[string]string `json:"-"`
 }
+
+// Status is an agent's state as the Agents view shows it (agentStatus in
+// frontend/src/lib/store.ts): "setup" while its worktree's setup steps run,
+// "exited", "attention" when it rang the bell, "working" while it printed
+// in the last 2.5 s, else "idle".
+func Status(s terminal.SessionInfo, now time.Time) string {
+	switch {
+	case s.Setup:
+		return "setup"
+	case !s.Running:
+		return "exited"
+	case s.Bell:
+		return "attention"
+	case now.Sub(time.UnixMilli(s.LastActivity)) < WorkingFor:
+		return "working"
+	}
+	return "idle"
+}
+
+// WorkingFor is how recent an agent's output must be for it to count as
+// working.
+const WorkingFor = 2500 * time.Millisecond
 
 // Launch starts an agent session. With Worktree set the agent works on its
 // own branch, so several can attack one task in parallel.
@@ -378,6 +403,9 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 	}
 	cwd := proc.FirstNonEmpty(req.Cwd, p.Path)
 	meta := map[string]string{"agent": kind.ID, "agentName": kind.Name, "color": kind.Color, "prompt": req.Prompt}
+	for k, v := range req.Meta {
+		meta[k] = v
+	}
 	var setup []string
 	if req.Worktree {
 		path, branch, err := CreateWorktree(p.ID, kind.ID+"-"+title, req.Base)
