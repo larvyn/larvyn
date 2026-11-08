@@ -40,6 +40,23 @@ func TestWithin(t *testing.T) {
 	}
 }
 
+func TestPathsThroughASymlink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	os.MkdirAll(filepath.Join(real, "app"), 0o755)
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	// The project saved through the link, git printing the real path.
+	if !samePath(link, real) || !within(filepath.Join(real, "app"), link) {
+		t.Error("a path through a symlink is not the same folder")
+	}
+	if runtime.GOOS == "linux" && samePath(filepath.Join(dir, "App"), filepath.Join(dir, "app")) {
+		t.Error("Linux tells App and app apart")
+	}
+}
+
 // gitRepo makes a repository with one commit and a worktree next to it.
 func gitRepo(t *testing.T) (main, wt string) {
 	t.Helper()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -119,7 +120,8 @@ func callerProject(c api.Caller) (p store.Project, dir string, self *terminal.Se
 
 // within reports whether path is dir or inside it.
 func within(path, dir string) bool {
-	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(path))
+	path, dir = pathKey(path), pathKey(dir)
+	rel, err := filepath.Rel(dir, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
@@ -151,8 +153,20 @@ func apiContext(c api.Caller) (Context, error) {
 	return ctx, nil
 }
 
-func samePath(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
+func samePath(a, b string) bool { return pathKey(a) == pathKey(b) }
+
+// pathKey is a path as the file system tells paths apart: cleaned, with
+// symlinks resolved (git prints macOS' /var/folders/… as /private/var/…),
+// and lowercased where the file system ignores case (Windows, macOS).
+func pathKey(p string) string {
+	p = filepath.Clean(p)
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		p = r
+	}
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		p = strings.ToLower(p)
+	}
+	return p
 }
 
 // TermRow is a terminal in `larvyn terminal list`.
