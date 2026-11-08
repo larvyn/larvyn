@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"larvyn/internal/projectfile"
@@ -117,8 +118,9 @@ func TestFileReportsPlugins(t *testing.T) {
 
 // A move whose second half fails leaves both sides as they were.
 func TestFailedMoveIsUndone(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores read-only folders")
+	// Windows ignores a folder's read-only bit, and root ignores it anywhere.
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("read-only folders don't stop writes here")
 	}
 	s := &ProjectService{}
 	p := addTestProject(t, `{"apiVersion": 1, "commands": [{"id": "seed", "title": "Team seed", "run": "php artisan db:seed"}]}`)
