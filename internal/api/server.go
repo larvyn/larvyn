@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -38,6 +39,10 @@ type Request struct {
 type Response struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
+	// Text is how the CLI prints the result, when the method chose it (see
+	// Texter); Exit is the CLI's exit code (see Exiter).
+	Text string `json:"text,omitempty"`
+	Exit int    `json:"exit,omitempty"`
 	// Usage is set when the command named a group of methods or no method:
 	// what the CLI can show instead of a result.
 	Usage []Method `json:"usage,omitempty"`
@@ -152,6 +157,14 @@ func (s *Server) handle(c net.Conn) {
 		writeResponse(c, Response{Error: "invalid token: is this the Larvyn that wrote " + TokenPath() + "?"})
 		return
 	}
+	// The client sends nothing more: a read that returns means it is gone.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_, _ = r.ReadByte()
+		cancel()
+	}()
+	req.Caller.Ctx = ctx
 	writeResponse(c, Handle(req))
 }
 
@@ -191,8 +204,23 @@ func Handle(req Request) Response {
 	if err != nil {
 		return Response{Error: "result: " + err.Error()}
 	}
-	return Response{Result: b}
+	resp := Response{Result: b}
+	if t, ok := res.(Texter); ok {
+		resp.Text = t.Text()
+	}
+	if e, ok := res.(Exiter); ok {
+		resp.Exit = e.ExitCode()
+	}
+	return resp
 }
+
+// Texter is a result that knows how to print itself for a person: a test
+// run's failures, a log's errors. Without it the CLI lays the JSON out.
+type Texter interface{ Text() string }
+
+// Exiter is a result that is a failure even though the call worked: tests
+// that failed, a service that never got ready. The CLI exits with its code.
+type Exiter interface{ ExitCode() int }
 
 func writeResponse(c net.Conn, r Response) {
 	b, _ := json.Marshal(r)

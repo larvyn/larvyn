@@ -96,16 +96,22 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		printUsage(stdout, resp.Usage)
 		return 0
 	}
-	if asJSON {
+	switch {
+	case asJSON:
 		var v any
 		if json.Unmarshal(resp.Result, &v) == nil {
 			b, _ := json.MarshalIndent(v, "", "  ")
 			fmt.Fprintln(stdout, string(b))
 		}
-		return 0
+	case resp.Text != "":
+		fmt.Fprint(stdout, resp.Text)
+		if !strings.HasSuffix(resp.Text, "\n") {
+			fmt.Fprintln(stdout)
+		}
+	default:
+		fmt.Fprint(stdout, Human(resp.Result))
 	}
-	fmt.Fprint(stdout, Human(resp.Result))
-	return 0
+	return resp.Exit
 }
 
 func printUsage(w io.Writer, methods []api.Method) {

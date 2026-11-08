@@ -62,8 +62,22 @@ type junitCase struct {
 	Skipped *struct{} `xml:"skipped"`
 }
 
-func junitPath(projectID string) string {
+// JUnitPath is where a project's test runs write their report.
+func JUnitPath(projectID string) string {
 	return filepath.Join(store.HomeDir(), "junit", projectID+".xml")
+}
+
+// TestArgv is the artisan test command line that writes its JUnit report
+// to junit.
+func TestArgv(junit, filter string, parallel bool) []string {
+	argv := []string{store.PHP(), "artisan", "test", "--log-junit=" + junit}
+	if filter != "" {
+		argv = append(argv, "--filter="+filter)
+	}
+	if parallel {
+		argv = append(argv, "--parallel")
+	}
+	return argv
 }
 
 // RunTests runs `artisan test` in the console, writing a JUnit report Larvyn
@@ -73,15 +87,13 @@ func (l *LaravelService) RunTests(projectID, filter string, parallel bool) (term
 	if !ok {
 		return terminal.SessionInfo{}, errors.New("project not found")
 	}
-	_ = os.MkdirAll(filepath.Dir(junitPath(projectID)), 0o755)
-	argv := []string{store.PHP(), "artisan", "test", "--log-junit=" + junitPath(projectID)}
+	_ = os.MkdirAll(filepath.Dir(JUnitPath(projectID)), 0o755)
+	argv := TestArgv(JUnitPath(projectID), filter, parallel)
 	title := "artisan test"
 	if filter != "" {
-		argv = append(argv, "--filter="+filter)
 		title += " --filter=" + filter
 	}
 	if parallel {
-		argv = append(argv, "--parallel")
 		title += " --parallel"
 	}
 	return terminal.Sessions.Start(terminal.SessionSpec{ProjectID: p.ID, Kind: "run", Key: "tests", Title: title, Cwd: p.Path, Argv: argv})
@@ -91,8 +103,13 @@ var failAt = regexp.MustCompile(`(?m)^\s*(?:at\s+)?((?:[A-Za-z]:)?[^\s:]+\.php):
 
 // TestResults reads the report of the last run.
 func (l *LaravelService) TestResults(projectID string) (TestReport, error) {
+	dir, _ := store.ProjectPath(projectID)
+	return ReadJUnit(JUnitPath(projectID), dir)
+}
+
+// ReadJUnit reads a JUnit report of a run in dir.
+func ReadJUnit(path, dir string) (TestReport, error) {
 	r := TestReport{}
-	path := junitPath(projectID)
 	fi, err := os.Stat(path)
 	if err != nil {
 		return r, nil
@@ -112,7 +129,6 @@ func (l *LaravelService) TestResults(projectID string) (TestReport, error) {
 	}
 	r.Exists = true
 	r.Modified = fi.ModTime().UnixMilli()
-	dir, _ := store.ProjectPath(projectID)
 	var walk func(s junitSuite)
 	walk = func(s junitSuite) {
 		for _, c := range s.Cases {

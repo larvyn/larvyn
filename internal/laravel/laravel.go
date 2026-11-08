@@ -319,6 +319,11 @@ func (l *LaravelService) LogFiles(projectID string) ([]LogFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	return LogFilesIn(dir), nil
+}
+
+// LogFilesIn lists storage/logs of the app in dir, newest first.
+func LogFilesIn(dir string) []LogFile {
 	entries, _ := os.ReadDir(filepath.Join(dir, "storage", "logs"))
 	var out []LogFile
 	for _, e := range entries {
@@ -330,7 +335,7 @@ func (l *LaravelService) LogFiles(projectID string) ([]LogFile, error) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Modified > out[j].Modified })
-	return out, nil
+	return out
 }
 
 // ReadLog returns entries added after offset; a negative offset reads the
@@ -340,6 +345,11 @@ func (l *LaravelService) ReadLog(projectID, file string, offset int64) (LogChunk
 	if err != nil {
 		return LogChunk{}, err
 	}
+	return ReadLogIn(dir, file, offset)
+}
+
+// ReadLogIn is ReadLog for the app in dir, such as an agent's worktree.
+func ReadLogIn(dir, file string, offset int64) (LogChunk, error) {
 	if file == "" {
 		file = "laravel.log"
 	}

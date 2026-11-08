@@ -55,7 +55,7 @@ at tests/Feature/PostTest.php:21</failure>
     </testsuite>
   </testsuite>
 </testsuites>`
-	os.WriteFile(junitPath(p.ID), []byte(xml), 0o644)
+	os.WriteFile(JUnitPath(p.ID), []byte(xml), 0o644)
 	r, err := (&LaravelService{}).TestResults(p.ID)
 	if err != nil {
 		t.Fatal(err)
