@@ -41,7 +41,13 @@ func TestSetupRunsBeforeTheProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer Sessions.Close(s.ID)
+	if !s.Setup {
+		t.Fatal("the session should say it is in its setup")
+	}
 	info := waitExit(t, "setup-ok")
+	if info.Setup {
+		t.Fatal("the setup is over")
+	}
 	out, _ := Sessions.Output(s.ID)
 	one, two, prog := strings.Index(out, "step-one\r\n"), strings.Index(out, "step-two\r\n"), strings.Index(out, "program-ran")
 	if one < 0 || two < one || prog < two {
@@ -64,6 +70,9 @@ func TestFailedSetupStopsThere(t *testing.T) {
 	}
 	defer Sessions.Close(s.ID)
 	info := waitExit(t, "setup-fail")
+	if info.Setup {
+		t.Fatal("a failed setup is over")
+	}
 	out, _ := Sessions.Output(s.ID)
 	if strings.Contains(out, "never\r\n") || strings.Contains(out, "program-ran") || started.Load() {
 		t.Fatalf("ran past a failed step: %q", out)

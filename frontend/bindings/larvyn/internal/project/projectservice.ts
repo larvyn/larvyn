@@ -158,7 +158,9 @@ export function List(): $CancellablePromise<store$0.Project[] | null> {
 /**
  * MoveCommand moves a command between the user's state (toShared false)
  * and the project file (toShared true), replacing one with the same id
- * there.
+ * there. It adds the command to the other side first and removes it from
+ * its side after; if that fails, the other side is put back as it was, so a
+ * failed move leaves things as they were.
  */
 export function MoveCommand(id: string, commandID: string, toShared: boolean): $CancellablePromise<void> {
     return $Call.ByID(1169617397, id, commandID, toShared);

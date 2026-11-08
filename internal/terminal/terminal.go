@@ -55,6 +55,9 @@ type SessionInfo struct {
 	// has not been started again.
 	Restored bool              `json:"restored"`
 	Meta     map[string]string `json:"meta"`
+	// Setup is set while the steps before the session's program run (see
+	// StartAfterSetup): what is typed goes to them, not to the program.
+	Setup bool `json:"setup"`
 }
 
 type TermData struct {

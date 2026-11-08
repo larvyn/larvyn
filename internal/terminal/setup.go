@@ -46,7 +46,7 @@ func (t *TerminalService) startAfterSetup(spec SessionSpec, setup []string, star
 	s := &session{spec: spec, info: SessionInfo{
 		ID: store.NewID(), ProjectID: spec.ProjectID, Kind: spec.Kind, Key: spec.Key,
 		Title: spec.Title, Cwd: spec.Cwd, Command: display,
-		StartedAt: now, LastActivity: now, Meta: spec.Meta,
+		StartedAt: now, LastActivity: now, Meta: spec.Meta, Setup: true,
 	}}
 	if s.info.Title == "" {
 		s.info.Title = proc.FirstNonEmpty(display, "Terminal")
@@ -88,6 +88,7 @@ func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int
 	step := s.step
 	if code != 0 || stopped {
 		s.inSetup, s.setup, s.started = false, nil, nil
+		s.info.Setup = false
 		s.mu.Unlock()
 		if !stopped {
 			t.output(s, []byte(fmt.Sprintf("\r\n\x1b[31mSetup failed (exit %d): %s\x1b[0m\r\n"+
@@ -103,6 +104,7 @@ func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int
 			t.output(s, []byte("\r\n\x1b[31mCould not run "+line+": "+err.Error()+"\x1b[0m\r\n"))
 			s.mu.Lock()
 			s.inSetup, s.setup, s.started = false, nil, nil
+			s.info.Setup = false
 			s.mu.Unlock()
 			return false, -1
 		}
@@ -110,6 +112,7 @@ func (t *TerminalService) nextStep(s *session, code int) (handled bool, exit int
 		return true, code
 	}
 	s.inSetup = false
+	s.info.Setup = false
 	spec, started := s.spec, s.started
 	s.started = nil
 	s.mu.Unlock()
