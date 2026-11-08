@@ -3,8 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"larvyn/internal/api"
@@ -118,9 +118,17 @@ func callerProject(c api.Caller) (p store.Project, dir string, self *terminal.Se
 
 // within reports whether path is dir or inside it.
 func within(path, dir string) bool {
-	path, dir = pathKey(path), pathKey(dir)
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+	dir = pathKey(dir)
+	for p := pathKey(path); ; {
+		if samePath(p, dir) {
+			return true
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return false
+		}
+		p = parent
+	}
 }
 
 func apiContext(c api.Caller) (Context, error) {
@@ -151,18 +159,25 @@ func apiContext(c api.Caller) (Context, error) {
 	return ctx, nil
 }
 
-func samePath(a, b string) bool { return pathKey(a) == pathKey(b) }
+// samePath tells whether two paths are the same folder. Folders that exist
+// are compared by identity, so case counts exactly as much as the file
+// system says (a case-sensitive volume on macOS too); others by pathKey.
+func samePath(a, b string) bool {
+	a, b = pathKey(a), pathKey(b)
+	if a == b {
+		return true
+	}
+	sa, errA := os.Stat(a)
+	sb, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(sa, sb)
+}
 
-// pathKey is a path as the file system tells paths apart: cleaned, with
-// symlinks resolved (git prints macOS' /var/folders/… as /private/var/…),
-// and lowercased where the file system ignores case (Windows, macOS).
+// pathKey is a path cleaned, with symlinks resolved: git prints macOS'
+// /var/folders/… as /private/var/….
 func pathKey(p string) string {
 	p = filepath.Clean(p)
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		p = r
-	}
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		p = strings.ToLower(p)
 	}
 	return p
 }
