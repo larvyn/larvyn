@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"larvyn/internal/store"
 )
@@ -34,6 +35,77 @@ func register() {
 	Register("test.fail", "Fail", func() error { return errors.New("it failed") })
 	Register("test.list", "List", func(words []string) []string { return words }, "words")
 	Register("test.panic", "Panic", func() int { panic("boom") })
+	Register("test.rest", "Rest", func(first string, rest []string) []string { return append([]string{first}, rest...) },
+		"first", "rest...?: the rest")
+	Register("test.report", "Report", func(ok bool) report { return report{OK: ok} }, "ok?")
+	Register("test.wait", "Wait", func(c Caller) string {
+		select {
+		case <-c.Ctx.Done():
+			waitEnded <- true
+		case <-time.After(5 * time.Second):
+			waitEnded <- false
+		}
+		return ""
+	})
+}
+
+var waitEnded = make(chan bool, 1)
+
+type report struct {
+	OK bool `json:"ok"`
+}
+
+func (r report) Text() string { return map[bool]string{true: "all good", false: "it broke"}[r.OK] }
+func (r report) ExitCode() int {
+	if r.OK {
+		return 0
+	}
+	return 3
+}
+
+func TestVariadicTakesTheRestAsIs(t *testing.T) {
+	got, _ := json.Marshal(result(t, call(t, "test", "rest", "migrate", "--force", "--seed", "-v")))
+	if string(got) != `["migrate","--force","--seed","-v"]` {
+		t.Errorf("rest: %s", got)
+	}
+	got, _ = json.Marshal(result(t, call(t, "test", "rest", "only")))
+	if string(got) != `["only"]` {
+		t.Errorf("no rest: %s", got)
+	}
+	if u := lookup("test.rest").Usage(); u != "test.rest <first> [rest...]" {
+		t.Errorf("usage %q", u)
+	}
+}
+
+func TestTextAndExitCode(t *testing.T) {
+	r := call(t, "test", "report")
+	if r.Text != "it broke" || r.Exit != 3 {
+		t.Errorf("failed report: %+v", r)
+	}
+	r = call(t, "test", "report", "--ok")
+	if r.Text != "all good" || r.Exit != 0 {
+		t.Errorf("good report: %+v", r)
+	}
+}
+
+func TestAClientThatLeavesEndsTheCall(t *testing.T) {
+	srv, err := Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	tok, _ := os.ReadFile(TokenPath())
+	c, err := net.Dial("unix", SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(Request{Token: string(tok), Argv: []string{"test", "wait"}})
+	c.Write(append(b, '\n'))
+	time.Sleep(100 * time.Millisecond)
+	c.Close()
+	if !<-waitEnded {
+		t.Error("the call kept waiting after the client left")
+	}
 }
 
 func call(t *testing.T, argv ...string) Response {
@@ -132,7 +204,7 @@ func TestUsage(t *testing.T) {
 		t.Error("no command: no usage")
 	}
 	r := call(t, "test")
-	if len(r.Usage) != 4 {
+	if len(r.Usage) != 7 {
 		t.Errorf("group: %d methods", len(r.Usage))
 	}
 	r = Handle(Request{Argv: []string{"test", "echo"}, Help: true})

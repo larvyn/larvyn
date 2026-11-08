@@ -72,8 +72,19 @@ larvyn terminal read <id> --lines 50   # a terminal's last lines as plain text
 larvyn terminal write <id> "php artisan migrate" --enter
 larvyn terminal open --command "npm run build"
 larvyn terminal close <id>             # only terminals it opened itself
+larvyn stack list                      # serve, vite, queue… and what runs
+larvyn stack start vite --wait         # start it and wait until it is ready
+larvyn stack wait serve --port 8000    # or --line '<regexp>' in its output; --timeout seconds
+larvyn artisan migrate --force         # runs in the caller's folder (its worktree), exits with artisan's code
+larvyn test --filter LoginTest         # runs in a terminal Larvyn shows, prints the failures
+larvyn logs errors --since 1h --trace  # the app's latest log errors
 larvyn help                            # every command; --json on any of them for JSON
 ```
+
+A command that fails, a test run with failures and a wait that ends without
+the item being ready exit non-zero. The stack is the project's: it runs in
+its main folder, as in the sidebar. `artisan`, `test` and `logs` work on the
+folder they are called from, so an agent sees its own worktree.
 
 `larvyn api list` lists the methods behind the commands and `larvyn api
 call <method> '<json>'` calls one with JSON params. Outside Larvyn's

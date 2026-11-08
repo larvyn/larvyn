@@ -9,6 +9,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,16 +27,22 @@ import (
 type Caller struct {
 	Session string `json:"session,omitempty"`
 	Cwd     string `json:"cwd,omitempty"`
+	// Ctx ends when the client goes away (Ctrl+C on larvyn stack wait), so
+	// a method that waits can stop. Never nil in a method.
+	Ctx context.Context `json:"-"`
 }
 
 // Param is one of a method's arguments. A name ending in "?" is optional:
-// it gets its zero value when left out.
+// it gets its zero value when left out. A last param ending in "..." is a
+// []string that takes the rest of the command's words as they are, flags
+// included: `larvyn artisan migrate --force`.
 type Param struct {
 	Name string `json:"name"`
 	Doc  string `json:"doc,omitempty"`
 	// Type is filled in from the function's signature.
 	Type     string `json:"type"`
 	Optional bool   `json:"optional,omitempty"`
+	Variadic bool   `json:"variadic,omitempty"`
 }
 
 // Method is a function agents can call.
@@ -90,8 +97,14 @@ func Register(name, doc string, fn any, params ...string) {
 		pname, pdoc, _ := strings.Cut(p, ":")
 		pname = strings.TrimSpace(pname)
 		opt := strings.HasSuffix(pname, "?")
+		pname = strings.TrimSuffix(pname, "?")
+		variadic := strings.HasSuffix(pname, "...")
+		pname = strings.TrimSuffix(pname, "...")
 		pt := t.In(in + i)
-		m.Params = append(m.Params, Param{Name: strings.TrimSuffix(pname, "?"), Doc: strings.TrimSpace(pdoc), Type: typeName(pt), Optional: opt})
+		if variadic && (i != len(params)-1 || pt != reflect.TypeFor[[]string]()) {
+			panic("api.Register " + name + ": only a last []string param can take the rest of the words")
+		}
+		m.Params = append(m.Params, Param{Name: pname, Doc: strings.TrimSpace(pdoc), Type: typeName(pt), Optional: opt, Variadic: variadic})
 		m.types = append(m.types, pt)
 	}
 	mu.Lock()
@@ -124,6 +137,14 @@ func lookup(name string) *Method {
 func (m Method) Usage() string {
 	parts := []string{m.Name}
 	for _, p := range m.Params {
+		if p.Variadic {
+			if p.Optional {
+				parts = append(parts, "["+p.Name+"...]")
+			} else {
+				parts = append(parts, "<"+p.Name+"...>")
+			}
+			continue
+		}
 		if p.Optional {
 			if p.Type == "bool" {
 				parts = append(parts, "[--"+p.Name+"]")
@@ -202,13 +223,28 @@ func Call(name string, caller Caller, params json.RawMessage, args []string, fla
 		if next == len(m.Params) {
 			return nil, fmt.Errorf("too many arguments: %s", m.Usage())
 		}
+		if m.Params[next].Variadic {
+			if !vals[next].IsValid() {
+				vals[next] = reflect.ValueOf([]string{})
+			}
+			vals[next] = reflect.Append(vals[next], reflect.ValueOf(a))
+			continue
+		}
 		v, err := fromString(m.types[next], a)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %v", m.Params[next].Name, err)
 		}
 		vals[next], set[next] = v, true
 	}
+	for i, p := range m.Params {
+		if p.Variadic && vals[i].IsValid() {
+			set[i] = true
+		}
+	}
 	in := make([]reflect.Value, 0, len(vals)+1)
+	if caller.Ctx == nil {
+		caller.Ctx = context.Background()
+	}
 	if m.wantCaller {
 		in = append(in, reflect.ValueOf(caller))
 	}
@@ -349,10 +385,31 @@ func leadingWords(argv []string) []string {
 // flag takes no value unless it is written --name=false; any other flag
 // takes the next word. "--" ends the flags, so text starting with a dash
 // can be passed as an argument.
-func parseArgv(m *Method, argv []string) (args []string, flags map[string]string, err error) {
+//
+// The larvyn command's own --json and --help go to opts, except among the
+// words of a variadic param, which are the command's: `artisan route:list
+// --json` gives artisan its --json. A "--" in front of those words is
+// dropped.
+func parseArgv(m *Method, argv []string, opts *cliFlags) (args []string, flags map[string]string, err error) {
 	flags = map[string]string{}
+	// The words before a variadic param, after which every word is its own.
+	fixed := -1
+	if n := len(m.Params); n > 0 && m.Params[n-1].Variadic {
+		fixed = n - 1
+	}
 	for i := 0; i < len(argv); i++ {
 		a := argv[i]
+		if fixed >= 0 && len(args) >= fixed {
+			rest := argv[i:]
+			if rest[0] == "--" {
+				rest = rest[1:]
+			}
+			args = append(args, rest...)
+			break
+		}
+		if opts != nil && opts.take(a) {
+			continue
+		}
 		if a == "--" {
 			args = append(args, argv[i+1:]...)
 			break
