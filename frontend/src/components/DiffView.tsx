@@ -350,7 +350,9 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
                 {splitRows(h.lines).map((r, j) => (
                   <Fragment key={j}>
                     <div className="dv-row">
-                      <Cell line={r.left} side="old" picked={picked(r.left)} gutter={gutter(r.left)} />
+                      {/* The left side takes comments on removed lines only: an unchanged line is
+                          commented on with the new file's number, on the right. */}
+                      <Cell line={r.left} side="old" picked={picked(r.left)} gutter={r.left?.kind === 'del' ? gutter(r.left) : {}} />
                       <Cell line={r.right} side="new" picked={picked(r.right)} gutter={gutter(r.right)} />
                     </div>
                     {after(r.left === r.right ? [r.right] : [r.left, r.right])}
