@@ -137,6 +137,15 @@ func TestAgentsWaitStopsOnAQuestion(t *testing.T) {
 	if r.Exit != 2 || rep.Status != "attention" || !strings.Contains(r.Text, "Allow the edit?") {
 		t.Fatalf("attention: exit %d %+v", r.Exit, rep)
 	}
+	// Answered, the bell is seen: the next wait is for the agent's work.
+	if r := command(caller, "agents", "send", row.ID, "yes"); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	r = command(caller, "agents", "wait", row.ID, "--timeout", "20")
+	json.Unmarshal(r.Result, &rep)
+	if r.Exit != 0 || rep.Status != "idle" || !strings.Contains(rep.Screen, "Done: yes") {
+		t.Fatalf("after the answer: exit %d %+v", r.Exit, rep)
+	}
 }
 
 func TestAgentsWaitSeesAQuestionWithoutBell(t *testing.T) {
@@ -163,8 +172,9 @@ func TestAsks(t *testing.T) {
 	for screen, want := range map[string]bool{
 		"> Yes, I trust this folder\n  No, exit\n\n  ↑/↓ Navigate · enter Confirm": true,
 		"❯ 1. Yes\n  2. No\n\nEnter to confirm · Esc to cancel":                    true,
-		"Overwrite config? (y/n)":                true,
-		"● Done: fixed it\n\n>\n? for shortcuts": false,
+		"Overwrite config? (y/n)":                                     true,
+		"● Done: fixed it\n\n>\n? for shortcuts":                      false,
+		"● Done: the middleware can now allow the caller through.\n>": false,
 	} {
 		if got := asks(screen); got != want {
 			t.Errorf("asks(%q) = %v", screen, got)

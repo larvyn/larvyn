@@ -63,6 +63,14 @@ func serveMCP(in io.Reader, out io.Writer, caller api.Caller) int {
 			break
 		}
 	}
+	// stdin closed: the client is gone and can't take an answer, so the
+	// calls still running (a wait can last minutes) are stopped, in the app
+	// too.
+	s.mu.Lock()
+	for _, cancel := range s.calls {
+		cancel()
+	}
+	s.mu.Unlock()
 	s.wg.Wait()
 	return 0
 }
@@ -122,6 +130,10 @@ func (s *mcpServer) handle(line []byte) {
 		}
 		s.reply(m.ID, map[string]any{"tools": tools})
 	case "tools/call":
+		if notification {
+			// Without an id there is no one to answer.
+			return
+		}
 		s.wg.Add(1)
 		ctx, cancel := context.WithCancel(context.Background())
 		s.mu.Lock()
@@ -138,10 +150,16 @@ func (s *mcpServer) handle(line []byte) {
 			s.call(ctx, m)
 		}()
 	case "notifications/cancelled":
+		if !notification {
+			s.fail(m.ID, -32600, "notifications/cancelled is a notification: it takes no id")
+			return
+		}
 		var p struct {
 			RequestID json.RawMessage `json:"requestId"`
 		}
-		_ = json.Unmarshal(m.Params, &p)
+		if json.Unmarshal(m.Params, &p) != nil || len(p.RequestID) == 0 {
+			return
+		}
 		s.mu.Lock()
 		if cancel := s.calls[string(p.RequestID)]; cancel != nil {
 			cancel()

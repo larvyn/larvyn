@@ -42,21 +42,24 @@ func IsCommand(args []string) bool {
 
 // Run runs a command and returns the exit code.
 func Run(argv []string, stdout, stderr io.Writer) int {
+	// --json and --help are left in argv for the app, which tells them from
+	// a command's own (larvyn artisan route:list --json passes it to artisan).
+	// help, -h or --help first asks for usage.
 	asJSON := false
-	var words []string
-	for i, a := range argv {
-		if a == "--" {
-			words = append(words, argv[i:]...)
-			break
+	words := argv
+	if len(words) > 0 && (words[0] == "-h" || words[0] == "--help") {
+		words = append([]string{"help"}, words[1:]...)
+	}
+	if len(words) > 0 && (words[0] == "help" || (len(words) > 1 && words[0] == "api" && words[1] == "call")) {
+		var kept []string
+		for _, w := range words {
+			if w == "--json" {
+				asJSON = true
+			} else if w != "-h" && w != "--help" {
+				kept = append(kept, w)
+			}
 		}
-		switch a {
-		case "--json":
-			asJSON = true
-			continue
-		case "-h", "--help":
-			a = "help"
-		}
-		words = append(words, a)
+		words = kept
 	}
 	cwd, _ := os.Getwd()
 	req := api.Request{Caller: api.Caller{Session: os.Getenv("LARVYN_SESSION"), Cwd: cwd}}
@@ -98,6 +101,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "larvyn:", resp.Error)
 		return 1
 	}
+	asJSON = asJSON || resp.JSON
 	if resp.Usage != nil {
 		if asJSON {
 			b, _ := json.MarshalIndent(resp.Usage, "", "  ")

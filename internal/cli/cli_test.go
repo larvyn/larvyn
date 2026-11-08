@@ -13,7 +13,7 @@ import (
 	"larvyn/internal/store"
 )
 
-var slowCancelled = make(chan bool, 1)
+var slowStarted, slowCancelled = make(chan bool, 1), make(chan bool, 1)
 
 type report struct {
 	Failed int `json:"failed"`
@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 	})
 	api.Register("demo.report", "Report", func() report { return report{} })
 	api.Register("demo.slow", "Slow", func(c api.Caller) string {
+		slowStarted <- true
 		select {
 		case <-c.Ctx.Done():
 			slowCancelled <- true
@@ -89,6 +90,12 @@ func TestCommands(t *testing.T) {
 	}
 	if out, _, _ := runCLI("api", "call", "demo.add", `{"a":1,"b":1}`); out != "2\n" {
 		t.Errorf("api call: %q", out)
+	}
+	if out, _, _ := runCLI("--json", "demo", "add", "1"); out != "1\n" {
+		t.Errorf("--json first: %q", out)
+	}
+	if out, _, _ := runCLI("demo", "add", "--help"); !strings.Contains(out, "demo add <a>") {
+		t.Errorf("--help after the command: %q", out)
 	}
 	out, _, _ = runCLI("demo", "rows", "--json")
 	var rows []row

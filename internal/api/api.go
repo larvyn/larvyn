@@ -402,7 +402,12 @@ func leadingWords(argv []string) []string {
 // flag takes no value unless it is written --name=false; any other flag
 // takes the next word. "--" ends the flags, so text starting with a dash
 // can be passed as an argument.
-func parseArgv(m *Method, argv []string) (args []string, flags map[string]string, err error) {
+//
+// The larvyn command's own --json and --help go to opts, except among the
+// words of a variadic param, which are the command's: `artisan route:list
+// --json` gives artisan its --json. A "--" in front of those words is
+// dropped.
+func parseArgv(m *Method, argv []string, opts *cliFlags) (args []string, flags map[string]string, err error) {
 	flags = map[string]string{}
 	// The words before a variadic param, after which every word is its own.
 	fixed := -1
@@ -412,8 +417,15 @@ func parseArgv(m *Method, argv []string) (args []string, flags map[string]string
 	for i := 0; i < len(argv); i++ {
 		a := argv[i]
 		if fixed >= 0 && len(args) >= fixed {
-			args = append(args, argv[i:]...)
+			rest := argv[i:]
+			if rest[0] == "--" {
+				rest = rest[1:]
+			}
+			args = append(args, rest...)
 			break
+		}
+		if opts != nil && opts.take(a) {
+			continue
 		}
 		if a == "--" {
 			args = append(args, argv[i+1:]...)

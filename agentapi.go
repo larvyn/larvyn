@@ -293,8 +293,10 @@ func apiTerminalWrite(id, text string, enter bool) error {
 		text += "\r"
 	}
 	if s.Kind == "agent" {
-		// An answer to its question: agents wait gives it time to go on.
+		// An answer to its question: agents wait gives it time to go on,
+		// and the bell that asked is seen.
 		prompted.Store(s.ID, time.Now())
+		terminal.Sessions.ClearBell(s.ID)
 	}
 	return terminal.Sessions.Write(s.ID, text)
 }

@@ -160,10 +160,42 @@ func TestMCPCalls(t *testing.T) {
 	}
 }
 
+func TestMCPClosedInputStopsTheCalls(t *testing.T) {
+	c := newMCP(t)
+	c.send(1, "tools/call", map[string]any{"name": "demo_slow"})
+	<-slowStarted
+	c.in.Close()
+	select {
+	case cancelled := <-slowCancelled:
+		if !cancelled {
+			t.Fatal("the call ran to its end")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the call kept running after stdin closed")
+	}
+	select {
+	case <-c.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server didn't exit")
+	}
+}
+
 func TestMCPCancelEndsTheCall(t *testing.T) {
 	c := newMCP(t)
 	c.send(1, "tools/call", map[string]any{"name": "demo_slow"})
-	time.Sleep(300 * time.Millisecond)
+	<-slowStarted
+	// Malformed cancels change nothing: one with an id gets an error, one
+	// without a requestId is ignored.
+	c.send(9, "notifications/cancelled", map[string]any{"requestId": 1})
+	if m := c.next(); m["id"] != float64(9) || m["error"] == nil {
+		t.Errorf("cancel with an id: %v", m)
+	}
+	c.send(nil, "notifications/cancelled", map[string]any{})
+	select {
+	case <-slowCancelled:
+		t.Fatal("a malformed cancel stopped the call")
+	case <-time.After(200 * time.Millisecond):
+	}
 	c.send(nil, "notifications/cancelled", map[string]any{"requestId": 1})
 	select {
 	case cancelled := <-slowCancelled:
