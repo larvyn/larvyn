@@ -50,6 +50,9 @@ type Method struct {
 	Name   string  `json:"name"`
 	Doc    string  `json:"doc"`
 	Params []Param `json:"params"`
+	// ReadOnly is set for a method that only reads (see MarkReadOnly):
+	// MCP clients may then run it without asking.
+	ReadOnly bool `json:"readOnly,omitempty"`
 
 	fn         reflect.Value
 	wantCaller bool
@@ -113,6 +116,20 @@ func Register(name, doc string, fn any, params ...string) {
 		panic("api.Register " + name + ": registered twice")
 	}
 	methods[name] = m
+}
+
+// MarkReadOnly marks methods that change nothing: they read state, or wait
+// for it. It panics on a name that isn't registered.
+func MarkReadOnly(names ...string) {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, n := range names {
+		m := methods[n]
+		if m == nil {
+			panic("api.MarkReadOnly: no method " + n)
+		}
+		m.ReadOnly = true
+	}
 }
 
 // Methods lists every method, sorted by name.
@@ -450,4 +467,5 @@ func init() {
 		}
 		return out
 	})
+	MarkReadOnly("api.list")
 }

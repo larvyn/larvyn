@@ -40,6 +40,7 @@ func init() {
 		"id: the agent's terminal",
 		"timeout?: seconds, 1800 by default",
 		"lines?: how many of the screen's last lines, 40 by default")
+	api.MarkReadOnly("agents.kinds", "agents.list", "agents.status", "agents.wait")
 }
 
 // maxDepth is how many levels of agents the API lets agents start below
