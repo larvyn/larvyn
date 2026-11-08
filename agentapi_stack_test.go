@@ -253,3 +253,20 @@ func TestLogErrors(t *testing.T) {
 		t.Error("a bad --since was taken")
 	}
 }
+
+// A project without git: from a subfolder artisan still runs in the app's
+// root, the project's folder.
+func TestArtisanFromASubfolderWithoutGit(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "app")
+	sub := filepath.Join(dir, "app", "Models")
+	os.MkdirAll(sub, 0o755)
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(dir))
+	addProject(t, dir)
+	fakeLaravel(t, dir)
+	if got := appRoot(store.Project{Path: dir}, sub); !samePath(got, dir) {
+		t.Errorf("app root %s, want %s", got, dir)
+	}
+	if r := command(api.Caller{Cwd: sub}, "artisan", "about"); r.Error != "" || r.Text != "ran about" {
+		t.Errorf("artisan: %+v", r)
+	}
+}
