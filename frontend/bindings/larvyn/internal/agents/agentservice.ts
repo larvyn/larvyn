@@ -94,6 +94,13 @@ export function LaunchGoldfish(req: $models.GoldfishRequest): $CancellablePromis
 }
 
 /**
+ * Playbooks lists the playbooks, for the Agents view.
+ */
+export function Playbooks(): $CancellablePromise<$models.Playbook[] | null> {
+    return $Call.ByID(2044757542);
+}
+
+/**
  * ReadDrift reads the drift report in a builder's folder.
  */
 export function ReadDrift(projectID: string, worktree: string, slug: string): $CancellablePromise<$models.DriftReport> {

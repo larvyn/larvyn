@@ -116,6 +116,12 @@ shows an agent's screen too, drawn by a terminal emulator, since a TUI's raw
 output is scrambled. Agents can start agents two levels deep below the ones
 you start.
 
+`larvyn playbooks` lists the Laravel playbooks of the Agents view, and
+`larvyn playbook crud Model=Invoice` prints one filled in for the project,
+with what Larvyn knows about it (Laravel, PHP, database, packages, branch) in
+front. Over MCP they are prompts: in Claude Code they show up in the `/`
+menu as `/mcp__larvyn__crud` and so on.
+
 `larvyn api list` lists the methods behind the commands and `larvyn api
 call <method> '<json>'` calls one with JSON params. `larvyn mcp` serves the
 same methods as MCP tools on stdin and stdout, for agents that prefer MCP

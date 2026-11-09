@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -39,6 +40,25 @@ func TestMain(m *testing.M) {
 	api.Register("demo.whoami", "Who calls", func(c api.Caller) string { return c.Session })
 	api.Register("demo.add", "Add", func(a, b int) int { return a + b }, "a: first", "b?: second")
 	api.MarkReadOnly("demo.whoami")
+	// What main registers for the playbooks, served as MCP prompts.
+	type book struct {
+		ID    string   `json:"id"`
+		Title string   `json:"title"`
+		Text  string   `json:"text"`
+		Args  []string `json:"args,omitempty"`
+	}
+	api.Register("playbooks", "Playbooks", func() []book {
+		return []book{{ID: "crud", Title: "CRUD resource", Text: "Build a CRUD for {Model}", Args: []string{"Model"}}}
+	})
+	api.Register("playbook", "A playbook", func(c api.Caller, id string, values []string) (map[string]string, error) {
+		if id != "crud" {
+			return nil, fmt.Errorf("no playbook %q", id)
+		}
+		if len(values) != 1 || !strings.HasPrefix(values[0], "Model=") {
+			return nil, fmt.Errorf("playbook crud needs Model=…")
+		}
+		return map[string]string{"title": "CRUD resource", "prompt": "for " + c.Session + ": Build a CRUD for " + strings.TrimPrefix(values[0], "Model=")}, nil
+	}, "id: the playbook", "values...: Name=value")
 	api.Register("context", "Context", func(c api.Caller) (map[string]any, error) {
 		if c.Session == "gone" {
 			return nil, errors.New("terminal not found")

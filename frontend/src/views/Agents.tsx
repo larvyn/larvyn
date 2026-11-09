@@ -39,7 +39,7 @@ import {
 } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { type SessionInfo } from '../../bindings/larvyn/internal/terminal'
-import { AgentService, type LaunchRequest, type AgentKind } from '../../bindings/larvyn/internal/agents'
+import { AgentService, type LaunchRequest, type AgentKind, type Playbook } from '../../bindings/larvyn/internal/agents'
 import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { GitService } from '../../bindings/larvyn/internal/git'
 import { agentStatus, composerRun, fail, relaunch, runInConsole, toast, useActive, useStore } from '../lib/store'
@@ -51,54 +51,19 @@ import { FileDiff as FileDiffView, firstLine, parseDiff, reviewMessage, type Com
 import { Brand, brandUrl } from '../components/Brand'
 import { DriftView, ROLE_LABEL, type Role, SpecPanel, SpecStrip, type SpecTab, useSpecs } from '../components/Specs'
 
-const TEMPLATES: { icon: typeof Layers; title: string; text: string; spec?: boolean }[] = [
-  {
-    icon: Compass,
-    title: 'Plan a feature first',
-    spec: true,
-    text: 'Specify {Feature}: the data model and migrations, the routes and validation, the policies, the edge cases and the Pest tests, following the patterns already in this codebase.',
-  },
-  {
-    icon: Layers,
-    title: 'CRUD resource',
-    text: 'Build a complete CRUD for a {Model} resource: migration, model with casts and relationships, factory, seeder, Form Requests for validation, a policy, a resource controller, routes and Pest feature tests. Follow the conventions already used in this codebase.',
-  },
-  {
-    icon: TestTube2,
-    title: 'Write tests',
-    text: 'Find the untested controllers, actions and jobs in app/ and write Pest feature and unit tests for them. Use factories, cover the happy path and the validation failures, and run php artisan test until everything passes.',
-  },
-  {
-    icon: Bug,
-    title: 'Fix failing tests',
-    text: 'Run php artisan test, investigate every failure, and fix the root cause in the application code (not the tests, unless a test is clearly wrong). Re-run until green and summarise what was broken.',
-  },
-  {
-    icon: Gauge,
-    title: 'Find N+1 queries',
-    text: 'Audit controllers, Livewire components and API resources for N+1 query problems and missing indexes. Add eager loading and migrations for indexes where needed, and explain each change.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Security review',
-    text: 'Review this Laravel app for security problems: mass assignment, missing authorization (policies/gates), unvalidated input, raw SQL, XSS in Blade ({!! !!}), CSRF exemptions, exposed secrets and insecure config. Fix what you can and list the rest.',
-  },
-  {
-    icon: ArrowUpCircle,
-    title: 'Upgrade Laravel',
-    text: 'Upgrade this application to the latest Laravel major version following the official upgrade guide: update composer.json constraints, apply the breaking changes, migrate to the slim application structure if appropriate, and make sure the test suite passes.',
-  },
-  {
-    icon: Wand2,
-    title: 'Refactor to actions',
-    text: 'Move business logic out of fat controllers into single-purpose Action classes in app/Actions, keep controllers thin, add type hints and return types, and keep behaviour identical (tests must still pass).',
-  },
-  {
-    icon: Code2,
-    title: 'API endpoints',
-    text: 'Add a versioned JSON API (routes/api.php, /api/v1) for the main models with API Resources, Form Request validation, Sanctum authentication, pagination and filtering, plus Pest tests for every endpoint.',
-  },
-]
+// The playbooks' texts live in Go (internal/agents/playbooks.go), where
+// `larvyn mcp` serves them as prompts too; the view only picks their icons.
+const PLAYBOOK_ICON: Record<string, typeof Layers> = {
+  'plan-feature': Compass,
+  crud: Layers,
+  'write-tests': TestTube2,
+  'fix-tests': Bug,
+  'n-plus-one': Gauge,
+  'security-review': ShieldCheck,
+  'upgrade-laravel': ArrowUpCircle,
+  'refactor-actions': Wand2,
+  'api-endpoints': Code2,
+}
 
 type Status = ReturnType<typeof agentStatus>
 const STATUS_LABEL: Record<Status, string> = { working: 'Working', idle: 'Waiting for you', attention: 'Needs attention', exited: 'Finished' }
@@ -109,6 +74,7 @@ export function Agents() {
   const settings = useStore((s) => s.settings)
   const focusPrompt = useStore((s) => s.focus.agentPrompt)
   const [kinds, setKinds] = useState<AgentKind[]>([])
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([])
   const [picked, setPicked] = useState<string[]>(() => load('agents:picked', [settings?.defaultAgent || 'claude']))
   const [prompt, setPrompt] = useState('')
   // Direct: agents get the prompt. Spec: an Elephant writes a spec for it first.
@@ -125,6 +91,7 @@ export function Agents() {
 
   useEffect(() => {
     AgentService.Kinds().then((k) => setKinds(k ?? []))
+    AgentService.Playbooks().then((p) => setPlaybooks(p ?? []))
   }, [])
   useEffect(() => {
     if (focusPrompt) {
@@ -353,25 +320,28 @@ export function Agents() {
                   <Sparkles size={13} /> Laravel playbooks
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-                  {TEMPLATES.map((t) => (
-                    <button
-                      key={t.title}
-                      className="template"
-                      onClick={() => {
-                        if (t.spec) {
-                          setWorkflow('spec')
-                          setPicked((p) => p.slice(0, 1))
-                        }
-                        setPrompt(t.text)
-                        taRef.current?.focus()
-                      }}
-                    >
-                      <b>
-                        <t.icon /> {t.title}
-                      </b>
-                      <span>{t.text.slice(0, 96)}…</span>
-                    </button>
-                  ))}
+                  {playbooks.map((t) => {
+                    const Icon = PLAYBOOK_ICON[t.id] ?? Sparkles
+                    return (
+                      <button
+                        key={t.id}
+                        className="template"
+                        onClick={() => {
+                          if (t.spec) {
+                            setWorkflow('spec')
+                            setPicked((p) => p.slice(0, 1))
+                          }
+                          setPrompt(t.text)
+                          taRef.current?.focus()
+                        }}
+                      >
+                        <b>
+                          <Icon /> {t.title}
+                        </b>
+                        <span>{t.text.slice(0, 96)}…</span>
+                      </button>
+                    )
+                  })}
                 </div>
                 {installed.length === 0 && kinds.length > 0 && (
                   <div className="error-box" style={{ marginTop: 16, background: 'var(--yellow-soft)', borderColor: 'rgba(245,197,66,.25)', color: 'var(--yellow)' }}>
