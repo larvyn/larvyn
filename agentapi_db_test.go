@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -65,7 +66,13 @@ func TestModelsAndDB(t *testing.T) {
 	}
 	t.Logf("db query:\n%s", r.Text)
 
-	before := command(c, "db", "query", "select count(*) as n from "+table).Text
+	// The rows only: the text also says how long the query took.
+	count := func() string {
+		var rows DBRows
+		json.Unmarshal(command(c, "db", "query", "select count(*) as n from "+table).Result, &rows)
+		return fmt.Sprint(rows.Rows)
+	}
+	before := count()
 	for _, sql := range []string{
 		"delete from " + table,
 		"with x as (select 1) delete from " + table,
@@ -77,7 +84,7 @@ func TestModelsAndDB(t *testing.T) {
 			t.Logf("%q refused: %s", sql, r.Error)
 		}
 	}
-	if after := command(c, "db", "query", "select count(*) as n from "+table).Text; after != before {
+	if after := count(); after != before {
 		t.Errorf("rows changed: %q → %q", before, after)
 	}
 }

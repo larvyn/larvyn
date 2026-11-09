@@ -73,6 +73,70 @@ function larvyn_tables(): array
     return array_map(fn ($n) => ['name' => $n, 'size' => null], $conn->getDoctrineSchemaManager()->listTableNames());
 }
 
+// larvyn_sql_code is a query with its strings, quoted names and comments
+// blanked out, so what is left is its code: a ; or a keyword found there is
+// one, not text inside a literal. MySQL alone takes # as a comment and a
+// backslash as an escape inside quotes; elsewhere # is an operator and a
+// backslash is just a character, so 'a\' ends there.
+function larvyn_sql_code(string $sql, bool $mysql): string
+{
+    $out = '';
+    $n = strlen($sql);
+    for ($i = 0; $i < $n; $i++) {
+        $c = $sql[$i];
+        $next = $i + 1 < $n ? $sql[$i + 1] : '';
+        $end = null;
+        if (($c === '-' && $next === '-') || ($mysql && $c === '#')) {
+            $end = strpos($sql, "\n", $i);
+            $end = $end === false ? $n : $end;
+        } elseif ($c === '/' && $next === '*') {
+            $end = strpos($sql, '*/', $i + 2);
+            $end = $end === false ? $n : $end + 2;
+        } elseif ($c === "'" || $c === '"' || $c === '`') {
+            // A quote ends at the same quote; doubled ('') it stays inside.
+            $j = $i + 1;
+            while ($j < $n) {
+                if ($mysql && $sql[$j] === '\\' && $c !== '`') {
+                    $j += 2;
+                    continue;
+                }
+                if ($sql[$j] === $c) {
+                    if ($j + 1 < $n && $sql[$j + 1] === $c) {
+                        $j += 2;
+                        continue;
+                    }
+                    break;
+                }
+                $j++;
+            }
+            $end = min($j + 1, $n);
+        }
+        if ($end === null) {
+            $out .= $c;
+            continue;
+        }
+        $out .= str_repeat(' ', $end - $i);
+        $i = $end - 1;
+    }
+    return $out;
+}
+
+// larvyn_one_statement is the query without its trailing ;, or null when a
+// ; outside strings and comments is followed by more SQL. Postgres's $$
+// strings aren't understood: a ; in one refuses the query, the safe way.
+function larvyn_one_statement(string $sql, bool $mysql): ?string
+{
+    $code = larvyn_sql_code($sql, $mysql);
+    $at = strpos($code, ';');
+    if ($at === false) {
+        return $sql;
+    }
+    if (trim(substr($code, $at), "; \t\r\n") !== '') {
+        return null;
+    }
+    return rtrim(substr($sql, 0, $at));
+}
+
 function larvyn_quote_ident(string $name): string
 {
     return DB::connection()->getQueryGrammar()->wrapTable($name);
@@ -163,30 +227,49 @@ switch ($action) {
 
     case 'db.read':
         // For agents: a read that can't write, whatever the SQL says. Only
-        // a query that reads gets this far, it runs in a read-only
-        // transaction (query_only on SQLite) and is always rolled back.
-        $sql = trim($payload['sql'] ?? '');
+        // one statement that reads gets this far; it runs in a read-only
+        // transaction (query_only on SQLite) on the connection that holds
+        // that setting, and is always rolled back.
+        $conn = DB::connection();
+        $driver = $conn->getDriverName();
+        if ($driver === 'sqlsrv') {
+            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'db query is not available on SQL Server: use larvyn artisan db or tinker']]);
+        }
+        $mysql = $driver === 'mysql' || $driver === 'mariadb';
+        $sql = larvyn_one_statement(trim($payload['sql'] ?? ''), $mysql);
+        if ($sql === null) {
+            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'one statement at a time: a ; may only end the query']]);
+        }
         if (!preg_match('/^\s*(select|with|show|describe|desc|explain|pragma\s+table_info|values)\b/i', $sql)) {
             larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'only a query that reads: select, with, show, describe, explain']]);
         }
-        $conn = DB::connection();
-        $driver = $conn->getDriverName();
+        if (preg_match('/\binto\s+(outfile|dumpfile)\b/i', larvyn_sql_code($sql, $mysql))) {
+            // MySQL writes the file on the server, rollback or not.
+            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'INTO OUTFILE and INTO DUMPFILE write files: not in db query']]);
+        }
         $limit = max(1, min((int) ($payload['limit'] ?? 100), 1000));
         $pdo = $conn->getPdo();
+        // exec returns false instead of throwing when the app sets PDO's
+        // error mode to silent: no read-only, no query.
+        $must = function ($ok, string $what) {
+            if ($ok === false) {
+                larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => "could not make the connection read-only ($what)"]]);
+            }
+        };
         if ($driver === 'sqlite') {
-            $pdo->exec('PRAGMA query_only = ON');
+            $must($pdo->exec('PRAGMA query_only = ON'), 'query_only');
         } elseif ($driver === 'mysql' || $driver === 'mariadb') {
             // MySQL sets it for the next transaction, Postgres inside one.
-            $pdo->exec('SET TRANSACTION READ ONLY');
-        } elseif ($driver === 'sqlsrv') {
-            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'db query is not available on SQL Server: use larvyn artisan db or tinker']]);
+            $must($pdo->exec('SET TRANSACTION READ ONLY'), 'SET TRANSACTION READ ONLY');
         }
-        $pdo->beginTransaction();
+        $must($pdo->beginTransaction(), 'BEGIN');
         try {
             if ($driver === 'pgsql') {
-                $pdo->exec('SET TRANSACTION READ ONLY');
+                $must($pdo->exec('SET TRANSACTION READ ONLY'), 'SET TRANSACTION READ ONLY');
             }
-            $rows = $conn->select($sql);
+            // false: on this PDO, not a separate read connection, which has
+            // none of the above.
+            $rows = $conn->select($sql, [], false);
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

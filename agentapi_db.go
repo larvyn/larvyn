@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,11 @@ func bridgeCall(c api.Caller, action string, payload any, out any) error {
 		}
 		return errors.New("the bridge failed")
 	}
-	return json.Unmarshal(raw, out)
+	// UseNumber: a bigint row id past 2^53 would lose digits as a float64,
+	// in the text and in --json.
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	return dec.Decode(out)
 }
 
 // Model is an Eloquent model as the bridge reads it.
