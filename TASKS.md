@@ -42,3 +42,19 @@ The Elephant-Goldfish workflow (`internal/agents/egm.go`, `components/Specs.tsx`
 - [ ] Warn when an Elephant changed files outside `.larvyn/specs/` (compare `git status` from before it started with after).
 - [ ] Show the review history (`.larvyn/specs/history/`) in the panel, with a diff between rounds.
 - [ ] Option to commit specs with the code, for teams that keep them in the repository.
+
+## 7. API socket in a long LARVYN_HOME
+
+The local API listens on a unix socket at `LARVYN_HOME/larvyn.sock`
+(`internal/api/server.go`, `SocketPath`). A unix socket path can't be much
+longer than about 104 characters (108 on Linux), so with a long home the API
+doesn't start: `bind: invalid argument`, seen on Windows with a temporary
+home whose socket path was 125 characters. The real home is short enough,
+but a test or a user with a long profile path hits it.
+
+- [ ] When `SocketPath()` is too long, use a short path instead: e.g. the
+      system temp dir plus a hash of the home (`larvyn-<hash>.sock`), keeping
+      the socket's permissions owner-only.
+- [ ] The CLI (`api.Dial`) and `larvyn mcp` must find the same path: derive it
+      in one function both use.
+- [ ] Test with a home over 120 characters on Linux, macOS and Windows.

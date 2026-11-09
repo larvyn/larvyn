@@ -146,17 +146,19 @@ a { color: inherit; }
 }
 .titlebar {
   --wails-draggable: drag;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  padding-left: 14px;
   border-bottom: 1px solid var(--line);
   background: var(--titlebar-bg);
   backdrop-filter: blur(20px);
   position: relative;
   z-index: 5;
 }
-.titlebar.mac { padding-left: 18px; }
+.tb-left { display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 14px; container: tb-left / inline-size; }
+.titlebar.mac .tb-left { padding-left: 18px; }
+.tb-right { display: flex; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
 /* macOS: the window is frameless, so it draws its own traffic lights. */
 .lights { display: flex; gap: 8px; margin-right: 8px; }
 .lights button { width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 0.5px solid rgba(0, 0, 0, 0.25); display: grid; place-items: center; font-size: 10px; line-height: 1; font-weight: 700; color: transparent; }
@@ -168,7 +170,7 @@ a { color: inherit; }
 .lights .l-min::after { content: '−'; }
 .lights .l-max::after { content: '+'; }
 .titlebar .nodrag, .titlebar button, .titlebar input { --wails-draggable: no-drag; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; font-size: 13.5px; }
+.brand { flex-shrink: 0; display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; font-size: 13.5px; }
 .brand-mark {
   width: 22px; height: 22px; border-radius: 7px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -176,11 +178,18 @@ a { color: inherit; }
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 4px 14px -2px rgba(255, 45, 32, 0.55);
 }
 .brand-mark svg { width: 13px; height: 13px; color: white; }
-.crumbs { display: flex; align-items: center; gap: 7px; margin-left: 4px; white-space: nowrap; color: var(--text-3); font-size: 12.5px; }
-.crumbs b { color: var(--text-2); font-weight: 550; }
+.crumbs { display: flex; align-items: center; gap: 7px; margin-left: 4px; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--text-3); font-size: 12.5px; }
+.crumbs > svg { flex-shrink: 0; }
+/* What gives way, in order: the branch (it only takes the room left over),
+   then the project name; the view label never does. */
+.crumbs b { color: var(--text-2); font-weight: 550; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; max-width: 14em; }
+.crumbs .crumb-view { flex-shrink: 0; }
+.crumbs .crumb-branch { height: 19px; font-size: 10.5px; gap: 4px; flex: 1 1 0; min-width: 5.5em; max-width: max-content; }
+/* Too narrow for a readable branch: the status bar still shows it. */
+@container tb-left (max-width: 380px) { .crumbs .crumb-branch { display: none; } }
+.crumbs .crumb-branch svg { flex-shrink: 0; }
 .searchbar {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  width: min(460px, 40vw); height: 28px;
+  width: clamp(240px, 32vw, 460px); height: 28px;
   display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px;
   border-radius: 8px; border: 1px solid var(--line-2);
   background: rgba(var(--ov), 0.03); color: var(--text-3);
@@ -188,7 +197,8 @@ a { color: inherit; }
 }
 .searchbar:hover { background: rgba(var(--ov), 0.055); border-color: var(--line-3); color: var(--text-2); }
 .searchbar svg { width: 14px; height: 14px; }
-.searchbar span.grow { text-align: left; }
+.searchbar span.grow { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.searchbar kbd { flex-shrink: 0; }
 .winctl { display: flex; height: 100%; }
 .winctl button {
   width: 46px; height: 100%; border: 0; background: transparent; color: var(--text-2);

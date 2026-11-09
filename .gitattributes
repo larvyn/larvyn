@@ -1,0 +1,6 @@
+# LF everywhere, Windows checkouts included. With core.autocrlf=true, Git
+# would check text files out with CRLF: gofmt -l then lists nearly every Go
+# file, and embedded files (internal/agentsetup/SKILL.md, bridge.php) differ
+# from what the tests expect. Binary files (images, icons) are detected and
+# left alone.
+* text=auto eol=lf

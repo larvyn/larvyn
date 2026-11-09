@@ -36,8 +36,9 @@ func init() {
 	api.Register("agents.status", "Print an agent's status and its screen", apiAgentStatus,
 		"id: the agent's terminal",
 		"lines?: how many of the screen's last lines, 40 by default")
-	api.Register("agents.wait", "Wait until an agent is done or needs attention, then print its screen; exits 0 when it is done, 2 when it needs attention, 1 on a timeout or a crash", apiAgentWait,
-		"id: the agent's terminal",
+	api.Register("agents.wait", "Wait until an agent is done or needs attention, then print its screen; exits 0 when it is done, 2 when it needs attention, 1 on a timeout or a crash. With several agents it waits for all of them, but returns as soon as one needs attention", apiAgentWait,
+		"id: the agent's terminal; several separated by commas (a1,b2) wait for all of them",
+		"any?: with several agents, return when the first one is done or needs attention",
 		"timeout?: seconds, 1800 by default",
 		"lines?: how many of the screen's last lines, 40 by default")
 	api.MarkReadOnly("agents.kinds", "agents.list", "agents.status", "agents.wait")
@@ -54,6 +55,10 @@ var prompted sync.Map // session id → time.Time
 // startGrace is how long an agent may stay quiet after a prompt before
 // wait takes it as done.
 const startGrace = 20 * time.Second
+
+// settleFor is how long an agent that rang the bell must be quiet for wait
+// to report its screen.
+const settleFor = 300 * time.Millisecond
 
 // quietFor is how long an agent must be idle for wait to take it as done:
 // a little longer than WorkingFor, so a short pause doesn't end it.
@@ -281,13 +286,72 @@ func apiAgentStatus(id string, lines int) (AgentReport, error) {
 	return report(s, lines), nil
 }
 
-func apiAgentWait(c api.Caller, id string, timeout, lines int) (AgentReport, error) {
-	s, err := findAgent(id)
-	if err != nil {
-		return AgentReport{}, err
+// AgentReports is what agents wait prints for several agents.
+type AgentReports struct {
+	Agents []AgentReport `json:"agents"`
+	// Waiting are the agents still working when the wait ended: the others
+	// after the first with --any, or the slow ones on a timeout.
+	Waiting int `json:"waiting,omitempty"`
+}
+
+func (r AgentReports) Text() string {
+	var b strings.Builder
+	for i, a := range r.Agents {
+		if i > 0 {
+			b.WriteString("\n---\n\n")
+		}
+		if a.Screen == "" {
+			// Still working: its screen says nothing yet.
+			fmt.Fprintf(&b, "%s · %s · %s · %s\n", a.ID, a.Agent, a.Title, a.Status)
+			continue
+		}
+		b.WriteString(a.ID + " · " + a.Text())
 	}
-	if c.Session == s.ID {
-		return AgentReport{}, errors.New("an agent can't wait for itself")
+	return b.String()
+}
+
+// ExitCode is the worst of the agents': 1 when one crashed or the wait
+// timed out, else 2 when one needs attention, else 0.
+func (r AgentReports) ExitCode() int {
+	code := 0
+	for _, a := range r.Agents {
+		switch c := a.ExitCode(); {
+		case c == 1:
+			return 1
+		case c == 2:
+			code = 2
+		}
+	}
+	return code
+}
+
+// apiAgentWait returns an AgentReport for one agent, as it always has, and
+// AgentReports for several.
+func apiAgentWait(c api.Caller, id string, anyOne bool, timeout, lines int) (any, error) {
+	var ids []string
+	for _, x := range strings.Split(id, ",") {
+		if x = strings.TrimSpace(x); x != "" {
+			ids = append(ids, x)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, errors.New("no agent id")
+	}
+	sessions := make([]terminal.SessionInfo, len(ids))
+	for i, x := range ids {
+		s, err := findAgent(x)
+		if err != nil {
+			return nil, err
+		}
+		if c.Session == s.ID {
+			return nil, errors.New("an agent can't wait for itself")
+		}
+		for _, prev := range sessions[:i] {
+			if prev.ID == s.ID {
+				return nil, fmt.Errorf("agent %s is named twice", s.ID)
+			}
+		}
+		sessions[i] = s
 	}
 	limit := time.Duration(timeout) * time.Second
 	if timeout <= 0 {
@@ -297,34 +361,81 @@ func apiAgentWait(c api.Caller, id string, timeout, lines int) (AgentReport, err
 	deadline := time.After(limit)
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
+	finished := make([]bool, len(sessions))
 	for {
-		s, err = findAgent(s.ID)
-		if err != nil {
-			return AgentReport{}, errors.New("the agent's terminal was closed")
+		count, attention := 0, false
+		for i := range sessions {
+			s, err := findAgent(sessions[i].ID)
+			if err != nil {
+				return nil, fmt.Errorf("the terminal of agent %s was closed", sessions[i].ID)
+			}
+			sessions[i] = s
+			// Once done, an agent stays done for this wait: it may be idle
+			// now and busy again later with someone else's task.
+			if !finished[i] && done(s, time.Now()) {
+				finished[i] = true
+			}
+			if finished[i] {
+				count++
+				attention = attention || report(s, 1).Status == "attention"
+			}
 		}
-		if done(s, time.Now()) {
-			return report(s, lines), nil
+		// One agent waiting for an answer holds up the rest: the caller has
+		// to answer it before waiting for all of them makes sense.
+		if count == len(sessions) || count > 0 && (anyOne || attention) {
+			return waitResult(sessions, finished, lines, false, start), nil
 		}
 		select {
 		case <-c.Ctx.Done():
-			return AgentReport{}, errors.New("stopped waiting")
+			return nil, errors.New("stopped waiting")
 		case <-deadline:
-			r := report(s, lines)
-			r.TimedOut, r.Seconds = true, int(time.Since(start).Seconds())
-			return r, nil
+			return waitResult(sessions, finished, lines, true, start), nil
 		case <-tick.C:
 		}
 	}
 }
 
+func waitResult(sessions []terminal.SessionInfo, finished []bool, lines int, timedOut bool, start time.Time) any {
+	secs := int(time.Since(start).Seconds())
+	if len(sessions) == 1 {
+		r := report(sessions[0], lines)
+		r.TimedOut, r.Seconds = timedOut, secs
+		if !timedOut {
+			r.Seconds = 0
+		}
+		return r
+	}
+	out := AgentReports{Agents: []AgentReport{}}
+	for i, s := range sessions {
+		switch {
+		case finished[i]:
+			out.Agents = append(out.Agents, report(s, lines))
+		case timedOut:
+			r := report(s, lines)
+			r.TimedOut, r.Seconds = true, secs
+			out.Agents = append(out.Agents, r)
+			out.Waiting++
+		default:
+			out.Agents = append(out.Agents, AgentReport{AgentRow: agentRow(s)})
+			out.Waiting++
+		}
+	}
+	return out
+}
+
 // done reports whether wait can stop: the agent exited, needs attention,
 // or has been quiet for a while since its last task.
 func done(s terminal.SessionInfo, now time.Time) bool {
+	last := time.UnixMilli(s.LastActivity)
 	switch agents.Status(s, now) {
-	case "exited", "attention":
+	case "exited":
 		return true
+	case "attention":
+		// ConPTY lets the bell through before it redraws the text that came
+		// with it: wait for the screen to settle, or the report misses the
+		// question.
+		return now.Sub(last) >= settleFor
 	case "idle":
-		last := time.UnixMilli(s.LastActivity)
 		if t, ok := prompted.Load(s.ID); ok {
 			// Given a task through the API: it has to have worked on it, or
 			// to have stayed quiet past the grace period.

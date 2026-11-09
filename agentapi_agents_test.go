@@ -204,3 +204,40 @@ func TestAgentsStartedByAgentsHaveALimit(t *testing.T) {
 		t.Error("sent to an unknown agent")
 	}
 }
+
+func TestAgentsWaitForSeveral(t *testing.T) {
+	_, caller := fakeAgents(t)
+	quick := startAgent(t, caller, "fix the login")
+	slow := startAgent(t, caller, "slow refactor")
+	both := quick.ID + "," + slow.ID
+
+	// --any: back with the first that is done, the other still working.
+	r := command(caller, "agents", "wait", both, "--any", "--timeout", "30")
+	var reps AgentReports
+	json.Unmarshal(r.Result, &reps)
+	if r.Error != "" || r.Exit != 0 || len(reps.Agents) != 2 || reps.Waiting != 1 {
+		t.Fatalf("--any: %+v", r)
+	}
+	if !strings.Contains(reps.Agents[0].Screen, "Done: fix the login") || reps.Agents[1].Screen != "" || reps.Agents[1].Status != "working" {
+		t.Fatalf("--any reports: %+v", reps)
+	}
+
+	// All of them: a short timeout ends it with the slow one still at work.
+	r = command(caller, "agents", "wait", both, "--timeout", "1")
+	json.Unmarshal(r.Result, &reps)
+	if r.Exit != 1 || reps.Waiting != 1 || !reps.Agents[1].TimedOut {
+		t.Fatalf("timeout: exit %d %+v", r.Exit, reps)
+	}
+
+	// A question holds up the rest, so it ends the wait for all of them.
+	asking := startAgent(t, caller, "ask before editing")
+	r = command(caller, "agents", "wait", slow.ID+","+asking.ID, "--timeout", "30")
+	json.Unmarshal(r.Result, &reps)
+	if r.Exit != 2 || reps.Agents[1].Status != "attention" || !strings.Contains(r.Text, "Allow the edit?") {
+		t.Fatalf("attention: exit %d %+v", r.Exit, reps)
+	}
+
+	if r := command(caller, "agents", "wait", quick.ID+","+quick.ID[:6]); !strings.Contains(r.Error, "twice") {
+		t.Errorf("same agent twice: %+v", r)
+	}
+}

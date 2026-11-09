@@ -45,12 +45,18 @@ func callBridge(projectID, action string, payload any, timeout time.Duration) (j
 	if !ok {
 		return nil, errors.New("project not found")
 	}
-	if !isDir(filepath.Join(p.Path, "vendor")) {
+	return BridgeIn(p.Path, action, payload, timeout)
+}
+
+// BridgeIn runs a bridge action in the Laravel app in dir, such as an
+// agent's worktree, and returns its JSON answer.
+func BridgeIn(dir, action string, payload any, timeout time.Duration) (json.RawMessage, error) {
+	if !isDir(filepath.Join(dir, "vendor")) {
 		return nil, errors.New("vendor/ is missing: run composer install first")
 	}
 	in, _ := json.Marshal(payload)
 	// Deprecations from newer PHP versions in config files are noise here.
-	res, err := proc.PHP(p.Path, timeout, in, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "-d", "display_errors=stderr", bridge(), p.Path, action)
+	res, err := proc.PHP(dir, timeout, in, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "-d", "display_errors=stderr", bridge(), dir, action)
 	if err != nil {
 		return nil, err
 	}
