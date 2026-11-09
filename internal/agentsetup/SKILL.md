@@ -51,6 +51,7 @@ larvyn db query "select status, count(*) from orders group by status"   # read-o
 larvyn terminal list
 larvyn terminal read <id> --lines 50      # an agent's terminal reads as its screen
 larvyn terminal search <id> "error|failed" --context 2   # matching lines of the whole output, numbered
+larvyn ports                              # which port each terminal and service listens on, with its URL
 larvyn terminal write <id> "npm run build" --enter
 larvyn terminal open --command "npm run build"
 larvyn terminal close <id>                # only terminals you opened

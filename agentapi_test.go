@@ -209,6 +209,21 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 		t.Errorf("not a regexp, taken as text: %v", err)
 	}
 
+	// A server started in a terminal shows up in ports, with its URL.
+	if runtime.GOOS != "windows" {
+		if py, err := exec.LookPath("python3"); err == nil {
+			srv, err := apiTerminalOpen(caller, py+" -m http.server 0 --bind 127.0.0.1", "", "server")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = terminal.Sessions.Close(srv.ID) })
+			waitFor(t, "the server's port", func() bool {
+				rows, err := apiPorts(caller, false)
+				return err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:")
+			})
+		}
+	}
+
 	// LARVYN_SESSION tells the CLI in it which terminal it runs in.
 	sh, err := apiTerminalOpen(caller, "", "", "")
 	if err != nil {
