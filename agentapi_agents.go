@@ -56,6 +56,10 @@ var prompted sync.Map // session id → time.Time
 // wait takes it as done.
 const startGrace = 20 * time.Second
 
+// settleFor is how long an agent that rang the bell must be quiet for wait
+// to report its screen.
+const settleFor = 300 * time.Millisecond
+
 // quietFor is how long an agent must be idle for wait to take it as done:
 // a little longer than WorkingFor, so a short pause doesn't end it.
 const quietFor = 3 * time.Second
@@ -408,11 +412,16 @@ func waitResult(sessions []terminal.SessionInfo, finished []bool, lines int, tim
 // done reports whether wait can stop: the agent exited, needs attention,
 // or has been quiet for a while since its last task.
 func done(s terminal.SessionInfo, now time.Time) bool {
+	last := time.UnixMilli(s.LastActivity)
 	switch agents.Status(s, now) {
-	case "exited", "attention":
+	case "exited":
 		return true
+	case "attention":
+		// ConPTY lets the bell through before it redraws the text that came
+		// with it: wait for the screen to settle, or the report misses the
+		// question.
+		return now.Sub(last) >= settleFor
 	case "idle":
-		last := time.UnixMilli(s.LastActivity)
 		if t, ok := prompted.Load(s.ID); ok {
 			// Given a task through the API: it has to have worked on it, or
 			// to have stayed quiet past the grace period.
