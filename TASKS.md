@@ -34,3 +34,19 @@ The terminals use xterm betas (#103): `@xterm/xterm` 6.1.0-beta.300 and `@xterm/
 - [ ] When xterm 6.1.0 and addon-webgl 0.20.0 ship as stable, move the five `@xterm/*` packages to those versions (`npm view @xterm/xterm dist-tags`).
 - [ ] Test with several agents in the grid: correct text, WebGL on and no lost contexts when switching views.
 - [ ] Check whether unfocused terminals show their cursor again (the beta doesn't draw the outline).
+
+## 6. API socket in a long LARVYN_HOME
+
+The local API listens on a unix socket at `LARVYN_HOME/larvyn.sock`
+(`internal/api/server.go`, `SocketPath`). A unix socket path can't be much
+longer than about 104 characters (108 on Linux), so with a long home the API
+doesn't start: `bind: invalid argument`, seen on Windows with a temporary
+home whose socket path was 125 characters. The real home is short enough,
+but a test or a user with a long profile path hits it.
+
+- [ ] When `SocketPath()` is too long, use a short path instead: e.g. the
+      system temp dir plus a hash of the home (`larvyn-<hash>.sock`), keeping
+      the socket's permissions owner-only.
+- [ ] The CLI (`api.Dial`) and `larvyn mcp` must find the same path: derive it
+      in one function both use.
+- [ ] Test with a home over 120 characters on Linux, macOS and Windows.
