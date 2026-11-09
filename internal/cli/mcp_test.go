@@ -211,3 +211,40 @@ func TestMCPCancelEndsTheCall(t *testing.T) {
 		t.Errorf("after cancel: %v", m)
 	}
 }
+
+func TestMCPPrompts(t *testing.T) {
+	c := newMCP(t)
+	c.send(1, "initialize", map[string]any{"protocolVersion": "2025-06-18"})
+	caps := c.next()["result"].(map[string]any)["capabilities"].(map[string]any)
+	if _, ok := caps["prompts"]; !ok {
+		t.Fatalf("no prompts capability: %v", caps)
+	}
+	// The playbooks are prompts, not tools.
+	c.send(2, "tools/list", nil)
+	for _, x := range c.next()["result"].(map[string]any)["tools"].([]any) {
+		if n := x.(map[string]any)["name"]; n == "playbooks" || n == "playbook" {
+			t.Errorf("%s is a tool", n)
+		}
+	}
+	c.send(3, "prompts/list", nil)
+	prompts := c.next()["result"].(map[string]any)["prompts"].([]any)
+	b, _ := json.Marshal(prompts)
+	if want := `[{"arguments":[{"description":"the model to put in the playbook","name":"Model","required":true}],"description":"Build a CRUD for {Model}","name":"crud","title":"CRUD resource"}]`; string(b) != want {
+		t.Fatalf("prompts/list: %s", b)
+	}
+	c.send(4, "prompts/get", map[string]any{"name": "crud", "arguments": map[string]string{"Model": "Invoice"}})
+	got := c.next()["result"].(map[string]any)
+	msg := got["messages"].([]any)[0].(map[string]any)
+	if got["description"] != "CRUD resource" || msg["role"] != "user" || msg["content"].(map[string]any)["text"] != "for me: Build a CRUD for Invoice" {
+		t.Fatalf("prompts/get: %v", got)
+	}
+	// A missing argument or an unknown name is the client's mistake.
+	c.send(5, "prompts/get", map[string]any{"name": "crud"})
+	if e := c.next()["error"].(map[string]any); e["code"] != float64(-32602) || !strings.Contains(e["message"].(string), "Model") {
+		t.Errorf("missing argument: %v", e)
+	}
+	c.send(6, "prompts/get", map[string]any{"name": "nope"})
+	if e := c.next()["error"].(map[string]any); e["code"] != float64(-32602) {
+		t.Errorf("unknown prompt: %v", e)
+	}
+}

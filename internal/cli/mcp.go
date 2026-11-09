@@ -116,9 +116,9 @@ func (s *mcpServer) handle(line []byte) {
 		}
 		s.reply(m.ID, map[string]any{
 			"protocolVersion": version,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
+			"capabilities":    map[string]any{"tools": map[string]any{}, "prompts": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "larvyn", "version": appVersion},
-			"instructions":    "Tools to see and drive the Larvyn app the agent runs in: its project and worktree (context), terminals, the dev stack, artisan, tests, logs and other agents. Larvyn must be running.",
+			"instructions":    "Tools to see and drive the Larvyn app the agent runs in: its project and worktree (context), terminals, the dev stack, artisan, tests, logs, models and database, locks and other agents. Its prompts are Laravel playbooks (CRUD, tests, N+1 queries, security review…) filled in for the project. Larvyn must be running.",
 		})
 	case "ping":
 		s.reply(m.ID, map[string]any{})
@@ -129,6 +129,20 @@ func (s *mcpServer) handle(line []byte) {
 			return
 		}
 		s.reply(m.ID, map[string]any{"tools": tools})
+	case "prompts/list":
+		prompts, err := s.prompts()
+		if err != nil {
+			s.fail(m.ID, -32603, err.Error())
+			return
+		}
+		s.reply(m.ID, map[string]any{"prompts": prompts})
+	case "prompts/get":
+		res, code, err := s.prompt(m.Params)
+		if err != nil {
+			s.fail(m.ID, code, err.Error())
+			return
+		}
+		s.reply(m.ID, res)
 	case "tools/call":
 		if notification {
 			// Without an id there is no one to answer.
@@ -172,8 +186,9 @@ func (s *mcpServer) handle(line []byte) {
 	}
 }
 
-// skipped are methods that make no sense as tools.
-var skipped = map[string]bool{"api.list": true}
+// skipped are methods that make no sense as tools: the playbooks are the
+// server's prompts.
+var skipped = map[string]bool{"api.list": true, "playbooks": true, "playbook": true}
 
 // toolName is a method's name as a tool: MCP clients take letters, digits,
 // _ and - only.
@@ -290,6 +305,71 @@ func (s *mcpServer) call(ctx context.Context, m rpcMessage) {
 		}
 		s.reply(m.ID, toolResult(strings.TrimRight(text, "\n"), false))
 	}
+}
+
+// prompts are the playbooks as MCP prompts: a {Model} in a playbook is an
+// argument.
+func (s *mcpServer) prompts() ([]map[string]any, error) {
+	resp, err := s.dial(context.Background(), api.Request{Method: "playbooks", Caller: s.caller})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	var books []struct {
+		ID    string   `json:"id"`
+		Title string   `json:"title"`
+		Text  string   `json:"text"`
+		Args  []string `json:"args"`
+	}
+	if err := json.Unmarshal(resp.Result, &books); err != nil {
+		return nil, err
+	}
+	out := []map[string]any{}
+	for _, b := range books {
+		args := []map[string]any{}
+		for _, a := range b.Args {
+			args = append(args, map[string]any{"name": a, "description": "the " + strings.ToLower(a) + " to put in the playbook", "required": true})
+		}
+		out = append(out, map[string]any{"name": b.ID, "title": b.Title, "description": b.Text, "arguments": args})
+	}
+	return out, nil
+}
+
+// prompt fills a playbook in for the caller's project. code is the JSON-RPC
+// error code when it fails: -32602 for a wrong name or a missing argument.
+func (s *mcpServer) prompt(params json.RawMessage) (map[string]any, int, error) {
+	var p struct {
+		Name      string            `json:"name"`
+		Arguments map[string]string `json:"arguments"`
+	}
+	if err := json.Unmarshal(params, &p); err != nil || p.Name == "" {
+		return nil, -32602, fmt.Errorf("prompts/get needs a name")
+	}
+	values := []string{}
+	for k, v := range p.Arguments {
+		values = append(values, k+"="+v)
+	}
+	args, _ := json.Marshal(map[string]any{"id": p.Name, "values": values})
+	resp, err := s.dial(context.Background(), api.Request{Method: "playbook", Params: args, Caller: s.caller})
+	if err != nil {
+		return nil, -32603, err
+	}
+	if resp.Error != "" {
+		return nil, -32602, fmt.Errorf("%s", resp.Error)
+	}
+	var pb struct {
+		Title  string `json:"title"`
+		Prompt string `json:"prompt"`
+	}
+	if err := json.Unmarshal(resp.Result, &pb); err != nil {
+		return nil, -32603, err
+	}
+	return map[string]any{
+		"description": pb.Title,
+		"messages":    []map[string]any{{"role": "user", "content": map[string]any{"type": "text", "text": pb.Prompt}}},
+	}, 0, nil
 }
 
 func toolResult(text string, isError bool) map[string]any {
