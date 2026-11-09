@@ -61,6 +61,13 @@ func parents() (map[int]int, bool) {
 // listening lists the TCP ports the processes of pids listen on.
 func listening(pids map[int]int) (map[int][]int, bool) {
 	out := map[int][]int{}
+	if runtime.GOOS != "linux" {
+		// Checked before anything is asked, so ListeningPorts(nil) tells
+		// whether ports can be read at all.
+		if _, err := exec.LookPath("lsof"); err != nil {
+			return nil, false
+		}
+	}
 	if len(pids) == 0 {
 		return out, true
 	}
@@ -87,9 +94,6 @@ func listening(pids map[int]int) (map[int][]int, bool) {
 			}
 		}
 		return out, true
-	}
-	if _, err := exec.LookPath("lsof"); err != nil {
-		return nil, false
 	}
 	list := make([]string, 0, len(pids))
 	for pid := range pids {

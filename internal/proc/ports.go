@@ -4,7 +4,8 @@ import "sort"
 
 // ListeningPorts lists the TCP ports that each of roots, with its
 // children, listens on: the dev server a terminal's npm run dev started.
-// ok is false where they cannot be read.
+// ok is false where they cannot be read: ListeningPorts(nil) tells whether
+// they can.
 func ListeningPorts(roots []int) (ports map[int][]int, ok bool) {
 	parent, ok := parents()
 	if !ok {
