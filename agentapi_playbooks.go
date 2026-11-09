@@ -63,7 +63,11 @@ func apiPlaybook(c api.Caller, id string, values []string) (PlaybookPrompt, erro
 	if len(missing) > 0 {
 		return PlaybookPrompt{}, fmt.Errorf("playbook %s needs %s=…", pb.ID, strings.Join(missing, "=… "))
 	}
-	head := playbookContext(c)
+	head, info := playbookContext(c)
+	// The playbooks say Pest; a project on PHPUnit keeps to it.
+	if info.TestRunner == "phpunit" && strings.Contains(text, "Pest") {
+		text += "\n\nThis project's tests use PHPUnit, not Pest: write them for PHPUnit."
+	}
 	if pb.Spec {
 		text += "\n\nWrite the spec only, no application code. In Larvyn, `larvyn specs draft \"<feature>\"` runs this as the spec-first workflow."
 	}
@@ -72,10 +76,10 @@ func apiPlaybook(c api.Caller, id string, values []string) (PlaybookPrompt, erro
 
 // playbookContext is what Larvyn knows about the caller's project, for an
 // agent that starts on a playbook without having looked around yet.
-func playbookContext(c api.Caller) string {
+func playbookContext(c api.Caller) (string, project.ProjectInfo) {
 	p, dir, _, err := callerProject(c)
 	if err != nil {
-		return ""
+		return "", project.ProjectInfo{}
 	}
 	at := p
 	at.Path = appRoot(p, dir)
@@ -110,5 +114,5 @@ func playbookContext(c api.Caller) string {
 	if info.IsLaravel {
 		lines = append(lines, "Larvyn's tools work here: larvyn test, larvyn models, larvyn db tables / db query, larvyn logs errors, larvyn artisan (the same as MCP tools).")
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), info
 }
