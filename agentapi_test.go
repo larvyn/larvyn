@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -193,6 +194,20 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 		out, _ := apiTerminalRead(opened.ID[:6], 0, false, false)
 		return strings.Contains(out, "hello-from-api")
 	})
+
+	// Search: smart case, line numbers, plain text when not a regexp.
+	if out, err := apiTerminalSearch(opened.ID, "hello-FROM", 0, 0); err != nil || !strings.HasPrefix(out, "No line matches") {
+		t.Errorf("search with a capital is case-sensitive: %q %v", out, err)
+	}
+	if out, err := apiTerminalSearch(opened.ID, "HELLO-from-api|nothing", 0, 0); err != nil || !strings.HasPrefix(out, "No line") {
+		t.Errorf("case-sensitive regexp: %q %v", out, err)
+	}
+	if out, err := apiTerminalSearch(opened.ID, "hello-from-(api)", 0, 0); err != nil || !regexp.MustCompile(`^\d+: .*hello-from-api`).MatchString(out) {
+		t.Errorf("search: %q %v", out, err)
+	}
+	if _, err := apiTerminalSearch(opened.ID, "hello[", 0, 0); err != nil {
+		t.Errorf("not a regexp, taken as text: %v", err)
+	}
 
 	// LARVYN_SESSION tells the CLI in it which terminal it runs in.
 	sh, err := apiTerminalOpen(caller, "", "", "")

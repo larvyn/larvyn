@@ -161,6 +161,45 @@ switch ($action) {
         $affected = DB::affectingStatement($sql);
         larvyn_reply(['ok' => true, 'kind' => 'affected', 'affected' => $affected, 'ms' => round((microtime(true) - $t0) * 1000, 1)]);
 
+    case 'db.read':
+        // For agents: a read that can't write, whatever the SQL says. Only
+        // a query that reads gets this far, it runs in a read-only
+        // transaction (query_only on SQLite) and is always rolled back.
+        $sql = trim($payload['sql'] ?? '');
+        if (!preg_match('/^\s*(select|with|show|describe|desc|explain|pragma\s+table_info|values)\b/i', $sql)) {
+            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'only a query that reads: select, with, show, describe, explain']]);
+        }
+        $conn = DB::connection();
+        $driver = $conn->getDriverName();
+        $limit = max(1, min((int) ($payload['limit'] ?? 100), 1000));
+        $pdo = $conn->getPdo();
+        if ($driver === 'sqlite') {
+            $pdo->exec('PRAGMA query_only = ON');
+        } elseif ($driver === 'mysql' || $driver === 'mariadb') {
+            // MySQL sets it for the next transaction, Postgres inside one.
+            $pdo->exec('SET TRANSACTION READ ONLY');
+        } elseif ($driver === 'sqlsrv') {
+            larvyn_reply(['ok' => false, 'error' => ['class' => 'Larvyn', 'message' => 'db query is not available on SQL Server: use larvyn artisan db or tinker']]);
+        }
+        $pdo->beginTransaction();
+        try {
+            if ($driver === 'pgsql') {
+                $pdo->exec('SET TRANSACTION READ ONLY');
+            }
+            $rows = $conn->select($sql);
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($driver === 'sqlite') {
+                $pdo->exec('PRAGMA query_only = OFF');
+            }
+        }
+        $limited = array_slice($rows, 0, $limit);
+        // select 1 has a column named 1, which PHP keeps as a number.
+        $cols = $limited ? array_map('strval', array_keys((array) $limited[0])) : [];
+        larvyn_reply(['ok' => true, 'columns' => $cols, 'rows' => larvyn_rows($limited), 'total' => count($rows), 'ms' => round((microtime(true) - $t0) * 1000, 1)]);
+
     case 'db.update':
         $table = $payload['table'];
         $affected = DB::table($table)->where($payload['key'], $payload['id'])->update($payload['values']);
