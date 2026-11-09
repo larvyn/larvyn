@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -209,30 +211,42 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 		t.Errorf("not a regexp, taken as text: %v", err)
 	}
 
-	// A server started in a terminal shows up in ports, with its URL.
-	if py, err := exec.LookPath("python3"); err == nil {
-		srv, err := apiTerminalOpen(caller, py+" -m http.server 0 --bind 127.0.0.1", "", "server")
-		if err != nil {
-			t.Fatal(err)
+	// A server started in a terminal shows up in ports, with its URL. The
+	// server is this test binary, run by its name from its own folder so
+	// cmd.exe needs no quotes; python3 can be the Microsoft Store alias that
+	// runs nothing.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := "./" + filepath.Base(exe)
+	if runtime.GOOS == "windows" {
+		run = filepath.Base(exe)
+	}
+	srv, err := apiTerminalOpen(caller, run+" larvyn-fake-server", filepath.Dir(exe), "server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = terminal.Sessions.Close(srv.ID) })
+	var rows PortRows
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		rows, err = apiPorts(caller, false)
+		if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:") {
+			break
 		}
-		t.Cleanup(func() { _ = terminal.Sessions.Close(srv.ID) })
-		var rows PortRows
-		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
-			rows, err = apiPorts(caller, false)
-			if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:") {
-				break
-			}
-			if time.Now().After(deadline) {
-				// What it saw, to tell a server that never started (python3
-				// as the Microsoft Store alias on Windows) from one that ports
-				// can't see.
-				out, _ := apiTerminalRead(srv.ID, 0, true, false)
-				s, _ := findTerminal(srv.ID)
-				pid, _ := terminal.PID(srv.ID)
-				all, _ := apiPorts(caller, true)
-				t.Fatalf("the server's port: ports %+v (%v), all projects %+v; %s running=%v pid=%d; its output:\n%s", rows, err, all, py, s.Running, pid, out)
-			}
+		if time.Now().After(deadline) {
+			// What it saw, to tell a server that never started from one
+			// that ports can't see.
+			out, _ := apiTerminalRead(srv.ID, 0, true, false)
+			s, _ := findTerminal(srv.ID)
+			pid, _ := terminal.PID(srv.ID)
+			all, _ := apiPorts(caller, true)
+			t.Fatalf("the server's port: ports %+v (%v), all projects %+v; running=%v pid=%d; its output:\n%s", rows, err, all, s.Running, pid, out)
 		}
+	}
+	out, _ := apiTerminalRead(srv.ID, 0, true, false)
+	if want := fmt.Sprintf("listening on %d", rows[0].Port); !strings.Contains(out, want) {
+		t.Errorf("ports says %d, the server says:\n%s", rows[0].Port, out)
 	}
 
 	// LARVYN_SESSION tells the CLI in it which terminal it runs in.
@@ -284,4 +298,17 @@ func TestFindTerminal(t *testing.T) {
 	if _, err := findTerminal("zzzz-none"); err == nil {
 		t.Error("unknown id found a terminal")
 	}
+}
+
+// fakeServer listens on a free port and says which, for the ports test. It
+// gives up after a minute in case its terminal outlives the test.
+func fakeServer() {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer ln.Close()
+	fmt.Printf("listening on %d\n", ln.Addr().(*net.TCPAddr).Port)
+	time.Sleep(time.Minute)
 }

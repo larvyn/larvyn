@@ -21,6 +21,11 @@ func TestMain(m *testing.M) {
 		fakeAgent()
 		os.Exit(0)
 	}
+	// The dev server of the ports test: this binary, run in a terminal.
+	if len(os.Args) > 1 && os.Args[1] == "larvyn-fake-server" {
+		fakeServer()
+		os.Exit(0)
+	}
 	home, _ := os.MkdirTemp("", "larvyn-test")
 	os.Setenv("LARVYN_HOME", home)
 	store.Reload()
