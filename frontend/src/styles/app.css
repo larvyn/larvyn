@@ -856,6 +856,7 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .dv-row .blank { background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.02) 5px 10px); padding: 0; }
 .dv-grid.commentable .dv-no[role='button'] { cursor: pointer; }
 .dv-grid.commentable .dv-no[role='button']:hover { color: var(--blue); opacity: 1; box-shadow: inset 2px 0 0 var(--blue); }
+.dv-grid.commentable .dv-no[role='button']:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; color: var(--blue); opacity: 1; }
 .dv-row.picked > span, .dv-row .picked { background: var(--blue-soft); }
 .dv-comments { padding: 6px 10px 8px 46px; background: var(--bg-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
 .dv-comment { border: 1px solid var(--line-2); border-left: 2px solid var(--blue); border-radius: 6px; background: var(--bg); padding: 6px 8px; font-family: var(--font); display: grid; gap: 6px; }

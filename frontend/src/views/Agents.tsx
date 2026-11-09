@@ -486,10 +486,13 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
   }
   const sendComments = () => {
     setSending(true)
-    AgentService.Send(s.id, reviewMessage(comments))
+    const sent = comments
+    AgentService.Send(s.id, reviewMessage(sent))
       .then(() => {
-        setComments([])
-        toast('success', `Sent ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} to ${s.meta?.agentName || 'the agent'}`)
+        // Only what went out: a comment added or edited meanwhile is a new
+        // object, so it stays.
+        setComments((cur) => cur.filter((c) => !sent.includes(c)))
+        toast('success', `Sent ${sent.length} ${sent.length === 1 ? 'comment' : 'comments'} to ${s.meta?.agentName || 'the agent'}`)
       })
       .catch(fail('Could not send the comments'))
       .finally(() => setSending(false))

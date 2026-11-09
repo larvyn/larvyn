@@ -154,11 +154,18 @@ const numOf = (l: Line) => (l.kind === 'del' ? l.old : l.new)
 /** The text of a file's lines from start to end on one side. */
 function codeOf(f: DiffFile, p: Pick): string[] {
   const out: string[] = []
+  let last = 0
   for (const h of f.hunks)
     for (const l of h.lines) {
-      if (l.kind === 'note' || (p.side === 'old' ? l.kind !== 'del' : l.kind === 'del')) continue
-      const n = numOf(l)
-      if (n >= p.start && n <= p.end) out.push(l.text)
+      // The old side is the old file: its removed and unchanged lines.
+      if (l.kind === 'note' || (p.side === 'old' ? l.kind === 'add' : l.kind === 'del')) continue
+      const n = p.side === 'old' ? l.old : l.new
+      if (n < p.start || n > p.end) continue
+      // Lines between two hunks aren't in the diff: say so, so the agent
+      // doesn't read the snippets as one block.
+      if (last && n > last + 1) out.push(`… (lines ${last + 1}-${n - 1} not shown)`)
+      out.push(l.text)
+      last = n
     }
   return out
 }
@@ -261,11 +268,10 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
   const [pick, setPick] = useState<Pick | null>(null)
   const mine = review?.comments.filter((c) => c.path === f.path) ?? []
 
-  const clickLine = (l: Line | undefined, e: React.MouseEvent) => {
+  const clickLine = (l: Line | undefined, shift: boolean) => {
     if (!review || !l || l.kind === 'note') return
     const side = sideOf(l)
     const n = numOf(l)
-    const shift = e.shiftKey
     setPick((cur) => (shift && cur && cur.side === side ? { side, start: Math.min(cur.start, n), end: Math.max(cur.end, n) } : { side, start: n, end: n }))
   }
   const picked = (l?: Line) => !!(pick && l && l.kind !== 'note' && sideOf(l) === pick.side && numOf(l) >= pick.start && numOf(l) <= pick.end)
@@ -298,7 +304,18 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
   }
   const gutter = (l: Line | undefined) =>
     review && l && l.kind !== 'note'
-      ? { onClick: (e: React.MouseEvent) => clickLine(l, e), title: 'Comment on this line (shift-click for several)', role: 'button' as const }
+      ? {
+          onClick: (e: React.MouseEvent) => clickLine(l, e.shiftKey),
+          // Enter or Space from the keyboard, Shift to extend, as with the mouse.
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            clickLine(l, e.shiftKey)
+          },
+          title: 'Comment on this line (shift-click for several)',
+          role: 'button' as const,
+          tabIndex: 0,
+        }
       : {}
 
   return (
@@ -370,10 +387,11 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
                   l.kind === 'note' ? null : (
                     <Fragment key={j}>
                       <div className={cx('dv-row', picked(l) && 'picked')}>
-                        <span className={cx('dv-no', l.kind !== 'ctx' && l.kind)} {...gutter(l)}>
+                        {/* One control per line: the number the comment uses. */}
+                        <span className={cx('dv-no', l.kind !== 'ctx' && l.kind)} {...(l.kind === 'del' ? gutter(l) : {})}>
                           {l.old || ''}
                         </span>
-                        <span className={cx('dv-no', l.kind !== 'ctx' && l.kind)} {...gutter(l)}>
+                        <span className={cx('dv-no', l.kind !== 'ctx' && l.kind)} {...(l.kind !== 'del' ? gutter(l) : {})}>
                           {l.new || ''}
                         </span>
                         <span className={cx('dv-code', l.kind !== 'ctx' && l.kind)}>

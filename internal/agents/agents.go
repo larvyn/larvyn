@@ -535,9 +535,17 @@ func (a *AgentService) Fanout(req LaunchRequest, agents []string) ([]terminal.Se
 // Send types a follow-up message into an agent and presses enter.
 func (a *AgentService) Send(sessionID, text string) error {
 	for _, s := range terminal.Sessions.List() {
-		if s.ID == sessionID && s.Setup {
+		if s.ID != sessionID {
+			continue
+		}
+		if s.Setup {
 			// It would go to the setup step (composer install…), not the agent.
 			return errors.New("the worktree is still being set up: the agent hasn't started yet")
+		}
+		if !s.Running {
+			// A stopped terminal takes writes and drops them (xterm's own
+			// answers come after the end); the message would be lost.
+			return errors.New("the agent has exited: nothing was sent")
 		}
 	}
 	if err := terminal.Sessions.Write(sessionID, bracketedPaste(text)); err != nil {

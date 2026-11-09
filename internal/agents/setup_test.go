@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"larvyn/internal/projectfile"
 	"larvyn/internal/terminal"
@@ -55,4 +56,34 @@ func TestSendWaitsForTheSetup(t *testing.T) {
 	if err := (&AgentService{}).Send(s.ID, "hello"); err == nil || !strings.Contains(err.Error(), "set up") {
 		t.Fatalf("a follow-up during the setup should be refused: %v", err)
 	}
+}
+
+func TestSendToAnExitedAgentFails(t *testing.T) {
+	s, err := terminal.Sessions.Start(terminal.SessionSpec{Kind: "run", Key: "send-exited", Cwd: os.TempDir(), Command: "echo done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer terminal.Sessions.Close(s.ID)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		if !running(s.ID) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the program didn't end")
+		}
+	}
+	// The terminal would drop the message: Send says so instead of
+	// reporting it sent.
+	if err := (&AgentService{}).Send(s.ID, "hello"); err == nil || !strings.Contains(err.Error(), "exited") {
+		t.Fatalf("a follow-up to an exited agent should fail: %v", err)
+	}
+}
+
+func running(id string) bool {
+	for _, s := range terminal.Sessions.List() {
+		if s.ID == id {
+			return s.Running
+		}
+	}
+	return false
 }
