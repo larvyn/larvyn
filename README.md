@@ -70,7 +70,7 @@ larvyn context                         # project, worktree, branch, local URL, d
 larvyn terminal list                   # this project's terminals
 larvyn terminal read <id> --lines 50   # a terminal's last lines as plain text
 larvyn terminal search <id> "error" --context 2   # matching lines of its whole output
-larvyn ports                           # the ports this project's terminals and services listen on (not on Windows yet)
+larvyn ports                           # the ports this project's terminals and services listen on
 larvyn terminal write <id> "php artisan migrate" --enter
 larvyn terminal open --command "npm run build"
 larvyn terminal close <id>             # only terminals it opened itself

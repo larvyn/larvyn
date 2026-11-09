@@ -65,7 +65,7 @@ func apiPorts(c api.Caller, all bool) (PortRows, error) {
 	}
 	ports, ok := proc.ListeningPorts(roots)
 	if !ok {
-		return nil, errors.New("this system doesn't tell which process listens on a port: larvyn context gives the app's URL")
+		return nil, errors.New("the ports in use could not be read here: larvyn context gives the app's URL")
 	}
 	out := PortRows{}
 	for _, s := range sessions {
