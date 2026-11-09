@@ -117,9 +117,9 @@ the app runs.
 
 ## Privacy
 
-Larvyn is free and has no telemetry, accounts or analytics. Nothing about
-your projects, code, `.env` files or terminals is sent anywhere. It connects
-to the internet only for these:
+Larvyn is free and has no telemetry, accounts or analytics. Larvyn itself
+sends nothing about your projects, code, `.env` files or terminals. It
+connects to the internet only for these:
 
 - **Updates:** a few seconds after it starts and every 6 hours it asks
   GitHub (`api.github.com/repos/larvyn/releases`) for the newest release, and
@@ -136,12 +136,13 @@ to the internet only for these:
   `composer.github.io`.
 - **Project icons:** for a project with a GitHub remote it downloads the
   owner's avatar from `github.com`, once a week at most.
-- **Feedback:** "Report a bug" and "Request a feature" open a form in your
-  browser; nothing is sent until you submit it there.
+- **Feedback:** "Report a bug" and "Request a feature" open a form on GitHub
+  in your browser; no report is sent until you submit the form there.
 
-The tools Larvyn runs for you connect as they always do: `composer outdated`
-and `composer audit` in the Dependencies view ask Packagist, and the agents
-talk to their own services.
+The agents you start and the tools Larvyn runs for you are other programs,
+with their own rules: an agent (Claude Code, Codex…) sends your prompts and
+the code it reads to its provider's service, and `composer outdated` and
+`composer audit` in the Dependencies view ask Packagist.
 
 ## How it works
 
