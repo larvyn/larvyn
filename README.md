@@ -69,6 +69,7 @@ opens has the `larvyn` command on its PATH, and it talks to the running app:
 larvyn context                         # project, worktree, branch, local URL, dev stack
 larvyn terminal list                   # this project's terminals
 larvyn terminal read <id> --lines 50   # a terminal's last lines as plain text
+larvyn terminal search <id> "error" --context 2   # matching lines of its whole output
 larvyn terminal write <id> "php artisan migrate" --enter
 larvyn terminal open --command "npm run build"
 larvyn terminal close <id>             # only terminals it opened itself
@@ -78,10 +79,16 @@ larvyn stack wait serve --port 8000    # or --line '<regexp>' in its output; --t
 larvyn artisan migrate --force         # runs in the caller's folder (its worktree), exits with artisan's code
 larvyn test --filter LoginTest         # runs in a terminal Larvyn shows, prints the failures
 larvyn logs errors --since 1h --trace  # the app's latest log errors
+larvyn models --name Order             # models with table, relationships, fillable, casts, row count
+larvyn db tables                       # tables and row counts; db table <name> for columns, indexes, keys
+larvyn db query "select …"             # read-only: runs in a read-only transaction that is rolled back
 larvyn agents start "add a CSV export" # another agent, in a new worktree from the caller's branch
 larvyn agents send <id> "also add a test"
 larvyn agents wait <id>                # until it is done (exit 0) or needs attention (exit 2), then its screen
+larvyn agents wait <a>,<b> [--any]     # all of them (back early on a question), or the first one done
 larvyn agents status <id>              # its status and screen now
+larvyn lock acquire db --note migrating # take turns on what agents share; waits while another holds it
+larvyn lock release db                 # locks also end after --ttl seconds or when their terminal closes
 larvyn help                            # every command; --json on any of them for JSON
 ```
 
