@@ -239,7 +239,7 @@ func (a *AgentService) CreateSpec(projectID, title string) (SpecFile, error) {
 		return SpecFile{}, err
 	}
 	title = firstLine(cmp.Or(strings.TrimSpace(title), "New feature"), 72)
-	base, err := normalizeSpecSlug(title)
+	base, err := slugFor(title)
 	if err != nil {
 		return SpecFile{}, err
 	}
@@ -326,7 +326,7 @@ func (a *AgentService) LaunchElephant(req ElephantRequest) (terminal.SessionInfo
 		if goal == "" {
 			return terminal.SessionInfo{}, errors.New("describe the feature to specify")
 		}
-		base, err := normalizeSpecSlug(firstLine(goal, 60))
+		base, err := slugFor(firstLine(goal, 80))
 		if err != nil {
 			return terminal.SessionInfo{}, err
 		}
@@ -855,16 +855,54 @@ func findSession(id string) (terminal.SessionInfo, bool) {
 	return terminal.SessionInfo{}, false
 }
 
-// runningEGM lists the running sessions of a spec, of one role or of all.
+// runningEGM lists the sessions of a spec still at work, of one role or of
+// all. A Goldfish or an auditor that wrote its report and went quiet is done,
+// though agents like Antigravity keep their TUI open afterwards.
 func runningEGM(projectID, slug, role string) []terminal.SessionInfo {
 	var out []terminal.SessionInfo
 	for _, s := range terminal.Sessions.List() {
-		if s.Running && s.ProjectID == projectID && s.Meta["spec"] == slug && s.Meta["role"] != "" && (role == "" || s.Meta["role"] == role) {
+		if s.Running && s.ProjectID == projectID && s.Meta["spec"] == slug && s.Meta["role"] != "" && (role == "" || s.Meta["role"] == role) && !reported(s) {
 			out = append(out, s)
 		}
 	}
 	return out
 }
+
+// reported reports whether a stateless session (Goldfish, auditor) wrote its
+// report since it started and has stopped working.
+func reported(s terminal.SessionInfo) bool {
+	var dir, rel string
+	switch s.Meta["role"] {
+	case "goldfish":
+		p, ok := store.FindProject(s.ProjectID)
+		if !ok {
+			return false
+		}
+		dir, rel = p.Path, reviewRelPath(s.Meta["spec"])
+	case "drift":
+		dir, rel = s.Cwd, driftRelPath(s.Meta["spec"])
+	default:
+		return false
+	}
+	st, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(rel)))
+	return err == nil && st.ModTime().UnixMilli() >= s.StartedAt && Status(s, time.Now()) != "working"
+}
+
+// slugFor makes a new spec's name from its title: at most 40 characters, cut
+// between words.
+func slugFor(title string) (string, error) {
+	s := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(title), "-"), "-")
+	if len(s) > 40 {
+		s = s[:41]
+		if i := strings.LastIndexByte(s, '-'); i > 10 {
+			s = s[:i]
+		}
+		s = strings.Trim(s[:min(len(s), 40)], "-")
+	}
+	return normalizeSpecSlug(s)
+}
+
+var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 func runningIn(projectID, slug, role, dir string) *terminal.SessionInfo {
 	for _, s := range runningEGM(projectID, slug, role) {

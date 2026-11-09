@@ -87,6 +87,43 @@ func TestParseVerdictReadsOnlyTheVerdictLine(t *testing.T) {
 	}
 }
 
+func TestSlugsCutBetweenWords(t *testing.T) {
+	for in, want := range map[string]string{
+		"Let admins export the filtered orders list as a CSV download": "let-admins-export-the-filtered-orders",
+		"Order Refunds":      "order-refunds",
+		"¡Exportar pedidos!": "exportar-pedidos",
+	} {
+		if got, err := slugFor(in); err != nil || got != want {
+			t.Errorf("slugFor(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+}
+
+// A Goldfish whose TUI stays open after writing its review is done: it no
+// longer blocks a revision or another review.
+func TestAGoldfishThatReportedIsDone(t *testing.T) {
+	sleepyAgent(t, "claude")
+	closeAll(t)
+	p := seedTestProject(t)
+	svc := &AgentService{}
+	writeAt(t, p.Path, specRelPath("export"), "# Export\n", time.Now().Add(-time.Hour))
+	gf, err := svc.LaunchGoldfish(GoldfishRequest{ProjectID: p.ID, Agent: "claude", Slug: "export"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runningEGM(p.ID, "export", "goldfish")) != 1 {
+		t.Fatal("the Goldfish should be at work before it wrote its review")
+	}
+	writeAt(t, p.Path, reviewRelPath("export"), "Verdict: NEEDS REVISION\n", time.UnixMilli(gf.StartedAt).Add(time.Second))
+	time.Sleep(WorkingFor + 200*time.Millisecond) // and went quiet
+	if len(runningEGM(p.ID, "export", "goldfish")) != 0 {
+		t.Fatal("a Goldfish that wrote its review and went quiet still counts as reviewing")
+	}
+	if _, err := svc.ReviseSpec(p.ID, "export", "claude"); err != nil {
+		t.Fatalf("revise after the review: %v", err)
+	}
+}
+
 func TestSpecLifecycle(t *testing.T) {
 	p := seedTestProject(t)
 	svc := &AgentService{}

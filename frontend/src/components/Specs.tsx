@@ -67,12 +67,32 @@ export function useSpecsChanged(projectId: string | undefined, fn: () => void) {
   }, [projectId, fn])
 }
 
-/** The running sessions of a spec, by role. */
-function specSessions(agents: SessionInfo[], slug: string) {
-  const of = (role: Role) => agents.filter((a) => a.meta?.spec === slug && a.meta?.role === role)
+/** Whether an agent is working or asking something right now. */
+function atWork(a: SessionInfo) {
+  const st = agentStatus({ ...a, lastActivity: activity.get(a.id) ?? a.lastActivity } as SessionInfo, Date.now())
+  return st === 'working' || st === 'attention'
+}
+
+/** Re-renders every 2 s while an agent of the project runs, so "at work" follows it. */
+function useTick(agents: SessionInfo[]) {
+  useNow(2000, agents.some((a) => a.running && a.meta?.spec))
+}
+
+/** Whether a stateless session (Goldfish, auditor) wrote its report since it
+ * started: it is done, though some agents keep their TUI open afterwards. */
+function reported(a: SessionInfo, reportAt: number | undefined) {
+  return !!reportAt && reportAt >= a.startedAt
+}
+
+/** The sessions of a spec still at work, by role, and all its builders. */
+function specSessions(agents: SessionInfo[], sf: Pick<SpecFile, 'slug' | 'reviewAt'>) {
+  const of = (role: Role) => agents.filter((a) => a.meta?.spec === sf.slug && a.meta?.role === role)
+  const elephant = of('elephant').find((a) => a.running)
   return {
-    elephant: of('elephant').find((a) => a.running),
-    goldfish: of('goldfish').find((a) => a.running),
+    // Open, maybe waiting for the user; `writing` only while it works on the spec.
+    elephant,
+    writing: !!elephant && atWork(elephant),
+    goldfish: of('goldfish').find((a) => a.running && !reported(a, sf.reviewAt)),
     builders: of('builder'),
     drifts: of('drift').filter((a) => a.running),
   }
@@ -95,9 +115,9 @@ export function verdictClass(verdict?: string) {
 
 /** Where a spec stands, as a badge. */
 export function specState(sf: SpecFile, agents: SessionInfo[]): { label: string; cls: string; busy?: boolean } {
-  const s = specSessions(agents, sf.slug)
+  const s = specSessions(agents, sf)
   if (s.goldfish) return { label: 'Reviewing', cls: 'yellow', busy: true }
-  if (s.elephant) return { label: 'Elephant', cls: 'blue', busy: true }
+  if (s.writing) return { label: 'Elephant', cls: 'blue', busy: true }
   if (s.builders.some((b) => b.running)) return { label: 'Building', cls: 'accent', busy: true }
   if (sf.approved) return { label: 'Approved', cls: 'green' }
   if (!sf.hasReview) return { label: 'Draft', cls: '' }
@@ -118,6 +138,7 @@ function StateBadge({ sf, agents }: { sf: SpecFile; agents: SessionInfo[] }) {
 
 /** The specs under the composer, one pill each. */
 export function SpecStrip(props: { specs: SpecFile[]; agents: SessionInfo[]; active: string | null; onOpen: (slug: string) => void; hint: boolean }) {
+  useTick(props.agents)
   if (!props.specs.length && !props.hint) return null
   return (
     <div className="spec-strip">
@@ -177,9 +198,9 @@ function otherAgent(kinds: AgentKind[], not: string | undefined, fallback: strin
 }
 
 function Steps(props: { tab: SpecTab; setTab: (t: SpecTab) => void; sf: SpecFile | null; agents: SessionInfo[] }) {
-  const s = props.sf ? specSessions(props.agents, props.sf.slug) : null
+  const s = props.sf ? specSessions(props.agents, props.sf) : null
   const steps: { id: SpecTab; icon: typeof Compass; title: string; sub: string; done: boolean; busy: boolean }[] = [
-    { id: 'spec', icon: Compass, title: '1 · Spec', sub: s?.elephant ? 'Elephant at work' : 'Elephant, no code', done: !!props.sf?.hasReview, busy: !!s?.elephant },
+    { id: 'spec', icon: Compass, title: '1 · Spec', sub: s?.writing ? 'Elephant at work' : s?.elephant ? 'Elephant waiting for you' : 'Elephant, no code', done: !!props.sf?.hasReview, busy: !!s?.writing },
     {
       id: 'review',
       icon: Scale,
@@ -235,7 +256,8 @@ export function SpecPanel(props: {
   // Editing: the text and the version of the file it started from.
   const [draft, setDraft] = useState<string | null>(null)
   const [editBase, setEditBase] = useState(0)
-  const s = specSessions(agents, slug)
+  useTick(agents)
+  const s = specSessions(agents, sf ?? { slug, reviewAt: 0 })
   const author = s.elephant?.key || props.picked[0]
   const [reviewer, setReviewer] = useState(() => otherAgent(kinds, author, 'claude'))
   const [focus, setFocus] = useState('')
@@ -393,11 +415,13 @@ export function SpecPanel(props: {
         <>
           <div className="spec-bar">
             <span className="faint ellipsis grow" style={{ fontSize: 11.5 }}>
-              {s.elephant ? (
+              {s.writing ? (
                 <>
                   <span className="status-dot busy" style={{ width: 6, height: 6, boxShadow: 'none', marginRight: 6 }} />
-                  The Elephant is writing this spec. Answer its questions in its terminal.
+                  The Elephant is writing this spec.
                 </>
+              ) : s.elephant ? (
+                'The Elephant is waiting: answer its questions or tell it what to change in its terminal.'
               ) : sf.hasReview ? (
                 `Reviewed ${sf.rounds} ${sf.rounds === 1 ? 'time' : 'times'}${sf.stale ? ', changed since' : ''}`
               ) : (
@@ -474,12 +498,12 @@ export function SpecPanel(props: {
                 onChange={(e) => setFocus(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !busy && !s.goldfish && review()}
               />
-              <button className="btn sm primary" disabled={busy || !!s.goldfish || !!s.elephant || !reviewer} onClick={review} title={s.elephant ? 'Wait until the Elephant is done' : undefined}>
+              <button className="btn sm primary" disabled={busy || !!s.goldfish || s.writing || !reviewer} onClick={review} title={s.writing ? 'Wait until the Elephant is done' : undefined}>
                 <Scale /> {s.goldfish ? 'Reviewing…' : sf.hasReview ? 'Review again' : 'Review'}
               </button>
             </div>
           </div>
-          {sf.hasReview && !s.goldfish && <Verdict sf={sf} busy={busy} elephant={!!s.elephant} onRevise={revise} onReview={review} onBuild={() => setTab('build')} />}
+          {sf.hasReview && !s.goldfish && <Verdict sf={sf} busy={busy} elephant={!!s.elephant} writing={s.writing} onRevise={revise} onReview={review} onBuild={() => setTab('build')} />}
           {s.goldfish ? (
             <Empty icon={<Scale />} title="The Goldfish is reviewing the spec">
               <button className="btn sm ghost" onClick={() => props.onFocusAgent(s.goldfish!.id)}>
@@ -551,7 +575,7 @@ export function SpecPanel(props: {
           <span className="faint" style={{ fontSize: 12, marginRight: 'auto' }}>
             Next: a cold review by an agent that didn't write it
           </span>
-          <button className="btn sm primary" disabled={!!s.elephant} onClick={() => setTab('review')}>
+          <button className="btn sm primary" disabled={s.writing} onClick={() => setTab('review')}>
             <Scale /> Review
           </button>
         </>
@@ -576,7 +600,7 @@ export function SpecPanel(props: {
 }
 
 /** The latest review's verdict and what to do about it. */
-function Verdict(props: { sf: SpecFile; busy: boolean; elephant: boolean; onRevise: () => void; onReview: () => void; onBuild: () => void }) {
+function Verdict(props: { sf: SpecFile; busy: boolean; elephant: boolean; writing: boolean; onRevise: () => void; onReview: () => void; onBuild: () => void }) {
   const { sf } = props
   let text: string, action: ReactNode
   if (sf.approved) {
@@ -589,7 +613,7 @@ function Verdict(props: { sf: SpecFile; busy: boolean; elephant: boolean; onRevi
   } else if (sf.stale) {
     text = 'The spec changed after this review. Review it again so the new version is vouched for.'
     action = (
-      <button className="btn sm primary" disabled={props.busy || props.elephant} onClick={props.onReview}>
+      <button className="btn sm primary" disabled={props.busy || props.writing} onClick={props.onReview}>
         <Scale /> Review again
       </button>
     )
@@ -630,8 +654,8 @@ export function useDrift(projectId: string, b: SessionInfo) {
 }
 
 /** Runs a drift check on a builder and sends it the fixes. */
-function useDriftActions(projectId: string, b: SessionInfo, kinds: AgentKind[], agents: SessionInfo[]) {
-  const auditing = agents.some((a) => a.running && a.meta?.role === 'drift' && a.cwd === b.cwd)
+function useDriftActions(projectId: string, b: SessionInfo, kinds: AgentKind[], agents: SessionInfo[], rep: DriftReport | null) {
+  const auditing = agents.some((a) => a.running && a.meta?.role === 'drift' && a.cwd === b.cwd && !reported(a, rep?.updatedAt))
   const check = () =>
     AgentService.LaunchDriftCheck({ projectId, agent: otherAgent(kinds, b.key, b.key), slug: b.meta?.spec || '', worktree: b.cwd })
       .then(() => toast('success', 'Drift check started', 'A fresh agent compares this attempt with the spec.'))
@@ -657,7 +681,7 @@ function Attempt(props: {
   const now = useNow(1000, b.running)
   const st = agentStatus({ ...b, lastActivity: activity.get(b.id) ?? b.lastActivity } as SessionInfo, now)
   const rep = useDrift(props.projectId, b)
-  const { auditing, check, fix } = useDriftActions(props.projectId, b, props.kinds, props.agents)
+  const { auditing, check, fix } = useDriftActions(props.projectId, b, props.kinds, props.agents, rep)
   const label = st === 'working' ? 'Working' : st === 'attention' ? 'Needs you' : st === 'idle' ? 'Waiting' : b.exitCode === 0 ? 'Finished' : 'Exited'
   return (
     <div className="attempt">
@@ -712,7 +736,7 @@ function Attempt(props: {
 export function DriftView(props: { projectId: string; b: SessionInfo; kinds: AgentKind[]; agents: SessionInfo[]; onOpenSpec: () => void }) {
   const { b } = props
   const rep = useDrift(props.projectId, b)
-  const { auditing, check, fix } = useDriftActions(props.projectId, b, props.kinds, props.agents)
+  const { auditing, check, fix } = useDriftActions(props.projectId, b, props.kinds, props.agents, rep)
   const auditor = useMemo(() => props.kinds.find((k) => k.id === otherAgent(props.kinds, b.key, b.key))?.name, [props.kinds, b.key])
   return (
     <>
