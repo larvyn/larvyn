@@ -193,6 +193,10 @@ func TestAgentsStartedByAgentsHaveALimit(t *testing.T) {
 	if !strings.Contains(r.Error, "levels deep") {
 		t.Errorf("third level: %+v", r)
 	}
+	// specs revise can start an Elephant: the same limit.
+	if r := command(api.Caller{Session: b.ID, Cwd: main}, "specs", "revise", "any-spec"); !strings.Contains(r.Error, "levels deep") {
+		t.Errorf("specs revise at the third level: %+v", r)
+	}
 	if r := command(api.Caller{Session: a.ID, Cwd: main}, "agents", "wait", a.ID); !strings.Contains(r.Error, "itself") {
 		t.Errorf("wait on itself: %+v", r)
 	}

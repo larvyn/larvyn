@@ -371,6 +371,14 @@ func (a *AgentService) LaunchElephant(req ElephantRequest) (terminal.SessionInfo
 // working on the spec when there is one, else to a new Elephant. It
 // answers the Elephant's session.
 func (a *AgentService) ReviseSpec(projectID, slug, agent string) (terminal.SessionInfo, error) {
+	return ReviseSpecWithMeta(projectID, slug, agent, nil)
+}
+
+// ReviseSpecWithMeta is ReviseSpec with the meta of an Elephant it starts:
+// the local API marks who started it, so the depth limit holds. A function
+// rather than a method so Wails does not bind it.
+func ReviseSpecWithMeta(projectID, slug, agent string, meta map[string]string) (terminal.SessionInfo, error) {
+	a := &AgentService{}
 	p, err := project(projectID)
 	if err != nil {
 		return terminal.SessionInfo{}, err
@@ -393,7 +401,7 @@ func (a *AgentService) ReviseSpec(projectID, slug, agent string) (terminal.Sessi
 	if s := runningEGM(p.ID, clean, "elephant"); len(s) > 0 {
 		return s[0], a.Send(s[0].ID, msg)
 	}
-	return a.LaunchElephant(ElephantRequest{ProjectID: p.ID, Agent: agent, Slug: clean, Prompt: msg})
+	return a.LaunchElephant(ElephantRequest{ProjectID: p.ID, Agent: agent, Slug: clean, Prompt: msg, Meta: meta})
 }
 
 // LaunchGoldfish starts a cold review of a spec. The previous review moves

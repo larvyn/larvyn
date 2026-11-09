@@ -153,11 +153,17 @@ func apiSpecReview(c api.Caller, slug, agent, focus string) (AgentRow, error) {
 }
 
 func apiSpecRevise(c api.Caller, slug, agent string) (AgentRow, error) {
-	id, _, err := callerSpecs(c)
+	id, self, err := callerSpecs(c)
 	if err != nil {
 		return AgentRow{}, err
 	}
-	return started((&agents.AgentService{}).ReviseSpec(id, slug, defaultAgent(agent)))
+	// Revising can start a new Elephant: it counts toward the depth limit
+	// like any agent an agent starts.
+	meta, err := childMeta(self)
+	if err != nil {
+		return AgentRow{}, err
+	}
+	return started(agents.ReviseSpecWithMeta(id, slug, defaultAgent(agent), meta))
 }
 
 func apiSpecBuild(c api.Caller, slug, list, notes string, force bool) ([]AgentRow, error) {
