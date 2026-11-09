@@ -70,6 +70,14 @@ export function Settings() {
           </div>
           <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="field">
+              <label>Theme</label>
+              <select className="select" value={v.theme === 'light' || v.theme === 'dark' ? v.theme : ''} onChange={(e) => set({ theme: e.target.value })}>
+                <option value="">Follow the system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+            <div className="field">
               <label>Editor</label>
               <select className="select" value={v.editor} onChange={(e) => set({ editor: e.target.value })}>
                 {EDITORS.map((e) => (

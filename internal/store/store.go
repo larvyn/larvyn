@@ -54,6 +54,8 @@ type Settings struct {
 	WorktreeRoot     string `json:"worktreeRoot"`
 	TerminalFontSize int    `json:"terminalFontSize"`
 	Accent           string `json:"accent"`
+	// Theme is "light", "dark" or "" to follow the system.
+	Theme            string `json:"theme"`
 	ConfirmDangerous bool   `json:"confirmDangerous"`
 	// NoUpdateCheck turns off the check for new releases at start.
 	NoUpdateCheck bool `json:"noUpdateCheck"`

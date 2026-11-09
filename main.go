@@ -184,9 +184,9 @@ func main() {
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
 		Windows: application.WindowsWindow{
-			Theme: application.Dark,
+			Theme: windowTheme(),
 		},
-		BackgroundColour: application.NewRGB(9, 9, 11),
+		BackgroundColour: windowBackground(),
 		URL:              "/",
 		// Files dropped on a terminal are typed in as their paths.
 		EnableFileDrop: true,
@@ -201,4 +201,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// windowTheme is the Windows title bar theme for the chosen app theme.
+func windowTheme() application.Theme {
+	switch store.CurrentSettings().Theme {
+	case "light":
+		return application.Light
+	case "dark":
+		return application.Dark
+	}
+	return application.SystemDefault
+}
+
+// windowBackground is what the window shows before the page paints: the
+// page's own background for the chosen theme. Following the system it stays
+// dark, which the page repaints at once if the system is light.
+func windowBackground() application.RGBA {
+	if store.CurrentSettings().Theme == "light" {
+		return application.NewRGB(246, 246, 248)
+	}
+	return application.NewRGB(9, 9, 11)
 }

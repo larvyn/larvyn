@@ -10,8 +10,9 @@ import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { b64ToBytes } from './util'
 import { quotePath } from './shell'
 import { fail, toast, useStore } from './store'
+import { currentTheme, onThemeChange, type Theme } from './theme'
 
-export const termTheme: ITheme = {
+const darkTermTheme: ITheme = {
   background: '#0a0a0d',
   foreground: '#e4e4e8',
   cursor: '#ff4136',
@@ -33,6 +34,35 @@ export const termTheme: ITheme = {
   brightMagenta: '#d8b4fe',
   brightCyan: '#5eead4',
   brightWhite: '#fafafa',
+}
+
+const lightTermTheme: ITheme = {
+  background: '#fbfbfc',
+  foreground: '#27272a',
+  cursor: '#e8261a',
+  cursorAccent: '#fbfbfc',
+  selectionBackground: 'rgba(255, 65, 54, 0.2)',
+  black: '#27272a',
+  red: '#c8231b',
+  green: '#11803f',
+  yellow: '#946a00',
+  blue: '#2459c8',
+  magenta: '#8e3fc4',
+  cyan: '#0b7f72',
+  white: '#a1a1aa',
+  brightBlack: '#71717a',
+  brightRed: '#e0352c',
+  brightGreen: '#15a35a',
+  brightYellow: '#b07d0a',
+  brightBlue: '#2f6fe0',
+  brightMagenta: '#a855f7',
+  brightCyan: '#0e9384',
+  brightWhite: '#d4d4d8',
+}
+
+/** The terminal colours for an app theme. */
+export function termThemeFor(t: Theme): ITheme {
+  return t === 'light' ? lightTermTheme : darkTermTheme
 }
 
 interface Entry {
@@ -120,6 +150,9 @@ function listen() {
         activity.delete(id)
       }
     }
+  })
+  onThemeChange((t) => {
+    for (const e of entries.values()) e.term.options.theme = termThemeFor(t)
   })
 }
 listen()
@@ -277,7 +310,7 @@ function getEntry(id: string): Entry {
   if (e) return e
   const fontSize = useStore.getState().settings?.terminalFontSize || 13
   const term = new Terminal({
-    theme: termTheme,
+    theme: termThemeFor(currentTheme()),
     fontFamily: TERM_FONT,
     fontSize,
     lineHeight: 1.22,

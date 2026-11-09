@@ -121,7 +121,7 @@ export function Queues() {
                   <Trash2 />
                 </button>
               </div>
-              {open === j.id && <pre className="code" style={{ margin: '0 14px 14px', padding: 12, background: 'rgba(0,0,0,.3)', borderRadius: 8, maxHeight: 280, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 11 }}>{j.exception}</pre>}
+              {open === j.id && <pre className="code" style={{ margin: '0 14px 14px', padding: 12, background: 'var(--well)', borderRadius: 8, maxHeight: 280, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 11 }}>{j.exception}</pre>}
             </div>
           ))
         )}

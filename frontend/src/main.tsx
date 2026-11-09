@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './styles/app.css'
+import './lib/theme'
 import App from './App'
 import { SystemService } from '../bindings/larvyn/internal/system'
 

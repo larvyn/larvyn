@@ -67,6 +67,11 @@ export interface Settings {
     "worktreeRoot": string;
     "terminalFontSize": number;
     "accent": string;
+
+    /**
+     * Theme is "light", "dark" or "" to follow the system.
+     */
+    "theme": string;
     "confirmDangerous": boolean;
 
     /**

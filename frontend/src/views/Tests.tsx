@@ -151,7 +151,7 @@ export function Tests() {
                         )}
                         <div className="msg" style={{ color: bad ? 'var(--text)' : 'var(--text-2)' }}>
                           {c.name}
-                          {bad && <div className="exc" style={{ color: '#ffb3ae' }}>{c.message}</div>}
+                          {bad && <div className="exc" style={{ color: 'var(--red-text)' }}>{c.message}</div>}
                         </div>
                         <span className="faint mono" style={{ fontSize: 11 }}>
                           {(c.time * 1000).toFixed(0)} ms
@@ -179,7 +179,7 @@ export function Tests() {
                               <Bot /> Ask an agent to fix it
                             </button>
                           </div>
-                          <pre className="code" style={{ margin: 0, padding: 12, background: 'rgba(0,0,0,.3)', borderRadius: 8, whiteSpace: 'pre-wrap', fontSize: 11.5, maxHeight: 320, overflow: 'auto' }}>
+                          <pre className="code" style={{ margin: 0, padding: 12, background: 'var(--well)', borderRadius: 8, whiteSpace: 'pre-wrap', fontSize: 11.5, maxHeight: 320, overflow: 'auto' }}>
                             {c.details}
                           </pre>
                         </div>
