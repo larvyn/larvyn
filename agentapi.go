@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,7 +41,12 @@ func init() {
 		"title?: the terminal's name")
 	api.Register("terminal.close", "Close a terminal the caller opened", apiTerminalClose,
 		"id: the terminal")
-	api.MarkReadOnly("version", "context", "terminal.list", "terminal.read")
+	api.Register("terminal.search", "Print the lines of a terminal's whole output that match, with their line numbers: an error in a long build or test run without reading it all", apiTerminalSearch,
+		"id: the terminal",
+		"pattern: a regular expression, or plain text when it isn't one; case is ignored unless it has a capital",
+		"context?: lines to show around each match",
+		"limit?: how many matches, the last 50 by default")
+	api.MarkReadOnly("version", "context", "terminal.list", "terminal.read", "terminal.search")
 }
 
 // startAPI writes the CLI where terminals find it and opens the socket.
@@ -270,6 +277,77 @@ func apiTerminalRead(id string, lines int, all, screen bool) (string, error) {
 		lines = 100
 	}
 	return lastLines(out, lines), nil
+}
+
+// searchPattern compiles what terminal search looks for: a regular
+// expression, else the text as it is; case-insensitive unless it has a
+// capital letter, as in an editor's smart case.
+func searchPattern(pattern string) (*regexp.Regexp, error) {
+	if strings.TrimSpace(pattern) == "" {
+		return nil, errors.New("what to search for?")
+	}
+	flags := ""
+	if strings.ToLower(pattern) == pattern {
+		flags = "(?i)"
+	}
+	if re, err := regexp.Compile(flags + pattern); err == nil {
+		return re, nil
+	}
+	return regexp.Compile(flags + regexp.QuoteMeta(pattern))
+}
+
+func apiTerminalSearch(id, pattern string, context, limit int) (string, error) {
+	re, err := searchPattern(pattern)
+	if err != nil {
+		return "", err
+	}
+	s, err := findTerminal(id)
+	if err != nil {
+		return "", err
+	}
+	out, err := terminal.Sessions.Output(s.ID)
+	if err != nil {
+		return "", err
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	context = max(context, 0)
+	lines := strings.Split(lastLines(out, -1), "\n")
+	var hits []int
+	for i, l := range lines {
+		if re.MatchString(l) {
+			hits = append(hits, i)
+		}
+	}
+	if len(hits) == 0 {
+		return fmt.Sprintf("No line matches %q in %d lines.", pattern, len(lines)), nil
+	}
+	total := len(hits)
+	if total > limit {
+		hits = hits[total-limit:]
+	}
+	var b strings.Builder
+	if total > limit {
+		fmt.Fprintf(&b, "%d matches, the last %d:\n\n", total, limit)
+	}
+	width := len(strconv.Itoa(len(lines)))
+	shown := -1
+	for _, h := range hits {
+		from, to := max(h-context, shown+1), min(h+context, len(lines)-1)
+		if shown >= 0 && from > shown+1 {
+			b.WriteString("--\n")
+		}
+		for i := from; i <= to; i++ {
+			sep := "-"
+			if re.MatchString(lines[i]) {
+				sep = ":"
+			}
+			fmt.Fprintf(&b, "%*d%s %s\n", width, i+1, sep, lines[i])
+		}
+		shown = max(shown, to)
+	}
+	return strings.TrimRight(b.String(), "\n"), nil
 }
 
 // lastLines is the last n lines of terminal output, with each line as it
