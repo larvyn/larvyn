@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"larvyn/internal/api"
+	"larvyn/internal/proc"
 	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 )
@@ -212,16 +213,17 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 	}
 
 	// A server started in a terminal shows up in ports, with its URL. The
-	// server is this test binary, run by its name from its own folder so
-	// cmd.exe needs no quotes; python3 can be the Microsoft Store alias that
-	// runs nothing.
+	// server is this test binary, run from its own folder so cmd.exe needs
+	// no quotes; python3 can be the Microsoft Store alias that runs nothing.
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
+	// .\ too on Windows: with NoDefaultCurrentDirectoryInExePath set,
+	// cmd.exe doesn't run a bare name from the current folder.
 	run := "./" + filepath.Base(exe)
 	if runtime.GOOS == "windows" {
-		run = filepath.Base(exe)
+		run = `.\` + filepath.Base(exe)
 	}
 	srv, err := apiTerminalOpen(caller, run+" larvyn-fake-server", filepath.Dir(exe), "server")
 	if err != nil {
@@ -231,7 +233,7 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 	var rows PortRows
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
 		rows, err = apiPorts(caller, false)
-		if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:") {
+		if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://localhost:") {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -255,9 +257,13 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = terminal.Sessions.Close(sh.ID) })
+	// The shell is PowerShell on Windows when there is one, else cmd.exe.
 	echo := "echo id=$LARVYN_SESSION"
 	if runtime.GOOS == "windows" {
-		echo = "echo id=%LARVYN_SESSION%"
+		echo = "echo id=$env:LARVYN_SESSION"
+		if strings.EqualFold(filepath.Base(proc.DefaultShell()[0]), "cmd.exe") {
+			echo = "echo id=%LARVYN_SESSION%"
+		}
 	}
 	waitFor(t, "the shell", func() bool {
 		_ = apiTerminalWrite(sh.ID, echo, true)

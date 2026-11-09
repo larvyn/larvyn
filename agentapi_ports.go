@@ -16,7 +16,9 @@ func init() {
 	api.MarkReadOnly("ports")
 }
 
-// PortRow is a port a terminal's processes listen on.
+// PortRow is a port a terminal's processes listen on. Its URL says
+// localhost, not 127.0.0.1: a server can listen on ::1 only, as Vite does
+// where Node resolves localhost to it, and a browser tries both.
 type PortRow struct {
 	Terminal string `json:"terminal"`
 	Kind     string `json:"kind"`
@@ -74,7 +76,7 @@ func apiPorts(c api.Caller, all bool) (PortRows, error) {
 				continue
 			}
 			for _, p := range ps {
-				out = append(out, PortRow{Terminal: s.ID, Kind: s.Kind, Title: s.Title, Port: p, URL: fmt.Sprintf("http://127.0.0.1:%d", p)})
+				out = append(out, PortRow{Terminal: s.ID, Kind: s.Kind, Title: s.Title, Port: p, URL: fmt.Sprintf("http://localhost:%d", p)})
 			}
 		}
 	}
