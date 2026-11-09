@@ -44,6 +44,13 @@ Platform-specific Go code goes in `_windows.go` / `_other.go` pairs (see
   view. Go tests that need a home set it in `main_test.go`.
 - **Real Laravel projects are read-only.** Use them to look, never to write,
   migrate or install. Make a throwaway project for anything that changes files.
+- **Screenshots use the demo project.** Any screenshot of the app (for the
+  user, a release, docs) opens `~/Sites/demo/acme-store` with a
+  `LARVYN_HOME` whose `state.json` has only that project, so no other
+  project, path or name (e.g. `orca`) shows. It is read-only like any real
+  project: check `git status` in `~/Sites/demo` is unchanged afterwards.
+  Stop the test instance by its own PID, never `pkill -f larvyn`, which also
+  kills the user's running Larvyn.
 - **Processes go through `internal/proc`.** Use `proc.Run`, `proc.Artisan`,
   `proc.Git`, `proc.KillTree`… instead of raw `exec.Command`, so windows stay
   hidden on Windows and children die with their parent.
