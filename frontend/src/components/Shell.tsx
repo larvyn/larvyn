@@ -94,7 +94,7 @@ export function TitleBar() {
               </span>
             )}
             <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
-            <span className="ellipsis">{NAV_ITEMS.find((n) => n.view === view)?.label ?? (view.startsWith('plugin:') ? 'Plugin' : 'Settings')}</span>
+            <span className="crumb-view">{NAV_ITEMS.find((n) => n.view === view)?.label ?? (view.startsWith('plugin:') ? 'Plugin' : 'Settings')}</span>
           </div>
         )}
       </div>
