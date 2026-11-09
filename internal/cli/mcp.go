@@ -344,7 +344,10 @@ func (s *mcpServer) prompt(params json.RawMessage) (map[string]any, int, error) 
 		Name      string            `json:"name"`
 		Arguments map[string]string `json:"arguments"`
 	}
-	if err := json.Unmarshal(params, &p); err != nil || p.Name == "" {
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, -32602, fmt.Errorf("prompts/get: invalid params (arguments must be strings): %v", err)
+	}
+	if p.Name == "" {
 		return nil, -32602, fmt.Errorf("prompts/get needs a name")
 	}
 	values := []string{}

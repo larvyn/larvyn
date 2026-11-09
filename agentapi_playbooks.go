@@ -85,8 +85,15 @@ func playbookContext(c api.Caller) (string, project.ProjectInfo) {
 	at.Path = appRoot(p, dir)
 	info := project.Inspect(at)
 	var facts []string
+	// The values come from the project's own files (composer.json, .env,
+	// git), so each is kept to one short line: no newlines that could pass
+	// as instructions in the prompt.
 	add := func(label, v string) {
-		if v = strings.TrimSpace(v); v != "" {
+		v = strings.Join(strings.Fields(v), " ")
+		if r := []rune(v); len(r) > 80 {
+			v = string(r[:80]) + "…"
+		}
+		if v != "" {
 			facts = append(facts, label+v)
 		}
 	}

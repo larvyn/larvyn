@@ -247,4 +247,9 @@ func TestMCPPrompts(t *testing.T) {
 	if e := c.next()["error"].(map[string]any); e["code"] != float64(-32602) {
 		t.Errorf("unknown prompt: %v", e)
 	}
+	// A non-string argument says so, not that the name is missing.
+	c.send(7, "prompts/get", map[string]any{"name": "crud", "arguments": map[string]any{"Model": 1}})
+	if e := c.next()["error"].(map[string]any); e["code"] != float64(-32602) || strings.Contains(e["message"].(string), "needs a name") {
+		t.Errorf("non-string argument: %v", e)
+	}
 }
