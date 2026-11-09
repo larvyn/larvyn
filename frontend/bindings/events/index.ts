@@ -29,6 +29,11 @@ export const ProjectsChanged = "projects:changed";
 export const SessionsChanged = "sessions:changed";
 
 /**
+ * Name of the custom event "specs:changed".
+ */
+export const SpecsChanged = "specs:changed";
+
+/**
  * Name of the custom event "term:data".
  */
 export const TermData = "term:data";

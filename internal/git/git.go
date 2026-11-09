@@ -168,7 +168,7 @@ func (g *GitService) BranchDiff(worktreePath, base string) (string, error) {
 		return "", err
 	}
 	// Intent-to-add makes new files show up in the diff without staging them.
-	_, _ = proc.Git(worktreePath, append([]string{"add", "-A", "-N", "--", "."}, notCopied...)...)
+	_ = stageAll(worktreePath, true)
 	return proc.Git(worktreePath, "diff", "--no-color", strings.TrimSpace(mb))
 }
 
@@ -432,7 +432,7 @@ func (g *GitService) MergeWorktree(projectID, path, message string) (string, err
 		if message == "" {
 			message = "wip: agent changes"
 		}
-		if _, err := proc.Git(path, append([]string{"add", "-A", "--", "."}, notCopied...)...); err != nil {
+		if err := stageAll(path, false); err != nil {
 			return "", err
 		}
 		if _, err := proc.Git(path, "commit", "-m", message); err != nil {
@@ -446,9 +446,25 @@ func (g *GitService) MergeWorktree(projectID, path, message string) (string, err
 	return proc.Git(p.Path, "merge", "--no-ff", "--no-edit", strings.TrimSpace(branch))
 }
 
-// notCopied excludes the files CreateWorktree copies from the main checkout,
-// so they are never committed even where .gitignore misses them.
-var notCopied = []string{":!.env", ":!database/database.sqlite"}
+// notCopied are the files CreateWorktree copies from the main checkout and
+// the specs EGM copies in: never committed, even where .gitignore misses them.
+var notCopied = []string{".env", "database/database.sqlite", ".larvyn/specs"}
+
+// stageAll stages a worktree's changes (only as intent-to-add with intent)
+// and takes notCopied back out. Not with ":!" pathspecs: git add fails on
+// an exclude that names an ignored path, such as Laravel's .env, and stops
+// staging there. reset leaves a tracked .env as it is in HEAD.
+func stageAll(dir string, intent bool) error {
+	args := []string{"add", "-A"}
+	if intent {
+		args = append(args, "-N")
+	}
+	if _, err := proc.Git(dir, append(args, "--", ".")...); err != nil {
+		return err
+	}
+	_, err := proc.Git(dir, append([]string{"reset", "-q", "--"}, notCopied...)...)
+	return err
+}
 
 // copyInto copies a file into dir/rel. It writes through os.Root, so a
 // symlink the checked-out branch put at rel (or at a folder on the way) can't

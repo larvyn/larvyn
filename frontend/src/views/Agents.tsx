@@ -3,7 +3,13 @@ import {
   Bot,
   Check,
   Columns2,
+  Compass,
   Copy,
+  FileText,
+  Hammer,
+  Plus,
+  Scale,
+  Zap,
   RefreshCw,
   Rows3,
   ChevronDown,
@@ -43,8 +49,15 @@ import { useRunShortcut } from '../lib/shortcuts'
 import { Empty, SidePanel, TermPane, confirmDialog, useNow } from '../components/ui'
 import { FileDiff as FileDiffView, firstLine, parseDiff, reviewMessage, type Comment, type Review } from '../components/DiffView'
 import { Brand, brandUrl } from '../components/Brand'
+import { DriftView, ROLE_LABEL, type Role, SpecPanel, SpecStrip, type SpecTab, useSpecs } from '../components/Specs'
 
-const TEMPLATES = [
+const TEMPLATES: { icon: typeof Layers; title: string; text: string; spec?: boolean }[] = [
+  {
+    icon: Compass,
+    title: 'Plan a feature first',
+    spec: true,
+    text: 'Specify {Feature}: the data model and migrations, the routes and validation, the policies, the edge cases and the Pest tests, following the patterns already in this codebase.',
+  },
   {
     icon: Layers,
     title: 'CRUD resource',
@@ -98,6 +111,11 @@ export function Agents() {
   const [kinds, setKinds] = useState<AgentKind[]>([])
   const [picked, setPicked] = useState<string[]>(() => load('agents:picked', [settings?.defaultAgent || 'claude']))
   const [prompt, setPrompt] = useState('')
+  // Direct: agents get the prompt. Spec: an Elephant writes a spec for it first.
+  const [workflow, setWorkflow] = useState<'direct' | 'spec'>(() => load('agents:workflow', 'direct'))
+  const [activeSpec, setActiveSpec] = useState<string | null>(null)
+  const [specTab, setSpecTab] = useState<SpecTab>('spec')
+  const [driftFirst, setDriftFirst] = useState(false)
   const [isolate, setIsolate] = useState<boolean>(() => load('agents:isolate', true))
   const [deps, setDeps] = useState<boolean>(() => load('agents:deps', false))
   const [busy, setBusy] = useState(false)
@@ -117,19 +135,67 @@ export function Agents() {
   }, [focusPrompt])
   useEffect(() => save('agents:picked', picked), [picked])
   useEffect(() => save('agents:isolate', isolate), [isolate])
+  useEffect(() => save('agents:workflow', workflow), [workflow])
+  useEffect(() => {
+    setActiveSpec(null)
+    setDiffFor(null)
+  }, [id])
   useEffect(() => save('agents:deps', deps), [deps])
 
   const agents = useMemo(() => sessions.filter((s) => s.projectId === id && s.kind === 'agent'), [sessions, id])
   const installed = kinds.filter((k) => k.installed)
-  const multi = picked.length > 1
+  const spec = workflow === 'spec'
+  const multi = picked.length > 1 && !spec
+  const { specs, refresh: refreshSpecs } = useSpecs(id ?? undefined)
 
   // launch is declared below the early return; the shortcut is off without a project.
   useRunShortcut(() => !busy && installed.length > 0 && launch(), { enabled: !!project && !focused, within: taRef })
 
   if (!project) return null
 
+  const openSpec = (slug: string, tab: SpecTab = 'spec') => {
+    setDiffFor(null)
+    setActiveSpec(slug)
+    setSpecTab(tab)
+  }
+  const openReview = (sessionId: string, drift = false) => {
+    setDriftFirst(drift)
+    setDiffFor(sessionId)
+  }
+  const focusAgent = (sessionId: string) => {
+    setFocused(null)
+    setTimeout(() => document.getElementById(`agent-${sessionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  }
+
+  const draftSpec = async () => {
+    if (!prompt.trim()) return toast('info', 'Describe the feature to specify first')
+    setBusy(true)
+    try {
+      const s = await AgentService.LaunchElephant({ projectId: id!, agent: picked[0], prompt: prompt.trim(), slug: '' })
+      setPrompt('')
+      refreshSpecs()
+      if (s.meta?.spec) openSpec(s.meta.spec)
+      toast('success', 'The Elephant is writing the spec', 'It explores the code and asks you what is unclear. No code gets written yet.')
+    } catch (e) {
+      toast('error', 'Could not start the Elephant', errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const newSpec = async () => {
+    try {
+      const sf = await AgentService.CreateSpec(id!, firstLineOf(prompt))
+      setPrompt('')
+      refreshSpecs()
+      openSpec(sf.slug)
+    } catch (e) {
+      toast('error', 'Could not create the spec', errMsg(e))
+    }
+  }
+
   const launch = async () => {
     if (!picked.length) return toast('info', 'Pick at least one agent')
+    if (spec) return draftSpec()
     setBusy(true)
     try {
       const req = { projectId: id!, prompt: prompt.trim(), worktree: isolate || multi, installDeps: deps } as LaunchRequest
@@ -150,6 +216,7 @@ export function Agents() {
   const shown = focused ? agents.filter((a) => a.id === focused) : agents
 
   const reviewing = agents.find((a) => a.id === diffFor && a.meta?.worktree)
+  const specOpen = activeSpec && specs.some((sf) => sf.slug === activeSpec) ? activeSpec : null
 
   return (
     <div className="view flush with-side">
@@ -159,7 +226,9 @@ export function Agents() {
             <Bot /> Agents
           </h1>
           <span className="faint" style={{ fontSize: 12 }}>
-            Run coding agents side by side, each in its own git worktree. Compare, then merge the winner.
+            {spec
+              ? 'Plan first: an Elephant writes the spec, a Goldfish with no memory reviews it, then builders implement it.'
+              : 'Run coding agents side by side, each in its own git worktree. Compare, then merge the winner.'}
           </span>
           <span className="spacer" />
           {focused && (
@@ -177,11 +246,56 @@ export function Agents() {
         {!focused && (
           <div style={{ padding: '16px 16px 4px' }}>
             <div className="composer">
+              <div className="composer-top">
+                <div className="mode-switch" role="tablist" aria-label="Workflow">
+                  <button type="button" role="tab" aria-selected={!spec} className={cx(!spec && 'on')} onClick={() => setWorkflow('direct')} title="Agents start on the prompt right away">
+                    <Zap /> Direct
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={spec}
+                    className={cx('egm', spec && 'on')}
+                    onClick={() => {
+                      setWorkflow('spec')
+                      setPicked((p) => p.slice(0, 1))
+                    }}
+                    title="Elephant-Goldfish: spec first, reviewed cold, then built"
+                  >
+                    <Compass /> Spec first
+                  </button>
+                </div>
+                {spec && (
+                  <div className="egm-hint">
+                    <span>
+                      <b>Elephant</b> writes the spec
+                    </span>
+                    <span>→</span>
+                    <span>
+                      <b>Goldfish</b> reviews it cold
+                    </span>
+                    <span>→</span>
+                    <span>
+                      <b>Builders</b> implement it
+                    </span>
+                  </div>
+                )}
+                <span className="spacer" />
+                {spec && (
+                  <button type="button" className="btn sm ghost" onClick={newSpec} title="Write a spec yourself, from the template">
+                    <Plus /> Blank spec
+                  </button>
+                )}
+              </div>
               <textarea
                 ref={taRef}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder={`What should the agent${multi ? 's' : ''} build in ${project.name}?  e.g. “Add a Post model with comments, CRUD, policies and Pest tests”`}
+                placeholder={
+                  spec
+                    ? `What feature should the Elephant specify for ${project.name}?  e.g. “Team subscriptions with Stripe, seat limits and a grace period”`
+                    : `What should the agent${multi ? 's' : ''} build in ${project.name}?  e.g. “Add a Post model with comments, CRUD, policies and Pest tests”`
+                }
               />
               <div className="cbar">
                 <div className="agents">
@@ -201,7 +315,8 @@ export function Agents() {
                           )
                           return
                         }
-                        setPicked((p) => (on ? p.filter((x) => x !== k.id) : [...p, k.id]))
+                        // The spec has one author: picking an agent replaces it.
+                        setPicked((p) => (spec ? [k.id] : on ? p.filter((x) => x !== k.id) : [...p, k.id]))
                       }}
                     >
                       <span className="sq" style={{ background: brandUrl(k.id) && !(k.installed && on) ? 'var(--bg-3)' : k.color }}>
@@ -213,22 +328,25 @@ export function Agents() {
                   )
                 })}
                 </div>
-                <label className="check" title="Each agent gets a branch larvyn/<task> in its own folder, with .env and SQLite copied">
-                  <input type="checkbox" checked={isolate || multi} disabled={multi} onChange={(e) => setIsolate(e.target.checked)} />
-                  <GitBranch size={13} /> Worktree
-                </label>
-                {(isolate || multi) && (
+                {!spec && (
+                  <label className="check" title="Each agent gets a branch larvyn/<task> in its own folder, with .env and SQLite copied">
+                    <input type="checkbox" checked={isolate || multi} disabled={multi} onChange={(e) => setIsolate(e.target.checked)} />
+                    <GitBranch size={13} /> Worktree
+                  </label>
+                )}
+                {!spec && (isolate || multi) && (
                   <label className="check" title="Run composer install and npm install in the new worktree">
                     <input type="checkbox" checked={deps} onChange={(e) => setDeps(e.target.checked)} /> Install deps
                   </label>
                 )}
                 <button className="btn primary" disabled={busy || !picked.length || installed.length === 0} onClick={launch}>
-                  {busy ? <div className="spinner" style={{ borderTopColor: '#fff' }} /> : <Rocket />}
-                  {multi ? `Launch ${picked.length} agents` : 'Launch'}
+                  {busy ? <div className="spinner" style={{ borderTopColor: '#fff' }} /> : spec ? <Compass /> : <Rocket />}
+                  {spec ? 'Write the spec' : multi ? `Launch ${picked.length} agents` : 'Launch'}
                   <kbd style={{ background: 'rgba(0,0,0,.2)', color: '#fff', borderColor: 'rgba(255,255,255,.25)' }}>{mod} ↵</kbd>
                 </button>
               </div>
             </div>
+            <SpecStrip specs={specs} agents={agents} active={specOpen} onOpen={(slug) => openSpec(slug)} hint={spec} />
             {agents.length === 0 && (
               <>
                 <div className="section-title">
@@ -240,6 +358,10 @@ export function Agents() {
                       key={t.title}
                       className="template"
                       onClick={() => {
+                        if (t.spec) {
+                          setWorkflow('spec')
+                          setPicked((p) => p.slice(0, 1))
+                        }
                         setPrompt(t.text)
                         taRef.current?.focus()
                       }}
@@ -286,18 +408,58 @@ export function Agents() {
                 focused={!!focused}
                 onFocus={() => setFocused(focused ? null : a.id)}
                 reviewing={diffFor === a.id}
-                onDiff={() => setDiffFor(diffFor === a.id ? null : a.id)}
+                onDiff={() => (diffFor === a.id ? setDiffFor(null) : openReview(a.id))}
+                onOpenSpec={(slug, tab) => openSpec(slug, tab)}
               />
             ))}
           </div>
         )}
       </div>
-      {reviewing && <ReviewPanel key={reviewing.id} s={reviewing} onClose={() => setDiffFor(null)} />}
+      {reviewing ? (
+        <ReviewPanel
+          key={reviewing.id + (driftFirst ? ':drift' : '')}
+          s={reviewing}
+          kinds={installed}
+          agents={agents}
+          drift={driftFirst}
+          onOpenSpec={(slug) => openSpec(slug, 'build')}
+          onClose={() => setDiffFor(null)}
+        />
+      ) : (
+        specOpen && (
+          <SpecPanel
+            key={specOpen}
+            projectId={id!}
+            slug={specOpen}
+            tab={specTab}
+            setTab={setSpecTab}
+            kinds={installed}
+            picked={picked}
+            agents={agents}
+            onFocusAgent={focusAgent}
+            onReview={openReview}
+            onMerge={(s) => mergeAttempt(id!, s)}
+            onDiscard={(s) => discardAttempt(id!, s)}
+            onDeleted={() => {
+              setActiveSpec(null)
+              refreshSpecs()
+            }}
+            onClose={() => setActiveSpec(null)}
+          />
+        )
+      )}
     </div>
   )
 }
 
-function AgentCard(props: { s: SessionInfo; focused: boolean; reviewing: boolean; onFocus: () => void; onDiff: () => void }) {
+function AgentCard(props: {
+  s: SessionInfo
+  focused: boolean
+  reviewing: boolean
+  onFocus: () => void
+  onDiff: () => void
+  onOpenSpec: (slug: string, tab: SpecTab) => void
+}) {
   const { s } = props
   // The clock ticks here, not in the view: only this card re-renders each
   // second, and only while its agent runs.
@@ -318,8 +480,10 @@ function AgentCard(props: { s: SessionInfo; focused: boolean; reviewing: boolean
     else toast('info', 'Flock is still setting this worktree up', 'It serves new worktrees within a few seconds. Try again shortly.')
   }
   const discard = () => discardAttempt(id!, s)
+  const role = s.meta?.role as Role | undefined
+  const slug = s.meta?.spec
   return (
-    <div className={cx('agent-card', status === 'working' && 'working', status === 'attention' && 'attention', props.reviewing && 'reviewing')} onMouseDown={() => s.bell && TerminalService.ClearBell(s.id)}>
+    <div id={`agent-${s.id}`} className={cx('agent-card', status === 'working' && 'working', status === 'attention' && 'attention', props.reviewing && 'reviewing')} onMouseDown={() => s.bell && TerminalService.ClearBell(s.id)}>
       <div className="ahead">
         <div className="avatar" style={{ background: brandUrl(s.key) ? 'var(--bg-3)' : color }}>
           <Brand id={s.key} size={15} fallback={initials(s.meta?.agentName || s.key).slice(0, 1)} />
@@ -340,6 +504,15 @@ function AgentCard(props: { s: SessionInfo; focused: boolean; reviewing: boolean
             {duration((s.running ? now : s.endedAt) - s.startedAt)}
           </div>
         </div>
+        {role && slug && ROLE_LABEL[role] && (
+          <button
+            className={cx('badge role-tag', role)}
+            title={`${ROLE_LABEL[role]} of the spec .larvyn/specs/${slug}.md: open it`}
+            onClick={() => props.onOpenSpec(slug, role === 'elephant' ? 'spec' : role === 'goldfish' ? 'review' : 'build')}
+          >
+            {role === 'elephant' ? <Compass /> : role === 'builder' ? <Hammer /> : role === 'goldfish' ? <Scale /> : <FileText />} {ROLE_LABEL[role]}
+          </button>
+        )}
         {props.reviewing && (
           <span className="badge review-tag" title="Its changes are open in the panel on the right">
             <FileDiff /> Reviewing
@@ -430,8 +603,19 @@ async function discardAttempt(projectId: string, s: SessionInfo) {
 }
 
 /** The agent's branch against the main worktree's branch, docked beside the agents. */
-function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
+function ReviewPanel(props: {
+  s: SessionInfo
+  kinds: AgentKind[]
+  agents: SessionInfo[]
+  drift: boolean
+  onOpenSpec: (slug: string) => void
+  onClose: () => void
+}) {
+  const { s, onClose } = props
   const { id } = useActive()
+  const slug = s.meta?.spec
+  // A builder of a spec also shows its drift report.
+  const [tab, setTab] = useState<'diff' | 'drift'>(slug && props.drift ? 'drift' : 'diff')
   const [text, setText] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
@@ -554,7 +738,21 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
       }
     >
       <div ref={box} />
-      {err ? (
+      {slug && (
+        <div className="dv-toolbar">
+          <div className="tabs">
+            <button className={cx('tab', tab === 'diff' && 'active')} onClick={() => setTab('diff')}>
+              <FileDiff /> Changes
+            </button>
+            <button className={cx('tab', tab === 'drift' && 'active')} onClick={() => setTab('drift')}>
+              <Scale /> Spec drift
+            </button>
+          </div>
+        </div>
+      )}
+      {slug && tab === 'drift' ? (
+        <DriftView projectId={id!} b={s} kinds={props.kinds} agents={props.agents} onOpenSpec={() => props.onOpenSpec(slug)} />
+      ) : err ? (
         <div className="error-box" style={{ margin: 14 }}>{err}</div>
       ) : text == null ? (
         <div className="empty"><div className="spinner lg" /></div>
@@ -604,4 +802,8 @@ function ReviewPanel({ s, onClose }: { s: SessionInfo; onClose: () => void }) {
       )}
     </SidePanel>
   )
+}
+
+function firstLineOf(text: string) {
+  return text.trim().split('\n')[0].slice(0, 72)
 }

@@ -16,3 +16,17 @@ func TestMain(m *testing.M) {
 	os.RemoveAll(home)
 	os.Exit(code)
 }
+
+// useYolo sets agents to skip approvals for the test, as the tests of the
+// launch flags need (a fresh install asks first).
+func useYolo(t *testing.T) {
+	t.Helper()
+	prev := store.CurrentSettings().AgentPermissions
+	set := func(v string) {
+		if err := store.Update(func(d *store.State) { d.Settings.AgentPermissions = v }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("yolo")
+	t.Cleanup(func() { set(prev) })
+}

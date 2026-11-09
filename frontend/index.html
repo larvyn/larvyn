@@ -12,8 +12,19 @@
     <!-- The splash shows from the first frame, before the scripts and the
          app's stylesheet load; App renders the same markup until boot is
          done, so the switch is seamless. -->
+    <script>
+      // The theme before the first frame, as lib/theme.ts will resolve it:
+      // the saved choice, or the system's when following it.
+      (function () {
+        var pref = ''
+        try { pref = localStorage.getItem('larvyn.theme') || '' } catch (e) {}
+        var light = pref === 'light' || (pref !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches)
+        document.documentElement.dataset.theme = light ? 'light' : 'dark'
+      })()
+    </script>
     <style>
       html, body { margin: 0; height: 100%; background: #08080a; }
+      html[data-theme="light"], html[data-theme="light"] body { background: #f6f6f8; }
       .boot-splash {
         position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
         background: #08080a; color: #a1a1aa; font: 12.5px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -25,6 +36,10 @@
       @keyframes boot-spin { to { transform: rotate(360deg); } }
       @keyframes boot-pulse { 50% { transform: scale(0.94); } }
       @keyframes boot-in { from { opacity: 0; } }
+      html[data-theme="light"] .boot-splash { background: #f6f6f8; color: #52525b; }
+      html[data-theme="light"] .boot-splash .ring { border-color: rgba(0, 0, 0, 0.08); border-top-color: #ff2d20; }
+      html[data-theme="light"] .boot-splash .err { color: #dc2f26; }
+      html[data-theme="light"] .boot-splash .err small { color: #52525b; }
       .boot-splash .err { max-width: 520px; padding: 0 24px; text-align: center; color: #f87171; white-space: pre-wrap; word-break: break-word; --wails-draggable: no-drag; user-select: text; }
       .boot-splash .err small { display: block; margin-top: 6px; color: #a1a1aa; }
       @media (prefers-reduced-motion: reduce) {

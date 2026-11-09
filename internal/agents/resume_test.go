@@ -13,6 +13,7 @@ import (
 )
 
 func TestClaudeRelaunchResumesItsConversation(t *testing.T) {
+	useYolo(t)
 	bin := fakeBinary(t, "claude")
 	t.Setenv("PATH", filepath.Dir(bin))
 	cfg := t.TempDir()
@@ -127,9 +128,8 @@ func TestRelaunchFollowsCurrentPermissions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	t.Cleanup(func() { setPerms("yolo") })
+	useYolo(t)
 
-	setPerms("yolo")
 	argv, _, _ := RelaunchArgv(spec, false)
 	if want := []string{"--dangerously-bypass-approvals-and-sandbox", "resume", "x"}; !reflect.DeepEqual(argv[1:], want) {
 		t.Fatalf("yolo: got %v, want %v", argv[1:], want)

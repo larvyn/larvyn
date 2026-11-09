@@ -1,6 +1,6 @@
 ---
 name: larvyn
-description: Drive the Larvyn app this session runs in (LARVYN_SESSION is set) - see the project and worktree, read and type into its terminals, start the dev stack and wait until it is ready, run artisan and the tests, read log errors, the models and the database, take locks, and start and wait for other agents. Use it instead of guessing ports, starting servers by hand or asking the user to copy output.
+description: Drive the Larvyn app this session runs in (LARVYN_SESSION is set) - see the project and worktree, read and type into its terminals, start the dev stack and wait until it is ready, run artisan and the tests, read log errors, the models and the database, take locks, start and wait for other agents, and run the spec-driven Elephant-Goldfish workflow. Use it instead of guessing ports, starting servers by hand or asking the user to copy output.
 ---
 
 <!-- Installed by Larvyn: `larvyn agents remove` takes it out again. -->
@@ -74,6 +74,27 @@ larvyn agents status <id>
 When `wait` exits 2, read the screen it printed: answer with
 `larvyn agents send <id> "<answer>"`, or for a menu with the right option
 already marked, `larvyn terminal write <id> "" --enter`.
+
+## Specs (Elephant-Goldfish)
+
+For a feature big enough to plan first: an Elephant writes a spec in
+`.larvyn/specs/` (no code), a Goldfish with no memory reviews it cold, the
+review goes back to the Elephant until a review says READY, then builders
+implement it in worktrees and an auditor checks each one for drift.
+
+```
+larvyn specs list
+larvyn specs draft "subscription billing with team seats"   # prints the Elephant's id
+larvyn specs review <slug> --agent codex      # a different agent reviews better
+larvyn specs show <slug> --review             # the verdict is on its first line
+larvyn specs revise <slug>                    # the Elephant folds the review in
+larvyn specs build <slug> --agents claude,codex
+larvyn specs drift <builder-id> --agent codex
+larvyn specs fix <builder-id>                 # the builder works through the drift report
+```
+
+Each of these starts or messages an agent: follow it with `larvyn agents wait <id>`.
+Never edit files in `.larvyn/specs/` yourself unless you are the Elephant.
 
 ## Locks
 

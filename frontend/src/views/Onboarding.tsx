@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Bot, Check, Code2, Command, Copy, Database, ExternalLink, FolderOpen, Hand, Plus, RefreshCw, Rocket, Server, ShieldCheck, SquareTerminal, X, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bot, Check, Code2, Command, Copy, Database, ExternalLink, FolderOpen, Hand, History, Play, Plus, RefreshCw, Rocket, Server, ShieldCheck, SquareTerminal, X, Zap } from 'lucide-react'
 import { SystemService, type Tool } from '../../bindings/larvyn/internal/system'
 import { AgentService, type AgentKind } from '../../bindings/larvyn/internal/agents'
 import { type Settings } from '../../bindings/larvyn/internal/store'
@@ -263,10 +263,11 @@ function ToolchainStep({ tools, checking, onCheck }: { tools: Tool[] | null; che
 function WorkflowStep({ v, set, agents }: { v: Settings; set: (p: Partial<Settings>) => void; agents: AgentKind[] | null }) {
   const sorted = [...(agents ?? [])].sort((a, b) => Number(b.installed) - Number(a.installed))
   const yolo = v.agentPermissions !== 'manual'
+  const restore = v.restore === 'all' || v.restore === 'off' ? v.restore : 'terminals'
   return (
     <>
       <Head eyebrow="Step 2 of 3" title="Make it yours">
-        Where files open, which agent takes your prompts, and how much it may do on its own.
+        Where files open, which agent takes your prompts, how much it may do on its own and what comes back when you reopen.
       </Head>
 
       <div className="onboard-section">
@@ -337,6 +338,32 @@ function WorkflowStep({ v, set, agents }: { v: Settings; set: (p: Partial<Settin
               <Rocket /> Work on its own
             </b>
             <span>Skips approval prompts. Agents work in their own git worktree, so you review the diff before merging.</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="onboard-section">
+        <h3>
+          <History /> When Larvyn opens
+        </h3>
+        <div className="onboard-choices cols-3">
+          <button className={cx('onboard-choice tall', restore === 'terminals' && 'active')} onClick={() => set({ restore: 'terminals' })}>
+            <b>
+              <SquareTerminal /> Tabs, nothing running
+            </b>
+            <span>Tabs come back with their output and shells start. You relaunch services and agents.</span>
+          </button>
+          <button className={cx('onboard-choice tall', restore === 'all' && 'active')} onClick={() => set({ restore: 'all' })}>
+            <b>
+              <Play /> Pick up where I left
+            </b>
+            <span>Services that ran start again and agents resume their conversation.</span>
+          </button>
+          <button className={cx('onboard-choice tall', restore === 'off' && 'active')} onClick={() => set({ restore: 'off' })}>
+            <b>
+              <X /> Start clean
+            </b>
+            <span>Nothing comes back from the previous run.</span>
           </button>
         </div>
       </div>

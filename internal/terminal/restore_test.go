@@ -146,16 +146,56 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	})
 }
 
-func TestNoRestoreSettingSkipsAndDeletes(t *testing.T) {
+func TestRestoreOffSkipsAndDeletes(t *testing.T) {
 	t.Setenv("LARVYN_HOME", t.TempDir())
 	store.Reload()
 	t.Cleanup(store.Reload)
 	_ = os.WriteFile(workspacePath(), []byte(`{"version":1,"sessions":[]}`), 0o600)
-	_ = store.Update(func(d *store.State) { d.Settings.NoRestore = true })
+	_ = store.Update(func(d *store.State) { d.Settings.Restore = store.RestoreOff })
 	ts := &TerminalService{sessions: map[string]*session{}, persist: true}
 	ts.Restore()
 	if _, err := os.Stat(workspacePath()); !os.IsNotExist(err) {
 		t.Fatal("workspace.json should be removed when restore is off")
+	}
+}
+
+// With the default restore only shells start again: a service and an agent
+// that were running come back stopped, saying how to start them.
+func TestRestoreTerminalsStartsOnlyShells(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+	t.Setenv("LARVYN_HOME", t.TempDir())
+	store.Reload()
+	t.Cleanup(store.Reload)
+	if got := store.CurrentSettings().Restore; got != store.RestoreTerminals {
+		t.Fatalf("fresh install restores %q, want %q", got, store.RestoreTerminals)
+	}
+	dir := t.TempDir()
+	_ = store.Update(func(d *store.State) { d.Projects = []store.Project{{ID: "p1", Path: dir}} })
+	prev := AgentRelaunch
+	t.Cleanup(func() { AgentRelaunch = prev })
+	AgentRelaunch = func(spec SessionSpec, shared bool) ([]string, bool, error) {
+		return []string{"sh", "-c", "sleep 30"}, true, nil
+	}
+	ts := &TerminalService{sessions: map[string]*session{}}
+	defer ts.ServiceShutdown()
+	ts.restoreWorkspace(savedWorkspace{Version: workspaceVersion, Sessions: []savedSession{
+		{ID: "s", ProjectID: "p1", Kind: "shell", Title: "shell", Cwd: dir, Running: true},
+		{ID: "v", ProjectID: "p1", Kind: "service", Key: "vite", Title: "vite", Cwd: dir, Argv: []string{"sh", "-c", "sleep 30"}, Running: true},
+		{ID: "a", ProjectID: "p1", Kind: "agent", Key: "claude", Title: "agent", Cwd: dir, Running: true},
+	}})
+	for _, s := range ts.List() {
+		if want := s.Kind == "shell"; s.Running != want {
+			t.Errorf("%s running = %v, want %v", s.Title, s.Running, want)
+		}
+		if s.Kind == "shell" {
+			continue
+		}
+		out, _ := ts.Output(s.ID)
+		if !strings.Contains(out, "Relaunch") {
+			t.Errorf("%s does not say how to start it: %q", s.Title, out)
+		}
 	}
 }
 
@@ -237,7 +277,10 @@ func TestRestoreResumesOneAgentPerFolder(t *testing.T) {
 	store.Reload()
 	t.Cleanup(store.Reload)
 	dir := t.TempDir()
-	_ = store.Update(func(d *store.State) { d.Projects = []store.Project{{ID: "p1", Path: dir}} })
+	_ = store.Update(func(d *store.State) {
+		d.Projects = []store.Project{{ID: "p1", Path: dir}}
+		d.Settings.Restore = store.RestoreAll
+	})
 	prev := AgentRelaunch
 	t.Cleanup(func() { AgentRelaunch = prev })
 	AgentRelaunch = func(spec SessionSpec, shared bool) ([]string, bool, error) {
@@ -268,7 +311,10 @@ func TestRestoreNeverReplaysAgentOutput(t *testing.T) {
 	store.Reload()
 	t.Cleanup(store.Reload)
 	root := t.TempDir()
-	_ = store.Update(func(d *store.State) { d.Projects = []store.Project{{ID: "p1", Path: root}} })
+	_ = store.Update(func(d *store.State) {
+		d.Projects = []store.Project{{ID: "p1", Path: root}}
+		d.Settings.Restore = store.RestoreAll
+	})
 	prev := AgentRelaunch
 	t.Cleanup(func() { AgentRelaunch = prev })
 	AgentRelaunch = func(spec SessionSpec, shared bool) ([]string, bool, error) {

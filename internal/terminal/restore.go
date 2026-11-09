@@ -193,7 +193,7 @@ func (t *TerminalService) Restore() map[string]ProjectLayout {
 		if !t.persist {
 			return
 		}
-		if store.CurrentSettings().NoRestore {
+		if store.CurrentSettings().Restore == store.RestoreOff {
 			_ = os.Remove(workspacePath())
 			return
 		}
@@ -387,6 +387,10 @@ func (t *TerminalService) restoreSession(saved savedSession, savedAt int64) (s *
 	case "agent":
 		run = true // if it resumes; see restoreWorkspace
 	}
+	if run && spec.Kind != "shell" && store.CurrentSettings().Restore != store.RestoreAll {
+		run = false
+		s.buf = append(s.buf, "\r\n\x1b[2mWas running when Larvyn closed. Relaunch to start it again; Settings › Restore on start can do it on its own.\x1b[0m\r\n"...)
+	}
 	return s, run
 }
 
@@ -542,7 +546,7 @@ func (t *TerminalService) saveWorkspace() {
 	if t.ws.closed.Load() {
 		return
 	}
-	if store.CurrentSettings().NoRestore {
+	if store.CurrentSettings().Restore == store.RestoreOff {
 		_ = os.Remove(workspacePath())
 		return
 	}

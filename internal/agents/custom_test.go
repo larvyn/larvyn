@@ -26,6 +26,7 @@ func setCustom(t *testing.T, list ...store.CustomAgent) {
 // A custom agent works like its base: Claude's flags and session id, its own
 // command and environment, and it resumes from its own config folder.
 func TestCustomAgentWorksLikeItsBase(t *testing.T) {
+	useYolo(t)
 	bin := fakeBinary(t, "claude-os")
 	home, _ := os.UserHomeDir()
 	cfg := t.TempDir()
@@ -93,6 +94,7 @@ func TestLaunchCustomAgent(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script")
 	}
+	useYolo(t)
 	dir, out := t.TempDir(), filepath.Join(t.TempDir(), "out")
 	bin := filepath.Join(dir, "claude-os")
 	_ = os.WriteFile(bin, []byte("#!/bin/sh\necho \"$CLAUDE_CONFIG_DIR $*\" > "+out+"\n"), 0o755)

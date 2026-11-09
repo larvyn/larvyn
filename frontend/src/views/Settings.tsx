@@ -15,6 +15,11 @@ import { toast, updateLaravelInstaller, useStore } from '../lib/store'
 import { setFontSize } from '../lib/terms'
 import { EDITORS, errMsg, isMac, mod } from '../lib/util'
 
+const RESTORE_HINTS: Record<string, string> = {
+  terminals: 'Every tab comes back with its output and shells start again. Services and agents wait for Relaunch.',
+  all: 'Shells start again, services that ran start again and agents resume their conversation.',
+  off: 'Nothing comes back from the previous run.',
+}
 
 export function Settings() {
   const settings = useStore((s) => s.settings)
@@ -69,6 +74,14 @@ export function Settings() {
             </h3>
           </div>
           <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="field">
+              <label>Theme</label>
+              <select className="select" value={v.theme === 'light' || v.theme === 'dark' ? v.theme : ''} onChange={(e) => set({ theme: e.target.value })}>
+                <option value="">Follow the system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
             <div className="field">
               <label>Editor</label>
               <select className="select" value={v.editor} onChange={(e) => set({ editor: e.target.value })}>
@@ -132,11 +145,12 @@ export function Settings() {
             </div>
             <div className="field">
               <label>Restore on start</label>
-              <select className="select" value={v.noRestore ? 'off' : 'on'} onChange={(e) => set({ noRestore: e.target.value === 'off' })}>
-                <option value="on">Restore terminals, agents and services</option>
+              <select className="select" value={RESTORE_HINTS[v.restore] ? v.restore : 'terminals'} onChange={(e) => set({ restore: e.target.value })}>
+                <option value="terminals">Bring back tabs, start only shells</option>
+                <option value="all">Bring back tabs and start everything that ran</option>
                 <option value="off">Start with nothing open</option>
               </select>
-              <span className="hint">Shells come back with their output, agents resume their conversation and services that ran start again.</span>
+              <span className="hint">{RESTORE_HINTS[v.restore] ?? RESTORE_HINTS.terminals}</span>
             </div>
             {/* Flock is optional: its setting shows only once it is installed. */}
             {tools?.some((t) => t.id === 'flock' && t.path) && (

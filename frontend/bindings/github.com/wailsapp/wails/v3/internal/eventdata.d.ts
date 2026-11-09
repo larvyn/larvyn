@@ -22,6 +22,7 @@ declare module "@wailsio/runtime" {
             "projectfile:changed": string;
             "projects:changed": store$0.Project[] | null;
             "sessions:changed": terminal$0.SessionInfo[] | null;
+            "specs:changed": string;
             "term:data": terminal$0.TermData;
             "term:dropped": terminal$0.FilesDropped;
             "term:exit": terminal$0.TermExit;

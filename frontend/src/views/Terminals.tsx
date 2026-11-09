@@ -162,7 +162,7 @@ export function Terminals() {
                 return (
                   <div
                     key={pid}
-                    style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#0a0a0d' }}
+                    style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--term-bg)' }}
                     onMouseDown={() => {
                       setFocusedPane(pid)
                       if (s.bell) TerminalService.ClearBell(pid)

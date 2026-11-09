@@ -75,3 +75,47 @@ func TestSlug(t *testing.T) {
 		}
 	}
 }
+
+// A Laravel project ignores .env, and Larvyn excludes its specs: merging an
+// attempt with uncommitted work must still commit it, without those files.
+func TestMergeWorktreeWithIgnoredCopies(t *testing.T) {
+	if proc.Which("git") == "" {
+		t.Skip("git not installed")
+	}
+	repo := t.TempDir()
+	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		if _, err := proc.Git(repo, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.WriteFile(repo+"/.gitignore", []byte(".env\n"), 0o644)
+	os.WriteFile(repo+"/.env", []byte("APP_KEY=secret\n"), 0o644)
+	proc.Git(repo, "add", ".gitignore")
+	if _, err := proc.Git(repo, "commit", "-m", "init"); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(repo+"/.git/info/exclude", []byte("/.larvyn/specs/\n"), 0o644)
+	p := store.Project{ID: "ignored", Name: "Demo", Path: repo}
+	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
+		t.Fatal(err)
+	}
+	g := &GitService{}
+	wt, err := g.CreateWorktree(WorktreeRequest{ProjectID: p.ID, Name: "export", CopyEnv: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(wt.Path+"/.larvyn/specs", 0o755)
+	os.WriteFile(wt.Path+"/.larvyn/specs/export.md", []byte("# Export\n"), 0o644)
+	os.WriteFile(wt.Path+"/export.php", []byte("<?php // agent work\n"), 0o644)
+
+	if diff, err := g.BranchDiff(wt.Path, "main"); err != nil || !strings.Contains(diff, "agent work") || strings.Contains(diff, "specs") {
+		t.Fatalf("diff: %v\n%s", err, diff)
+	}
+	if _, err := g.MergeWorktree(p.ID, wt.Path, "feat: export"); err != nil {
+		t.Fatal(err)
+	}
+	files, _ := proc.Git(repo, "log", "--name-only", "--format=", "main")
+	if !strings.Contains(files, "export.php") || strings.Contains(files, ".env") || strings.Contains(files, "specs") {
+		t.Fatalf("merged files:\n%s", files)
+	}
+}

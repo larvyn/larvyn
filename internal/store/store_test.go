@@ -47,3 +47,34 @@ func TestUpdateRollsBackWhenSaveFails(t *testing.T) {
 		t.Errorf("plugins not rolled back: %+v", s.data.Plugins)
 	}
 }
+
+// A fresh install starts with nothing acting on its own; an install from
+// before these settings keeps what it had.
+func TestDefaultsAreQuietButExistingInstallsKeepTheirs(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARVYN_HOME", dir)
+	st := New().Settings()
+	if st.AgentPermissions != "manual" || st.Restore != RestoreTerminals || !st.NoFlockAutoServe {
+		t.Fatalf("fresh install: %+v", st)
+	}
+
+	write := func(settings string) Settings {
+		t.Helper()
+		state := `{"projects":[],"settings":` + settings + `}`
+		if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(state), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return New().Settings()
+	}
+	st = write(`{"agentPermissions":"yolo","noRestore":false}`)
+	if st.AgentPermissions != "yolo" || st.Restore != RestoreAll || st.NoFlockAutoServe {
+		t.Fatalf("existing install lost its setup: %+v", st)
+	}
+	if st = write(`{"noRestore":true}`); st.Restore != RestoreOff {
+		t.Fatalf("noRestore became %q, want off", st.Restore)
+	}
+	st = write(`{"restore":"terminals","noFlockAutoServe":true,"agentPermissions":"manual"}`)
+	if st.Restore != RestoreTerminals || !st.NoFlockAutoServe || st.AgentPermissions != "manual" {
+		t.Fatalf("saved choices not kept: %+v", st)
+	}
+}

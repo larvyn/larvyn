@@ -29,6 +29,58 @@ export interface AgentKind {
 }
 
 /**
+ * DriftReport is <slug>.drift.md in a builder's folder.
+ */
+export interface DriftReport {
+    "slug": string;
+    "worktree": string;
+    "verdict": string;
+    "content": string;
+    "updatedAt": number;
+
+    /**
+     * Stale is set when the spec changed after the audit.
+     */
+    "stale": boolean;
+}
+
+/**
+ * DriftRequest audits a builder's folder against a spec.
+ */
+export interface DriftRequest {
+    "projectId": string;
+    "agent": string;
+    "slug": string;
+
+    /**
+     * Worktree is the folder the builder works in: one of the project's
+     * worktrees, or the project itself.
+     */
+    "worktree": string;
+}
+
+/**
+ * ElephantRequest starts an Elephant on a new spec (Slug empty) or on an
+ * existing one.
+ */
+export interface ElephantRequest {
+    "projectId": string;
+    "agent": string;
+    "prompt": string;
+    "slug": string;
+}
+
+/**
+ * GoldfishRequest starts a cold review of a spec.
+ */
+export interface GoldfishRequest {
+    "projectId": string;
+    "agent": string;
+    "slug": string;
+    "focus": string;
+}
+
+/**
  * LaunchRequest starts one agent, optionally in a fresh worktree.
  */
 export interface LaunchRequest {
@@ -40,4 +92,69 @@ export interface LaunchRequest {
     "cwd": string;
     "installDeps": boolean;
     "base": string;
+}
+
+/**
+ * SpecFile is a spec, .larvyn/specs/<slug>.md, with its latest Goldfish
+ * review, <slug>.review.md.
+ */
+export interface SpecFile {
+    "slug": string;
+    "title": string;
+
+    /**
+     * relative to the project, with slashes
+     */
+    "path": string;
+
+    /**
+     * for the editor
+     */
+    "absPath": string;
+    "summary": string;
+    "content": string;
+    "review": string;
+
+    /**
+     * Verdict is the review's: READY, NEEDS REVISION, BLOCKED, or "" when
+     * there is no review or it names no verdict.
+     */
+    "verdict": string;
+    "hasReview": boolean;
+
+    /**
+     * Stale is set when the spec changed after its review: the review no
+     * longer vouches for it, so it has to be reviewed again.
+     */
+    "stale": boolean;
+
+    /**
+     * Approved is a READY review of the spec as it is now.
+     */
+    "approved": boolean;
+
+    /**
+     * Rounds counts the reviews so far, the archived ones included.
+     */
+    "rounds": number;
+    "updatedAt": number;
+    "reviewAt": number;
+    "size": number;
+}
+
+/**
+ * SpecLaunchRequest hands a spec to builders.
+ */
+export interface SpecLaunchRequest {
+    "projectId": string;
+    "slug": string;
+    "notes": string;
+    "worktree": boolean;
+    "installDeps": boolean;
+    "base": string;
+
+    /**
+     * Force builds a spec that has no READY review of its current version.
+     */
+    "force": boolean;
 }
