@@ -24,9 +24,11 @@ func init() {
 		"wait?: seconds to wait while it is held, 300 by default",
 		"nowait?: give up at once when it is held",
 		"ttl?: seconds the lock lasts unless renewed or released, 600 by default",
-		"note?: what you hold it for, shown to whoever waits")
+		"note?: what you hold it for, shown to whoever waits",
+		"owner?: who holds it, for a caller outside Larvyn's terminals; the folder by default, so two callers in one folder share it")
 	api.Register("lock.release", "Release a lock you hold", apiLockRelease,
-		"name: the lock")
+		"name: the lock",
+		"owner?: as given to acquire")
 	api.Register("lock.list", "List the locks held in the caller's project", apiLockList,
 		"all?: every project's locks")
 	api.MarkReadOnly("lock.list")
@@ -35,11 +37,13 @@ func init() {
 type lease struct {
 	project string
 	name    string
-	owner   string // the terminal that took it, or the folder outside one
-	title   string
-	note    string
-	since   time.Time
-	expires time.Time
+	owner   string // the terminal that took it, or the folder or owner outside one
+	// terminal is set when owner is a terminal: the lease ends with it.
+	terminal bool
+	title    string
+	note     string
+	since    time.Time
+	expires  time.Time
 }
 
 var locks = struct {
@@ -96,16 +100,22 @@ func (r LockResult) ExitCode() int {
 	return 1
 }
 
-// lockOwner is who holds a caller's locks: its terminal, or outside
-// Larvyn's terminals the folder it runs in.
-func lockOwner(c api.Caller) (owner, title string) {
+// lockOwner is who holds a caller's locks: its terminal; outside Larvyn's
+// terminals, the owner it names or else the folder it runs in.
+func lockOwner(c api.Caller, named string) (owner, title string, terminal bool, err error) {
 	if c.Session != "" {
-		if s, err := findTerminal(c.Session); err == nil {
-			return s.ID, s.Title
+		// A session that isn't an open terminal would take a lease that
+		// ends at once, and the caller would think it holds the lock.
+		s, err := findTerminal(c.Session)
+		if err != nil || !s.Running {
+			return "", "", false, fmt.Errorf("your terminal %s isn't open in Larvyn: unset LARVYN_SESSION, or run from one of its terminals", c.Session)
 		}
-		return c.Session, ""
+		return s.ID, s.Title, true, nil
 	}
-	return c.Cwd, ""
+	if named = strings.TrimSpace(named); named != "" {
+		return "owner:" + named, named, false, nil
+	}
+	return c.Cwd, "", false, nil
 }
 
 // alive reports whether a lease still counts: not expired, and its
@@ -114,8 +124,8 @@ func alive(l *lease, now time.Time) bool {
 	if !now.Before(l.expires) {
 		return false
 	}
-	if strings.ContainsAny(l.owner, `/\`) {
-		// A folder: only time ends it.
+	if !l.terminal {
+		// A folder or a named owner: only time ends it.
 		return true
 	}
 	for _, s := range terminal.Sessions.List() {
@@ -136,7 +146,7 @@ func lockName(name string) (string, error) {
 	return name, nil
 }
 
-func apiLockAcquire(c api.Caller, name string, wait int, nowait bool, ttl int, note string) (LockResult, error) {
+func apiLockAcquire(c api.Caller, name string, wait int, nowait bool, ttl int, note, named string) (LockResult, error) {
 	name, err := lockName(name)
 	if err != nil {
 		return LockResult{}, err
@@ -154,7 +164,10 @@ func apiLockAcquire(c api.Caller, name string, wait int, nowait bool, ttl int, n
 	if ttl <= 0 {
 		ttl = 600
 	}
-	owner, title := lockOwner(c)
+	owner, title, isTerminal, err := lockOwner(c, named)
+	if err != nil {
+		return LockResult{}, err
+	}
 	key := lockKey(p.ID, name)
 	start := time.Now()
 	limit := time.Duration(wait) * time.Second
@@ -166,7 +179,7 @@ func apiLockAcquire(c api.Caller, name string, wait int, nowait bool, ttl int, n
 		l := locks.m[key]
 		if l == nil || !alive(l, now) || l.owner == owner {
 			if l == nil || l.owner != owner {
-				l = &lease{project: p.ID, name: name, owner: owner, since: now}
+				l = &lease{project: p.ID, name: name, owner: owner, terminal: isTerminal, since: now}
 				locks.m[key] = l
 			}
 			l.title, l.expires = title, now.Add(time.Duration(ttl)*time.Second)
@@ -190,7 +203,7 @@ func apiLockAcquire(c api.Caller, name string, wait int, nowait bool, ttl int, n
 	}
 }
 
-func apiLockRelease(c api.Caller, name string) error {
+func apiLockRelease(c api.Caller, name, named string) error {
 	name, err := lockName(name)
 	if err != nil {
 		return err
@@ -199,7 +212,10 @@ func apiLockRelease(c api.Caller, name string) error {
 	if err != nil {
 		return err
 	}
-	owner, _ := lockOwner(c)
+	owner, _, _, err := lockOwner(c, named)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
 	locks.Lock()
 	defer locks.Unlock()
@@ -225,7 +241,8 @@ func apiLockList(c api.Caller, all bool) ([]LockRow, error) {
 		}
 		project = p.ID
 	}
-	owner, _ := lockOwner(c)
+	// Mine marks the caller's own; a caller that can't hold locks has none.
+	owner, _, _, _ := lockOwner(c, "")
 	now := time.Now()
 	locks.Lock()
 	defer locks.Unlock()

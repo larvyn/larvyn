@@ -89,5 +89,7 @@ larvyn lock list
 ```
 
 A lock is a lease: it ends after `--ttl` seconds (600 by default; acquire
-again to renew it) or when your terminal closes. Use `db` for migrations,
+again to renew it) or when your terminal closes. Outside Larvyn's terminals,
+callers in one folder share their locks: name yourself with `--owner <name>`
+on both acquire and release. Use `db` for migrations,
 seeders and `migrate:fresh`, `main` before merging into the main branch.

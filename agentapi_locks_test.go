@@ -79,3 +79,30 @@ func TestLockEndsWithItsTerminal(t *testing.T) {
 		t.Fatalf("after the agent's terminal closed: %+v", r)
 	}
 }
+
+func TestLockOwners(t *testing.T) {
+	main, _ := gitRepo(t)
+	addProject(t, main)
+
+	// A session that isn't an open terminal can't hold a lock: it would end
+	// at once while the caller thinks it holds it.
+	if r := command(api.Caller{Cwd: main, Session: "gone"}, "lock", "acquire", "db"); !strings.Contains(r.Error, "isn't open") {
+		t.Fatalf("stale session: %+v", r)
+	}
+
+	// Outside Larvyn's terminals, callers in one folder are one owner unless
+	// they name themselves.
+	c := api.Caller{Cwd: main}
+	if r := command(c, "lock", "acquire", "db", "--owner", "agent-a"); r.Exit != 0 {
+		t.Fatalf("a: %+v", r)
+	}
+	if r := command(c, "lock", "acquire", "db", "--owner", "agent-b", "--nowait"); r.Exit != 1 || !strings.Contains(r.Text, "agent-a") {
+		t.Fatalf("b while a holds it: %+v", r)
+	}
+	if r := command(c, "lock", "release", "db"); !strings.Contains(r.Error, "not by you") {
+		t.Fatalf("the folder releasing a's lock: %+v", r)
+	}
+	if r := command(c, "lock", "release", "db", "--owner", "agent-a"); r.Error != "" {
+		t.Fatalf("a releases: %+v", r)
+	}
+}
