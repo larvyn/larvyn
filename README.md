@@ -115,6 +115,35 @@ same methods as MCP tools on stdin and stdout, for agents that prefer MCP
 terminals it works from a project's folder or one of its worktrees, while
 the app runs.
 
+## Privacy
+
+Larvyn is free and has no telemetry, accounts or analytics. Larvyn itself
+sends nothing about your projects, code, `.env` files or terminals. It
+connects to the internet only for these:
+
+- **Updates:** a few seconds after it starts and every 6 hours it asks
+  GitHub (`api.github.com/repos/larvyn/releases`) for the newest release, and
+  downloads it from `github.com/larvyn/releases` when you update. Settings →
+  About turns the automatic check off.
+- **Plugins:** it reads the marketplace list (`plugins.json` on
+  `raw.githubusercontent.com/larvyn/plugins`) when it starts, to turn off
+  plugins found harmful, and when you open Settings, which lists it. A plugin is
+  downloaded from its listing's link only when you install it. A plugin
+  connects only to the domains its `network` permission lists, which you see
+  before you install it.
+- **Composer:** only when it isn't on your PATH, Larvyn downloads its own
+  from `getcomposer.org` and checks it against the signature on
+  `composer.github.io`.
+- **Project icons:** for a project with a GitHub remote it downloads the
+  owner's avatar from `github.com`, once a week at most.
+- **Feedback:** "Report a bug" and "Request a feature" open a form on GitHub
+  in your browser; no report is sent until you submit the form there.
+
+The agents you start and the tools Larvyn runs for you are other programs,
+with their own rules: an agent (Claude Code, Codex…) sends your prompts and
+the code it reads to its provider's service, and `composer outdated` and
+`composer audit` in the Dependencies view ask Packagist.
+
 ## How it works
 
 - `main.go` only wires the app: it registers the services with Wails,
