@@ -216,10 +216,23 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = terminal.Sessions.Close(srv.ID) })
-		waitFor(t, "the server's port", func() bool {
-			rows, err := apiPorts(caller, false)
-			return err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:")
-		})
+		var rows PortRows
+		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+			rows, err = apiPorts(caller, false)
+			if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://127.0.0.1:") {
+				break
+			}
+			if time.Now().After(deadline) {
+				// What it saw, to tell a server that never started (python3
+				// as the Microsoft Store alias on Windows) from one that ports
+				// can't see.
+				out, _ := apiTerminalRead(srv.ID, 0, true, false)
+				s, _ := findTerminal(srv.ID)
+				pid, _ := terminal.PID(srv.ID)
+				all, _ := apiPorts(caller, true)
+				t.Fatalf("the server's port: ports %+v (%v), all projects %+v; %s running=%v pid=%d; its output:\n%s", rows, err, all, py, s.Running, pid, out)
+			}
+		}
 	}
 
 	// LARVYN_SESSION tells the CLI in it which terminal it runs in.
