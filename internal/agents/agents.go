@@ -169,7 +169,7 @@ func RelaunchArgv(spec terminal.SessionSpec, shared bool) (argv []string, resume
 	if spec.Meta["yolo"] == "1" && store.CurrentSettings().AgentPermissions != "manual" {
 		argv = append(argv, yoloFlags[kind.Base]...)
 	}
-	if fn, ok := resumeArgs[kind.Base]; ok && !(shared && resumesByFolder[kind.Base]) {
+	if fn, ok := resumeArgs[kind.Base]; ok && !(shared && resumesByFolder[kind.Base]) && spec.Meta["stateless"] != "1" {
 		// No arguments (Codex with no recorded conversation) is a fresh
 		// start, not a resume: there is nothing it would show again.
 		if a := fn(spec); a != nil {
@@ -332,6 +332,12 @@ var CreateWorktree = func(projectID, name, base string) (path, branch string, er
 	return "", "", errors.New("worktrees are not available")
 }
 
+// RemoveWorktree deletes an agent's worktree and its branch; main wires it to
+// the git service like CreateWorktree.
+var RemoveWorktree = func(projectID, path string) error {
+	return errors.New("worktrees are not available")
+}
+
 // Kinds lists the agents, built-in then custom, and whether each is on PATH.
 func (a *AgentService) Kinds() []AgentKind {
 	out := kinds()
@@ -383,6 +389,13 @@ const WorkingFor = 2500 * time.Millisecond
 // Launch starts an agent session. With Worktree set the agent works on its
 // own branch, so several can attack one task in parallel.
 func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
+	return a.launchSession(req, nil)
+}
+
+// launchSession is Launch with a hook that runs once the agent's worktree
+// exists and before the agent starts in it (EGM copies the spec there). An
+// error from the hook removes the new worktree and fails the launch.
+func (a *AgentService) launchSession(req LaunchRequest, afterWorktree func(wtPath string) error) (terminal.SessionInfo, error) {
 	p, ok := store.FindProject(req.ProjectID)
 	if !ok {
 		return terminal.SessionInfo{}, errors.New("project not found")
@@ -415,6 +428,12 @@ func (a *AgentService) Launch(req LaunchRequest) (terminal.SessionInfo, error) {
 		cwd = path
 		meta["worktree"] = path
 		meta["branch"] = branch
+		if afterWorktree != nil {
+			if err := afterWorktree(path); err != nil {
+				_ = RemoveWorktree(p.ID, path)
+				return terminal.SessionInfo{}, err
+			}
+		}
 		if _, served := flock.SiteFor(p.Path); served {
 			// Flock serves every worktree of a site at its own .test domain
 			// and sets it up itself (dependencies, .env, database), so

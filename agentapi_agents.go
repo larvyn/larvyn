@@ -131,20 +131,11 @@ func apiAgentStart(c api.Caller, prompt, agent, base string, here bool, title st
 	if err != nil {
 		return AgentRow{}, err
 	}
-	depth := 1
-	meta := map[string]string{}
-	if self != nil {
-		if self.Kind == "agent" {
-			d, _ := strconv.Atoi(self.Meta["depth"])
-			depth = d + 1
-		}
-		meta["parent"] = self.ID
+	meta, err := childMeta(self)
+	if err != nil {
+		return AgentRow{}, err
 	}
-	if depth > maxDepth {
-		return AgentRow{}, fmt.Errorf("this agent was itself started by an agent: agents can start agents only %d levels deep", maxDepth)
-	}
-	meta["depth"] = strconv.Itoa(depth)
-	agent = proc.FirstNonEmpty(agent, store.CurrentSettings().DefaultAgent, "claude")
+	agent = defaultAgent(agent)
 	req := agents.LaunchRequest{ProjectID: p.ID, Agent: agent, Prompt: prompt, Title: title, Worktree: !here, InstallDeps: true, Meta: meta}
 	if here {
 		req.Cwd = dir
@@ -163,6 +154,29 @@ func apiAgentStart(c api.Caller, prompt, agent, base string, here bool, title st
 	}
 	prompted.Store(sess.ID, time.Now())
 	return agentRow(sess), nil
+}
+
+// childMeta marks an agent started through the API with the agent that
+// started it and how deep in the chain it is, refusing past maxDepth.
+func childMeta(self *terminal.SessionInfo) (map[string]string, error) {
+	depth := 1
+	meta := map[string]string{}
+	if self != nil {
+		if self.Kind == "agent" {
+			d, _ := strconv.Atoi(self.Meta["depth"])
+			depth = d + 1
+		}
+		meta["parent"] = self.ID
+	}
+	if depth > maxDepth {
+		return nil, fmt.Errorf("this agent was itself started by an agent: agents can start agents only %d levels deep", maxDepth)
+	}
+	meta["depth"] = strconv.Itoa(depth)
+	return meta, nil
+}
+
+func defaultAgent(agent string) string {
+	return proc.FirstNonEmpty(agent, store.CurrentSettings().DefaultAgent, "claude")
 }
 
 func apiAgentSend(id, text string) error {

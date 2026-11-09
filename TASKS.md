@@ -34,3 +34,11 @@ The terminals use xterm betas (#103): `@xterm/xterm` 6.1.0-beta.300 and `@xterm/
 - [ ] When xterm 6.1.0 and addon-webgl 0.20.0 ship as stable, move the five `@xterm/*` packages to those versions (`npm view @xterm/xterm dist-tags`).
 - [ ] Test with several agents in the grid: correct text, WebGL on and no lost contexts when switching views.
 - [ ] Check whether unfocused terminals show their cursor again (the beta doesn't draw the outline).
+
+## 6. Spec-first workflow, next steps
+
+The Elephant-Goldfish workflow (`internal/agents/egm.go`, `components/Specs.tsx`) is complete. Possible next steps:
+
+- [ ] Warn when an Elephant changed files outside `.larvyn/specs/` (compare `git status` from before it started with after).
+- [ ] Show the review history (`.larvyn/specs/history/`) in the panel, with a diff between rounds.
+- [ ] Option to commit specs with the code, for teams that keep them in the repository.

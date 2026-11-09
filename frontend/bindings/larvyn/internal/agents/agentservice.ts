@@ -17,10 +17,32 @@ import * as terminal$0 from "../terminal/models.js";
 import * as $models from "./models.js";
 
 /**
+ * CreateSpec writes a new spec from the template, under a name no other
+ * spec has, for the user to fill in.
+ */
+export function CreateSpec(projectID: string, title: string): $CancellablePromise<$models.SpecFile> {
+    return $Call.ByID(1160339201, projectID, title);
+}
+
+/**
+ * DeleteSpec removes a spec with its review, drift report and history.
+ */
+export function DeleteSpec(projectID: string, slug: string): $CancellablePromise<void> {
+    return $Call.ByID(1760142598, projectID, slug);
+}
+
+/**
  * Fanout starts the same prompt in several agents, each in its own worktree.
  */
 export function Fanout(req: $models.LaunchRequest, agents: string[] | null): $CancellablePromise<terminal$0.SessionInfo[] | null> {
     return $Call.ByID(3125584797, req, agents);
+}
+
+/**
+ * FixDrift sends a builder its drift report to work through.
+ */
+export function FixDrift(sessionID: string): $CancellablePromise<void> {
+    return $Call.ByID(3588511284, sessionID);
 }
 
 /**
@@ -39,6 +61,71 @@ export function Launch(req: $models.LaunchRequest): $CancellablePromise<terminal
 }
 
 /**
+ * LaunchDriftCheck starts a Goldfish auditor in a builder's folder that
+ * compares its changes with the spec and writes <slug>.drift.md there.
+ */
+export function LaunchDriftCheck(req: $models.DriftRequest): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(2126450252, req);
+}
+
+/**
+ * LaunchElephant starts an Elephant. Without a slug it starts a new spec
+ * named after the goal; with one it works on that spec.
+ */
+export function LaunchElephant(req: $models.ElephantRequest): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(3341701316, req);
+}
+
+/**
+ * LaunchFromSpec hands an approved spec to one builder per agent, each in
+ * its own worktree with a copy of the spec and its review. A spec without
+ * a READY review of its current version needs Force.
+ */
+export function LaunchFromSpec(req: $models.SpecLaunchRequest, agents: string[] | null): $CancellablePromise<terminal$0.SessionInfo[] | null> {
+    return $Call.ByID(3228970126, req, agents);
+}
+
+/**
+ * LaunchGoldfish starts a cold review of a spec. The previous review moves
+ * to the history folder, so the panel never shows it as the new one.
+ */
+export function LaunchGoldfish(req: $models.GoldfishRequest): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(2103759393, req);
+}
+
+/**
+ * ReadDrift reads the drift report in a builder's folder.
+ */
+export function ReadDrift(projectID: string, worktree: string, slug: string): $CancellablePromise<$models.DriftReport> {
+    return $Call.ByID(267045905, projectID, worktree, slug);
+}
+
+/**
+ * ReadSpec reads a spec with its review.
+ */
+export function ReadSpec(projectID: string, slug: string): $CancellablePromise<$models.SpecFile> {
+    return $Call.ByID(617971581, projectID, slug);
+}
+
+/**
+ * ReviseSpec hands the latest review back to the Elephant: to the one
+ * working on the spec when there is one, else to a new Elephant. It
+ * answers the Elephant's session.
+ */
+export function ReviseSpec(projectID: string, slug: string, agent: string): $CancellablePromise<terminal$0.SessionInfo> {
+    return $Call.ByID(1436889273, projectID, slug, agent);
+}
+
+/**
+ * SaveSpec writes a spec the user edited. base is the UpdatedAt the editor
+ * loaded; when the file changed since, nothing is written and the answer
+ * is ErrSpecChanged. 0 skips the check.
+ */
+export function SaveSpec(projectID: string, slug: string, content: string, base: number): $CancellablePromise<$models.SpecFile> {
+    return $Call.ByID(2960145224, projectID, slug, content, base);
+}
+
+/**
  * Send types a follow-up message into an agent and presses enter.
  */
 export function Send(sessionID: string, text: string): $CancellablePromise<void> {
@@ -52,6 +139,13 @@ export function Send(sessionID: string, text: string): $CancellablePromise<void>
  */
 export function SetupAgents(remove: boolean, dryRun: boolean): $CancellablePromise<agentsetup$0.Change[] | null> {
     return $Call.ByID(3753525749, remove, dryRun);
+}
+
+/**
+ * Specs lists the project's specs, the most recently changed first.
+ */
+export function Specs(projectID: string): $CancellablePromise<$models.SpecFile[] | null> {
+    return $Call.ByID(3424851442, projectID);
 }
 
 /**

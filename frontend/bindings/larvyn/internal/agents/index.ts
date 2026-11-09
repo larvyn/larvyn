@@ -8,5 +8,11 @@ export {
 
 export type {
     AgentKind,
-    LaunchRequest
+    DriftReport,
+    DriftRequest,
+    ElephantRequest,
+    GoldfishRequest,
+    LaunchRequest,
+    SpecFile,
+    SpecLaunchRequest
 } from "./models.js";

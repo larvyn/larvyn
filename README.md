@@ -14,7 +14,7 @@ points both at Laravel.
 | --- | --- |
 | **Overview** | Laravel/PHP versions, detected ecosystem (Filament, Livewire, Inertia, Horizon, Pest…), config summary, recent commits, and a **Doctor** that finds and fixes setup problems (missing vendor, `.env`, `APP_KEY`, pending migrations, storage link, debug in production). |
 | **Dev stack** | One toggle each for `artisan serve`, Vite, queue (or Horizon), scheduler, Pail, Reverb, Octane. Output in the console drawer; processes are killed with their children. When [Flock](#flock-optional) serves the app, it takes the place of `artisan serve`. |
-| **Agents** | Launch Claude Code, Codex, OpenCode, Antigravity CLI, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied (with Flock, each attempt also gets its own `.test` URL to try in the browser). Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). |
+| **Agents** | Launch Claude Code, Codex, OpenCode, Antigravity CLI, Cursor Agent, Aider or Pi. Pick several and the same prompt fans out, each agent on its own `larvyn/<task>` branch in a worktree with `.env` and SQLite copied (with Flock, each attempt also gets its own `.test` URL to try in the browser). Live status (working / waiting / needs attention), follow-ups, diff review, one-click merge or discard. Laravel playbooks (CRUD, tests, N+1, security review, upgrade…). **Spec first** mode runs the Elephant-Goldfish workflow (see below). |
 | **Terminals** | Real PTYs (ConPTY on Windows) with tabs and splits that keep running across views and projects. |
 | **Artisan** | Every command with a generated form for its arguments and options, favourites, and a generator studio for every `make:*`. |
 | **Routes** | Searchable route table with method filters, middleware, open-controller-at-method, open in browser, copy `route()`. |
@@ -82,6 +82,7 @@ larvyn agents start "add a CSV export" # another agent, in a new worktree from t
 larvyn agents send <id> "also add a test"
 larvyn agents wait <id>                # until it is done (exit 0) or needs attention (exit 2), then its screen
 larvyn agents status <id>              # its status and screen now
+larvyn specs draft "team invitations"  # the Elephant-Goldfish workflow, see below
 larvyn help                            # every command; --json on any of them for JSON
 ```
 
@@ -114,6 +115,35 @@ same methods as MCP tools on stdin and stdout, for agents that prefer MCP
 `terminal_read` tool, and so on. Outside Larvyn's
 terminals it works from a project's folder or one of its worktrees, while
 the app runs.
+
+### Spec first (Elephant-Goldfish)
+
+For a feature worth planning, switch the Agents composer to **Spec first**:
+
+1. **Elephant.** One agent explores the code and writes the spec in
+   `.larvyn/specs/<slug>.md`: data model, routes and validation, policies,
+   edge cases, tests. It writes no code, and asks you what is unclear in its
+   terminal.
+2. **Goldfish.** A new agent with no memory reads the spec cold against the
+   code and writes `<slug>.review.md`. Its first line is `Verdict: READY`,
+   `NEEDS REVISION` or `BLOCKED`. By default the reviewer is a different
+   agent than the author. **Revise with the Elephant** hands the review back.
+   A spec changed after its review counts as unreviewed until the next
+   review, and old reviews move to `.larvyn/specs/history/`.
+3. **Builders.** Once a review of the current version says READY, the spec
+   goes to one or more agents. Each one works in its own worktree with a copy
+   of the spec. Building without an approved review asks first.
+4. **Drift check.** A fresh agent, by default not the builder's, compares an
+   attempt's changes with the spec and writes `<slug>.drift.md`: every
+   requirement done, done differently or missing, plus unrequested changes.
+   **Send fixes** gives the report to the builder. Then merge the best
+   attempt.
+
+Specs are local working files. Larvyn adds `/.larvyn/specs/` to the
+repository's `.git/info/exclude`, and merging an attempt leaves them out of
+the commit. `.larvyn/project.json` stays tracked. The panel follows the
+agents' writes as they happen. The same workflow runs from the CLI and MCP
+with `larvyn specs list|show|draft|review|revise|build|drift|fix`.
 
 ## Privacy
 

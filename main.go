@@ -59,6 +59,9 @@ func init() {
 		wt, err := (&git.GitService{}).CreateWorktree(git.WorktreeRequest{ProjectID: projectID, Name: name, Base: base, CopyEnv: true})
 		return wt.Path, wt.Branch, err
 	}
+	agents.RemoveWorktree = func(projectID, path string) error {
+		return (&git.GitService{}).RemoveWorktree(projectID, path, true)
+	}
 	// Plugin stack items join the stack; plugins.StackItems only lists the
 	// plugins that are on and may run commands.
 	stack.PluginItems = func(p store.Project) []stack.StackItem {

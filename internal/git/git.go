@@ -448,7 +448,7 @@ func (g *GitService) MergeWorktree(projectID, path, message string) (string, err
 
 // notCopied excludes the files CreateWorktree copies from the main checkout,
 // so they are never committed even where .gitignore misses them.
-var notCopied = []string{":!.env", ":!database/database.sqlite"}
+var notCopied = []string{":!.env", ":!database/database.sqlite", ":!.larvyn/specs"}
 
 // copyInto copies a file into dir/rel. It writes through os.Root, so a
 // symlink the checked-out branch put at rel (or at a folder on the way) can't
