@@ -1,78 +1,36 @@
-# Tareas pendientes
+# Open tasks
 
-Lista de trabajo para Larvyn. Cada tarea es independiente: se puede pasar tal cual a un agente o hacer a mano. Marca `[x]` al terminar.
+Each task is independent: hand it to an agent as is or do it by hand. Follow
+`AGENTS.md` and check `[x]` when done.
 
-## Reglas para cualquier tarea
+## 1. Code signing
 
-- Compilar: `wails3 build` (genera `bin/larvyn.exe` y los bindings en `frontend/bindings`).
-- Verificar antes de dar algo por terminado: `go vet ./...`, `go test ./...`, `gofmt -l .` (vacío) y `npx tsc --noEmit` dentro de `frontend/`.
-- Probar la app siempre con un home aislado para no tocar la configuración real: `LARVYN_HOME=<carpeta temporal>`. `LARVYN_VIEW=<vista>` abre directo en una vista.
-- Los proyectos Laravel reales (crm, villas…) solo se usan en modo lectura.
-- Bindings: son interfaces con listas que pueden venir `null`; pasar objetos planos y proteger con `?? []`.
-- zustand: un selector nunca debe devolver un `[]` o `{}` nuevo en cada llamada (provoca un loop infinito de React).
-- Commits: conventional commits en minúsculas, una línea, sin líneas de co-autor.
+- [ ] Get a code signing certificate (Authenticode).
+- [ ] Use the `windows:sign` and `windows:sign:installer` tasks in `build/windows/Taskfile.yml`.
+- [ ] Check that SmartScreen no longer shows "unknown publisher".
 
----
+## 2. Spanish interface
 
-## 1. AGENTS.md con las reglas del proyecto
+- [ ] Add lightweight i18n: one strings file per language (`frontend/src/i18n/es.ts`, `en.ts`) and a `t()` hook.
+- [ ] Route every string in the views, the palette and the toasts through `t()`.
+- [ ] Language picker in Settings (defaults to the system language), saved in the settings.
 
-- [ ] Crear `AGENTS.md` en la raíz con: arquitectura (servicios Go en `package main`, `bridge.php` embebido, vistas React en `frontend/src/views`), comandos de build y test, y las reglas de arriba.
-- [ ] Mantenerlo corto: un mapa con reglas y ejemplos, no documentación completa.
+## 3. More Herd integration
 
-## 2. Repositorio remoto
+- [ ] Read Herd's sites (`herd sites` / `herd links`) and show them in Overview.
+- [ ] Change a site's PHP version (`herd isolate <version>`) from the UI.
+- [ ] Turn HTTPS on and off per site (`herd secure` / `herd unsecure`).
 
-- [ ] Crear el repo en GitHub (privado) y hacer `git remote add origin …` + `git push -u origin master`.
+## 4. Light theme
 
-## 3. CI
+- [ ] Define the light theme's color tokens in `frontend/src/styles/app.css` next to the dark ones.
+- [ ] Adjust the xterm theme so terminals stay readable.
+- [ ] Picker in Settings: dark, light or follow the system.
 
-- [ ] Workflow `.github/workflows/ci.yml` en `windows-latest`: setup Go y Node, `npm ci` en `frontend/`, `go vet`, `go test`, `npx tsc --noEmit`, `wails3 build`.
-- [ ] Subir `bin/larvyn.exe` como artifact del workflow.
+## 5. Back to stable xterm
 
-## 4. Instalador de Windows
+The terminals use xterm betas (#103): `@xterm/xterm` 6.1.0-beta.300 and `@xterm/addon-webgl` 0.20.0-beta.297, plus fit, search and web-links from the same date. They are the only versions with the shared WebGL atlas fixes (xtermjs/xterm.js#6042 and #6043). The stable 0.19.0 can show garbled text with several terminals.
 
-- [ ] Generar el instalador NSIS con la tarea ya existente: `wails3 task windows:create:nsis:installer` (ver `build/windows/Taskfile.yml`, que usa `build/windows/nsis/project.nsi`).
-- [ ] Revisar que el instalador crea el acceso en el menú Inicio, usa el icono de Larvyn y se desinstala limpio.
-- [ ] Documentar el comando en el README.
-
-## 5. Firma de código
-
-- [ ] Conseguir un certificado de firma (Authenticode).
-- [ ] Usar las tareas `windows:sign` y `windows:sign:installer` de `build/windows/Taskfile.yml`.
-- [ ] Verificar que SmartScreen ya no muestra "aplicación desconocida".
-
-## 6. Auto-update
-
-- [ ] Publicar releases en GitHub con el instalador.
-- [ ] Al arrancar, consultar la última release (API de GitHub), comparar con la versión de `build/config.yml` y mostrar un aviso "Nueva versión disponible" con botón para descargar e instalar.
-- [ ] Opción en Settings para desactivar la comprobación.
-
-## 7. macOS y Linux
-
-- [ ] Compilar en cada sistema (`wails3 build`) y probar: terminales (PTY), lanzar agentes, stack de servicios, abrir en editor.
-- [ ] Revisar `proc_other.go` (matar árbol de procesos, shell por defecto) y la detección de PHP/Composer fuera de Herd.
-
-## 8. Interfaz en español
-
-- [ ] Añadir i18n ligero: un archivo de textos por idioma (`frontend/src/i18n/es.ts`, `en.ts`) y un hook `t()`.
-- [ ] Pasar todos los textos de las vistas, la palette y los toasts por `t()`.
-- [ ] Selector de idioma en Settings (por defecto el del sistema), guardado en los settings.
-
-## 9. Más integración con Herd
-
-- [ ] Leer los sitios de Herd (`herd sites` / `herd links`) y mostrarlos en Overview.
-- [ ] Cambiar la versión de PHP por sitio (`herd isolate <version>`) desde la UI.
-- [ ] Activar/desactivar HTTPS por sitio (`herd secure` / `herd unsecure`).
-
-## 10. Tema claro
-
-- [ ] Definir los tokens de color del tema claro en `frontend/src/styles/app.css` junto a los del oscuro.
-- [ ] Ajustar el tema de xterm para que las terminales sigan siendo legibles.
-- [ ] Selector en Settings: oscuro, claro o según el sistema.
-
-## 11. Volver a xterm estable
-
-Las terminales usan betas de xterm (#103): `@xterm/xterm` 6.1.0-beta.300 y `@xterm/addon-webgl` 0.20.0-beta.297, más fit, search y web-links de la misma fecha. Son las únicas versiones con los arreglos del atlas WebGL compartido (xtermjs/xterm.js#6042 y #6043). La 0.19.0 estable puede mostrar texto corrupto con varias terminales.
-
-- [ ] Cuando salgan xterm 6.1.0 y addon-webgl 0.20.0 estables, cambiar los cinco paquetes `@xterm/*` a esas versiones (`npm view @xterm/xterm dist-tags`).
-- [ ] Probar con varios agentes en la grilla: texto correcto, WebGL activo y sin pérdidas de contexto al cambiar de vista.
-- [ ] Revisar si el cursor de las terminales sin foco vuelve a verse (con la beta no se dibuja el contorno).
+- [ ] When xterm 6.1.0 and addon-webgl 0.20.0 ship as stable, move the five `@xterm/*` packages to those versions (`npm view @xterm/xterm dist-tags`).
+- [ ] Test with several agents in the grid: correct text, WebGL on and no lost contexts when switching views.
+- [ ] Check whether unfocused terminals show their cursor again (the beta doesn't draw the outline).
