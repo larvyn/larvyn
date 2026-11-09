@@ -67,53 +67,59 @@ export function TitleBar() {
   const view = useStore((s) => s.view)
   return (
     <div className={cx('titlebar', platform === 'darwin' && 'mac')} onDoubleClick={() => Window.ToggleMaximise()}>
-      {platform === 'darwin' && (
-        <div className="lights" onDoubleClick={(e) => e.stopPropagation()}>
-          <button className="l-close" onClick={() => Window.Close()} aria-label="Close" />
-          <button className="l-min" onClick={() => Window.Minimise()} aria-label="Minimise" />
-          <button className="l-max" onClick={() => Window.ToggleFullscreen()} aria-label="Full screen" />
+      {/* Three columns, the sides of equal width: the search stays centred,
+          and what doesn't fit on the left is cut instead of running under it. */}
+      <div className="tb-left">
+        {platform === 'darwin' && (
+          <div className="lights" onDoubleClick={(e) => e.stopPropagation()}>
+            <button className="l-close" onClick={() => Window.Close()} aria-label="Close" />
+            <button className="l-min" onClick={() => Window.Minimise()} aria-label="Minimise" />
+            <button className="l-max" onClick={() => Window.ToggleFullscreen()} aria-label="Full screen" />
+          </div>
+        )}
+        <div className="brand">
+          <div className="brand-mark">
+            <Logo />
+          </div>
+          Larvyn
         </div>
-      )}
-      <div className="brand">
-        <div className="brand-mark">
-          <Logo />
-        </div>
-        Larvyn
+        {project && (
+          <div className="crumbs">
+            <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
+            <b>{project.name}</b>
+            {info?.branch && (
+              <span className="badge mono crumb-branch" title={info.branch}>
+                <GitBranch style={{ width: 10, height: 10 }} />
+                <span className="ellipsis">{info.branch}</span>
+              </span>
+            )}
+            <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
+            <span className="ellipsis">{NAV_ITEMS.find((n) => n.view === view)?.label ?? (view.startsWith('plugin:') ? 'Plugin' : 'Settings')}</span>
+          </div>
+        )}
       </div>
-      {project && (
-        <div className="crumbs">
-          <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
-          <b>{project.name}</b>
-          {info?.branch && (
-            <span className="badge mono" style={{ height: 19, fontSize: 10.5, gap: 4 }}>
-              <GitBranch style={{ width: 10, height: 10 }} />
-              {info.branch}
-            </span>
-          )}
-          <ChevronRight style={{ width: 13, height: 13, color: 'var(--text-4)' }} />
-          <span>{NAV_ITEMS.find((n) => n.view === view)?.label ?? (view.startsWith('plugin:') ? 'Plugin' : 'Settings')}</span>
-        </div>
-      )}
       <button className="searchbar" onClick={() => openPalette()}>
         <Search />
         <span className="grow">Search, run artisan, start services…</span>
         <kbd>{mod}</kbd>
         <kbd>K</kbd>
       </button>
-      <TitleFeedback />
-      {platform !== 'darwin' && (
-        <div className="winctl">
-          <button onClick={() => Window.Minimise()} title="Minimise">
-            <Minus />
-          </button>
-          <button onClick={() => Window.ToggleMaximise()} title="Maximise">
-            <Maximize2 style={{ width: 12, height: 12 }} />
-          </button>
-          <button className="close" onClick={() => Window.Close()} title="Close">
-            <X />
-          </button>
-        </div>
-      )}
+      <div className="tb-right">
+        <TitleFeedback />
+        {platform !== 'darwin' && (
+          <div className="winctl">
+            <button onClick={() => Window.Minimise()} title="Minimise">
+              <Minus />
+            </button>
+            <button onClick={() => Window.ToggleMaximise()} title="Maximise">
+              <Maximize2 style={{ width: 12, height: 12 }} />
+            </button>
+            <button className="close" onClick={() => Window.Close()} title="Close">
+              <X />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
