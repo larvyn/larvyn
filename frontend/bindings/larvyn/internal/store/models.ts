@@ -86,10 +86,10 @@ export interface Settings {
     "agentPermissions": string;
 
     /**
-     * NoRestore stops Larvyn from bringing back terminals, agents and
-     * services from the previous run.
+     * Restore is what comes back from the previous run: RestoreAll,
+     * RestoreTerminals or RestoreOff.
      */
-    "noRestore": boolean;
+    "restore": string;
 
     /**
      * Onboarded is set once the first-run setup was finished or skipped.
@@ -98,7 +98,8 @@ export interface Settings {
 
     /**
      * NoFlockAutoServe stops Larvyn from serving the Laravel projects it
-     * adds with Flock (flk link) when Flock runs.
+     * adds with Flock (flk link) when Flock runs. It is set on a fresh
+     * install: serving is something to turn on, not to find on.
      */
     "noFlockAutoServe": boolean;
 

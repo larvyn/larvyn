@@ -62,13 +62,14 @@ type Settings struct {
 	// AgentPermissions is "yolo" (agents start with their skip-approvals
 	// flag, as Orca does by default) or "manual" (they ask as usual).
 	AgentPermissions string `json:"agentPermissions"`
-	// NoRestore stops Larvyn from bringing back terminals, agents and
-	// services from the previous run.
-	NoRestore bool `json:"noRestore"`
+	// Restore is what comes back from the previous run: RestoreAll,
+	// RestoreTerminals or RestoreOff.
+	Restore string `json:"restore"`
 	// Onboarded is set once the first-run setup was finished or skipped.
 	Onboarded bool `json:"onboarded"`
 	// NoFlockAutoServe stops Larvyn from serving the Laravel projects it
-	// adds with Flock (flk link) when Flock runs.
+	// adds with Flock (flk link) when Flock runs. It is set on a fresh
+	// install: serving is something to turn on, not to find on.
 	NoFlockAutoServe bool `json:"noFlockAutoServe"`
 	// CustomAgents are the agents the user added in Settings.
 	CustomAgents []CustomAgent `json:"customAgents,omitempty"`
@@ -158,15 +159,31 @@ func Update(fn func(d *State)) error        { return Default().Update(fn) }
 func ActiveID() string                      { return Default().ActiveID() }
 func Plugins() map[string]PluginState       { return Default().Plugins() }
 
-// DefaultSettings are the preferences of a fresh install.
+// What Settings.Restore brings back from the previous run.
+const (
+	// RestoreAll brings back every session and starts again the shells,
+	// services and agents that were running.
+	RestoreAll = "all"
+	// RestoreTerminals brings back every session with its output, but only
+	// shells start again: services and agents wait for Relaunch.
+	RestoreTerminals = "terminals"
+	// RestoreOff starts with nothing open.
+	RestoreOff = "off"
+)
+
+// DefaultSettings are the preferences of a fresh install. Anything that acts
+// on its own (agents skipping approvals, services starting, projects being
+// served) starts off; the first-run setup and Settings turn it on.
 func DefaultSettings() Settings {
 	return Settings{
 		Editor:           "code",
 		DefaultAgent:     "claude",
-		AgentPermissions: "yolo",
+		AgentPermissions: "manual",
 		TerminalFontSize: 13,
 		Accent:           "#FF2D20",
 		ConfirmDangerous: true,
+		Restore:          RestoreTerminals,
+		NoFlockAutoServe: true,
 	}
 }
 
@@ -220,6 +237,7 @@ func New() *Store {
 	s := &Store{dir: HomeDir(), data: State{Settings: DefaultSettings()}}
 	if b, err := os.ReadFile(filepath.Join(s.dir, "state.json")); err == nil {
 		_ = json.Unmarshal(b, &s.data)
+		keepLegacyDefaults(b, &s.data.Settings)
 	}
 	if s.data.Settings.TerminalFontSize == 0 {
 		s.data.Settings.TerminalFontSize = 13
@@ -233,6 +251,36 @@ func New() *Store {
 		s.data.Settings.Onboarded = true
 	}
 	return s
+}
+
+// keepLegacyDefaults gives an install whose state.json predates a setting
+// what it had before that setting existed, instead of a fresh install's
+// default: changing the defaults must not change an existing setup.
+func keepLegacyDefaults(b []byte, st *Settings) {
+	var probe struct {
+		Settings struct {
+			Restore          *string `json:"restore"`
+			NoRestore        bool    `json:"noRestore"`
+			NoFlockAutoServe *bool   `json:"noFlockAutoServe"`
+			AgentPermissions *string `json:"agentPermissions"`
+		} `json:"settings"`
+	}
+	if json.Unmarshal(b, &probe) != nil {
+		return
+	}
+	p := probe.Settings
+	if p.Restore == nil {
+		st.Restore = RestoreAll
+		if p.NoRestore {
+			st.Restore = RestoreOff
+		}
+	}
+	if p.NoFlockAutoServe == nil {
+		st.NoFlockAutoServe = false
+	}
+	if p.AgentPermissions == nil {
+		st.AgentPermissions = "yolo"
+	}
 }
 
 func (s *Store) saveLocked() error {
