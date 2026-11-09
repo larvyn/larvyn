@@ -422,7 +422,7 @@ func (a *AgentService) LaunchGoldfish(req GoldfishRequest) (terminal.SessionInfo
 	return a.launchSession(LaunchRequest{
 		ProjectID: p.ID,
 		Agent:     req.Agent,
-		Prompt:    goldfishPrompt(sRel, rRel, strings.TrimSpace(req.Focus)),
+		Prompt:    goldfishPrompt(sRel, rRel, strings.TrimSpace(req.Focus), sf.Rounds+1),
 		Title:     fmt.Sprintf("Review %d · %s", sf.Rounds+1, firstLine(sf.Title, 34)),
 		Meta:      meta,
 	}, nil)
@@ -1024,34 +1024,40 @@ func elephantPrompt(specRel, goal string, revising bool) string {
 	for _, s := range specSections {
 		b.WriteString("   - `## " + s.name + "`: " + s.what + "\n")
 	}
-	b.WriteString("3. Ask me in this terminal when something is ambiguous, and keep the spec up to date as we go.\n")
-	b.WriteString("4. When it is complete, change its `> Status:` line to `> Status: ready for review` and say so.\n\n")
+	b.WriteString("3. Keep it proportional: a small feature gets a short spec. Describe behavior, rules, signatures and test names; don't write out whole implementations.\n")
+	b.WriteString("4. Ask me in this terminal when something is ambiguous, and keep the spec up to date as we go.\n")
+	b.WriteString("5. When it is complete, change its `> Status:` line to `> Status: ready for review` and say so.\n\n")
 	b.WriteString("Rule: write NO application code. Create or change no file other than `" + specRel + "`.\n")
 	return b.String()
 }
 
 func reviseMessage(specRel, reviewRel string) string {
 	return "A Goldfish reviewer read the spec cold and wrote its review to `" + reviewRel + "`. Read it and update `" + specRel +
-		"`: settle every ambiguity, close every security gap and apply every concrete amendment you agree with; for one you reject, add a short note in the spec saying why. " +
+		"`: fix every Blocking Issue (for one you reject, add a short note in the spec saying why) and take a Suggestion only when it is cheap and clearly better. Keep the spec as short as the feature allows. " +
 		"Then set its `> Status:` line to `> Status: ready for review`. Write no application code and change no file other than the spec."
 }
 
-func goldfishPrompt(specRel, reviewRel, focus string) string {
+func goldfishPrompt(specRel, reviewRel, focus string, round int) string {
 	var b strings.Builder
 	b.WriteString("You are THE GOLDFISH, a stateless reviewer in an Elephant-Goldfish workflow. You have no memory of how the spec was written, and that is the point: read `" + specRel + "` cold and check every claim in it against the actual repository.\n\n")
 	if focus != "" {
 		b.WriteString("Look especially at:\n" + focus + "\n\n")
 	}
+	b.WriteString("Check: what a builder would have to guess; the data model (foreign keys, indexes, casts, N+1 queries, migrations); authorization and validation (policies, IDOR, mass assignment); the codebase's conventions; the tests, failure paths included.\n\n")
+	b.WriteString("Sort what you find by whether it blocks:\n")
+	b.WriteString("- Blocking: a builder following the spec would build the wrong thing, or would have to guess; a security or authorization gap; data loss; a contradiction with the code; a decision only the user can make.\n")
+	b.WriteString("- Suggestion: everything else (style, naming, extra tests, nicer code, more detail). Suggestions never block.\n")
+	b.WriteString("A spec does not have to be perfect, only correct and unambiguous. Don't ask for more detail than the feature needs.\n\n")
+	if round >= 3 {
+		fmt.Fprintf(&b, "This is review round %d: earlier rounds already went through this spec. Only flag as blocking what truly blocks.\n\n", round)
+	}
 	b.WriteString("Write your review to `" + reviewRel + "`. Its first line is exactly one of:\n")
-	b.WriteString("  Verdict: READY            (a builder could implement it without guessing)\n")
-	b.WriteString("  Verdict: NEEDS REVISION   (gaps to fix in the spec first)\n")
-	b.WriteString("  Verdict: BLOCKED          (it can't work as specified, or needs a decision from the user)\n")
+	b.WriteString("  Verdict: READY            (no blocking issues; suggestions are fine)\n")
+	b.WriteString("  Verdict: NEEDS REVISION   (blocking issues the spec can fix)\n")
+	b.WriteString("  Verdict: BLOCKED          (it needs a decision from the user, or can't work as asked)\n")
 	b.WriteString("Then these sections:\n")
-	b.WriteString("- `## Unstated Assumptions & Ambiguities`: what a builder would have to guess\n")
-	b.WriteString("- `## Data Model, Eloquent & N+1 Risks`: missing foreign keys or indexes, wrong casts, N+1 traps, migration hazards\n")
-	b.WriteString("- `## Security & Authorization Gaps`: missing policies/gates, unvalidated input, IDOR or tenant leaks, mass assignment\n")
-	b.WriteString("- `## Laravel Conventions & Test Gaps`: where it departs from the codebase's patterns, missing failure-path tests\n")
-	b.WriteString("- `## Concrete Amendments`: a numbered list of exact edits to make in the spec\n\n")
+	b.WriteString("- `## Blocking Issues`: numbered, each with the exact edit to make in the spec (\"None\" when there are none)\n")
+	b.WriteString("- `## Suggestions`: optional improvements, short\n\n")
 	b.WriteString("Rules: change neither `" + specRel + "` nor any application code, and don't read other files in `" + specsRelDir + "/` (older reviews would bias you). Write only `" + reviewRel + "`, then sum up your verdict in this terminal.\n")
 	return b.String()
 }
@@ -1060,7 +1066,7 @@ func builderPrompt(specRel, reviewRel string, hasReview bool, notes string) stri
 	var b strings.Builder
 	b.WriteString("Implement the feature specified in `" + specRel + "`.\n\n")
 	if hasReview {
-		b.WriteString("Its review is in `" + reviewRel + "`; the spec already includes the amendments that were accepted, so the spec wins where they differ.\n\n")
+		b.WriteString("Its review is in `" + reviewRel + "`: the spec wins where they differ; take its Suggestions where they are cheap.\n\n")
 	}
 	if notes != "" {
 		b.WriteString("Additional instructions:\n" + notes + "\n\n")

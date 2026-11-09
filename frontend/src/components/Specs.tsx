@@ -624,9 +624,16 @@ function Verdict(props: { sf: SpecFile; busy: boolean; elephant: boolean; writin
         ? 'Blocked: it needs a decision from you, or can’t work as written. Answer in the Elephant’s terminal.'
         : 'Gaps to close first. The Elephant folds the amendments into the spec.'
     action = (
-      <button className="btn sm primary" disabled={props.busy} onClick={props.onRevise}>
-        <Send /> {props.elephant ? 'Send to the Elephant' : 'Revise with the Elephant'}
-      </button>
+      <>
+        {sf.rounds >= 2 && (
+          <button className="btn sm ghost" onClick={props.onBuild} title="You decide the spec is good enough: building asks you to confirm">
+            <Hammer /> Build anyway
+          </button>
+        )}
+        <button className="btn sm primary" disabled={props.busy} onClick={props.onRevise}>
+          <Send /> {props.elephant ? 'Send to the Elephant' : 'Revise with the Elephant'}
+        </button>
+      </>
     )
   }
   return (
