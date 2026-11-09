@@ -315,6 +315,7 @@ export function FileDiff(props: { file: DiffFile; mode: 'split' | 'unified'; onO
           title: 'Comment on this line (shift-click for several)',
           role: 'button' as const,
           tabIndex: 0,
+          'aria-label': `Comment on ${l.kind === 'del' ? 'removed ' : ''}line ${numOf(l)}`,
         }
       : {}
 
