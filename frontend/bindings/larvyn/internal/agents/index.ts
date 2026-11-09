@@ -13,6 +13,7 @@ export type {
     ElephantRequest,
     GoldfishRequest,
     LaunchRequest,
+    Playbook,
     SpecFile,
     SpecLaunchRequest
 } from "./models.js";

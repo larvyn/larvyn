@@ -95,6 +95,27 @@ export interface LaunchRequest {
 }
 
 /**
+ * Playbook is a ready-made Laravel task for an agent: the Agents view offers
+ * them, and `larvyn mcp` serves them as MCP prompts. A {Name} in the text is
+ * filled in by whoever uses it (the MCP prompt's arguments).
+ */
+export interface Playbook {
+    "id": string;
+    "title": string;
+    "text": string;
+
+    /**
+     * Spec playbooks are meant for the spec-first workflow.
+     */
+    "spec"?: boolean;
+
+    /**
+     * Args are the {Name} placeholders in Text, in order.
+     */
+    "args"?: string[] | null;
+}
+
+/**
  * SpecFile is a spec, .larvyn/specs/<slug>.md, with its latest Goldfish
  * review, <slug>.review.md.
  */
