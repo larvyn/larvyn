@@ -9,6 +9,17 @@ import (
 	"larvyn/internal/store"
 )
 
+// realTempDir is t.TempDir with its symlinks resolved: on macOS it sits
+// under /var, a symlink to /private/var, and the scan compares real paths.
+func realTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func writeLaravel(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -162,8 +173,8 @@ func TestDiscoverSkipsGuardedFoldersAndBundles(t *testing.T) {
 }
 
 func TestStackSitePathsReadsValetConfig(t *testing.T) {
-	home := t.TempDir()
-	sites := filepath.Join(t.TempDir(), "sites")
+	home := realTempDir(t)
+	sites := filepath.Join(realTempDir(t), "sites")
 	writeLaravel(t, filepath.Join(sites, "shop"))
 	os.MkdirAll(filepath.Join(home, ".config", "valet"), 0o755)
 	os.WriteFile(filepath.Join(home, ".config", "valet", "config.json"), []byte(`{"tld":"test","paths":["`+filepath.ToSlash(sites)+`","relative"]}`), 0o644)
@@ -200,7 +211,7 @@ func TestWithin(t *testing.T) {
 }
 
 func TestResolveUnguardedSkipsSymlinksIntoGuardedFolders(t *testing.T) {
-	home := t.TempDir()
+	home := realTempDir(t)
 	docs := filepath.Join(home, "Documents")
 	os.MkdirAll(filepath.Join(docs, "sites"), 0o755)
 	os.MkdirAll(filepath.Join(home, "code"), 0o755)

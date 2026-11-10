@@ -266,6 +266,11 @@ func (s *ProjectService) Discover(widen bool) Discovery {
 		_ = store.Update(func(d *store.State) { d.DiscoverEverywhere = true })
 	}
 	home, _ := os.UserHomeDir()
+	// The guarded folders are compared with real paths: roots come back
+	// from resolveUnguarded with their symlinks resolved.
+	if real, err := filepath.EvalSymlinks(home); err == nil {
+		home = real
+	}
 	var added []string
 	for _, p := range store.Projects() {
 		added = append(added, p.Path)
