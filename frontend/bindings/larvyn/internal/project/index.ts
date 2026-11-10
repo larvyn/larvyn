@@ -7,6 +7,7 @@ export {
 };
 
 export type {
+    Discovery,
     FlockInfo,
     FlockServed,
     Found,

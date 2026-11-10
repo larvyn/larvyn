@@ -40,6 +40,22 @@ var skipDirs = map[string]bool{
 	"$RECYCLE.BIN": true, "System Volume Information": true,
 }
 
+// mediaLibraries are the Photos, Music and TV libraries: never a project,
+// and reading inside one raises a macOS privacy prompt, so the scan does
+// not even look.
+var mediaLibraries = map[string]bool{
+	".photoslibrary": true, ".photolibrary": true, ".musiclibrary": true,
+	".tvlibrary": true, ".aplibrary": true, ".imovielibrary": true,
+}
+
+// bundleExts are other macOS bundles (folders Finder shows as one file).
+// The scan does not walk inside them, but a folder named like one can
+// still be a project (a site called acme.app), so it is checked first.
+var bundleExts = map[string]bool{
+	".app": true, ".bundle": true, ".framework": true, ".fcpbundle": true,
+	".logicx": true, ".band": true, ".xcarchive": true, ".sparsebundle": true,
+}
+
 // sameFolder reports whether two paths name the same folder. The file
 // system decides, so case counts exactly where it does (Linux, and
 // case-sensitive volumes on macOS) and symlinked paths match. A folder that
@@ -57,11 +73,14 @@ func sameFolder(a, b string) bool {
 	return os.SameFile(sa, sb)
 }
 
-// discoverRoots are the folders Discover starts from: the home folder plus
-// where common local stacks keep their sites.
-func discoverRoots() []string {
-	var roots []string
-	if home, err := os.UserHomeDir(); err == nil {
+// discoverRoots are the folders Discover starts from: the folders Herd and
+// Valet serve sites from (walked first: that is where the apps are), the
+// home folder, and where common local stacks keep their sites. A root
+// inside a guarded folder, or a symlink into one, is left out before it is
+// even looked at.
+func discoverRoots(home string, guarded map[string]bool) []string {
+	roots := stackSitePaths(home)
+	if home != "" {
 		roots = append(roots, home)
 	}
 	switch runtime.GOOS {
@@ -70,13 +89,144 @@ func discoverRoots() []string {
 	default:
 		roots = append(roots, "/var/www", "/srv/www", "/srv/http", "/opt/lampp/htdocs")
 	}
-	out := roots[:0]
+	var out []string
 	for _, r := range roots {
+		r, ok := resolveUnguarded(r, guarded)
+		if !ok {
+			continue
+		}
 		if st, err := os.Stat(r); err == nil && st.IsDir() {
 			out = append(out, r)
 		}
 	}
 	return out
+}
+
+// stackSitePaths are the folders Laravel Herd and Valet serve sites from
+// ("herd park", "valet park"), read from their config files.
+func stackSitePaths(home string) []string {
+	if home == "" {
+		return nil
+	}
+	configs := []string{
+		filepath.Join(home, ".config", "valet", "config.json"),
+		filepath.Join(home, ".valet", "config.json"),
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		configs = append(configs, filepath.Join(home, "Library", "Application Support", "Herd", "config", "valet", "config.json"))
+	case "windows":
+		configs = append(configs, filepath.Join(home, ".config", "herd", "config", "valet", "config.json"))
+	}
+	var paths []string
+	for _, c := range configs {
+		b, err := os.ReadFile(c)
+		if err != nil {
+			continue
+		}
+		var cfg struct {
+			Paths []string `json:"paths"`
+		}
+		if json.Unmarshal(b, &cfg) != nil {
+			continue
+		}
+		for _, p := range cfg.Paths {
+			if p = strings.TrimSpace(p); p != "" && filepath.IsAbs(p) {
+				paths = append(paths, filepath.Clean(p))
+			}
+		}
+	}
+	return paths
+}
+
+// within reports whether path is dir or inside it, ignoring case where the
+// file system usually does (macOS, Windows).
+func within(path, dir string) bool {
+	path, dir = filepath.Clean(path), filepath.Clean(dir)
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		path, dir = strings.ToLower(path), strings.ToLower(dir)
+	}
+	return path == dir || strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
+}
+
+// resolveUnguarded resolves the symlinks in path one folder at a time and
+// returns the real path, or ok=false when it leads into a guarded folder
+// (a Herd folder that links into Documents) or does not exist. A guarded
+// folder is never touched, not even to read a link inside it. With nothing
+// guarded, path comes back as it is.
+func resolveUnguarded(path string, guarded map[string]bool) (string, bool) {
+	path = filepath.Clean(path)
+	if len(guarded) == 0 {
+		return path, true
+	}
+	sep := string(filepath.Separator)
+	split := func(p string) (string, []string) {
+		vol := filepath.VolumeName(p)
+		return vol + sep, strings.Split(strings.TrimPrefix(p[len(vol):], sep), sep)
+	}
+	cur, rest := split(path)
+	for hops := 0; len(rest) > 0; {
+		name := rest[0]
+		rest = rest[1:]
+		switch name {
+		case "", ".":
+			continue
+		case "..":
+			cur = filepath.Dir(cur)
+			continue
+		}
+		next := filepath.Join(cur, name)
+		if isGuarded(next, guarded) {
+			return "", false
+		}
+		st, err := os.Lstat(next)
+		if err != nil {
+			return "", false
+		}
+		if st.Mode()&os.ModeSymlink == 0 {
+			cur = next
+			continue
+		}
+		if hops++; hops > 40 {
+			return "", false // a symlink loop
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", false
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(cur, target)
+		}
+		root, parts := split(filepath.Clean(target))
+		cur, rest = root, append(parts, rest...)
+	}
+	return cur, true
+}
+
+// isGuarded reports whether path is a guarded folder or inside one.
+func isGuarded(path string, guarded map[string]bool) bool {
+	for g := range guarded {
+		if within(path, g) {
+			return true
+		}
+	}
+	return false
+}
+
+// rebase rewrites path from under from to under to when it lies there (an
+// added project stored under the home path as spelled before its symlinks
+// were resolved). It only compares text and never touches the disk, so it
+// cannot probe a guarded folder.
+func rebase(path, from, to string) string {
+	if from == "" || from == to || !within(path, from) {
+		return path
+	}
+	path, from = filepath.Clean(path), filepath.Clean(from)
+	// within matched without case on macOS and Windows, so cut by length.
+	if len(path) < len(from) {
+		return path
+	}
+	return filepath.Join(to, path[len(from):])
 }
 
 // isLaravelDir reports whether dir holds a Laravel app: an artisan file and
@@ -107,14 +257,50 @@ func isLaravelDir(dir string) (bool, time.Time) {
 	return true, mod
 }
 
-// Discover looks for Laravel projects on this computer, under the home
-// folder and the usual web roots, newest first. It stops looking after a
-// few seconds, so on a very large disk the list may be partial.
-func (s *ProjectService) Discover() []Found {
-	return discover(discoverRoots(), discoverDepth, time.Now().Add(discoverTimeout))
+// Discovery is what Discover found.
+type Discovery struct {
+	Projects []Found `json:"projects"`
+	// Narrowed is true when folders that may hold projects were left out
+	// to avoid a macOS permission prompt (Desktop, Documents, Downloads);
+	// Discover(true) looks in them too.
+	Narrowed bool `json:"narrowed"`
 }
 
-func discover(roots []string, maxDepth int, deadline time.Time) []Found {
+// Discover looks for Laravel projects on this computer, under the folders
+// Herd and Valet serve, the home folder and the usual web roots, newest
+// first. It stops looking after a few seconds, so on a very large disk the
+// list may be partial.
+//
+// On macOS it stays out of the privacy-guarded folders (Desktop, Documents,
+// Photos, network volumes…) unless a project already lives there, so
+// opening the picker never raises a permission prompt. widen asks for
+// Desktop, Documents and Downloads too, and keeps asking for them from then
+// on: the user chose to, and macOS asks only once.
+func (s *ProjectService) Discover(widen bool) Discovery {
+	if widen {
+		// The scan below widens even if this save fails.
+		_ = store.Update(func(d *store.State) { d.DiscoverEverywhere = true })
+	}
+	home, _ := os.UserHomeDir()
+	// The guarded folders are compared with real paths: roots come back
+	// from resolveUnguarded with their symlinks resolved.
+	spelled := home
+	if real, err := filepath.EvalSymlinks(home); err == nil {
+		home = real
+	}
+	var added []string
+	for _, p := range store.Projects() {
+		added = append(added, rebase(p.Path, spelled, home))
+	}
+	guarded, narrowed := guardedDirs(home, added, widen || store.DiscoverEverywhere())
+	return Discovery{
+		Projects: discover(discoverRoots(home, guarded), guarded, discoverDepth, time.Now().Add(discoverTimeout)),
+		Narrowed: narrowed,
+	}
+}
+
+// discover walks roots, never entering a folder in guarded.
+func discover(roots []string, guarded map[string]bool, maxDepth int, deadline time.Time) []Found {
 	// The folders already added, to mark them: by path, and by identity
 	// for a path spelled another way (case, symlinks).
 	added := map[string]bool{}
@@ -169,7 +355,7 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			found = append(found, f)
 			return // a project's own folders are not projects
 		}
-		if depth >= maxDepth {
+		if depth >= maxDepth || bundleExts[strings.ToLower(filepath.Ext(dir))] {
 			return
 		}
 		entries, err := os.ReadDir(dir)
@@ -180,10 +366,14 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			name := e.Name()
 			// Symlinks are not followed: they loop, and point back into
 			// folders already walked.
-			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] {
+			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] || mediaLibraries[strings.ToLower(filepath.Ext(name))] {
 				continue
 			}
-			walk(filepath.Join(dir, name), depth+1)
+			child := filepath.Join(dir, name)
+			if isGuarded(child, guarded) {
+				continue
+			}
+			walk(child, depth+1)
 		}
 	}
 	for _, r := range roots {

@@ -9,6 +9,17 @@ import (
 	"larvyn/internal/store"
 )
 
+// realTempDir is t.TempDir with its symlinks resolved: on macOS it sits
+// under /var, a symlink to /private/var, and the scan compares real paths.
+func realTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func writeLaravel(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -37,7 +48,7 @@ func TestDiscoverFindsLaravelApps(t *testing.T) {
 	// Too deep for the depth limit.
 	writeLaravel(t, filepath.Join(root, "a", "b", "c", "deep"))
 
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	names := map[string]string{}
 	for _, f := range got {
 		names[f.Path] = f.Name
@@ -64,7 +75,7 @@ func TestDiscoverMarksAddedProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer (&ProjectService{}).Remove(p.ID)
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	if len(got) != 1 || !got[0].Added {
 		t.Fatalf("want the app marked as added: %+v", got)
 	}
@@ -83,7 +94,7 @@ func TestDiscoverKeepsFoldersThatDifferInCase(t *testing.T) {
 	}
 	defer (&ProjectService{}).Remove(p.ID)
 
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	if len(got) != 2 {
 		t.Fatalf("found %d projects, want 2: %+v", len(got), got)
 	}
@@ -138,5 +149,117 @@ func TestAddReturnsTheProjectForTheSameFolder(t *testing.T) {
 	}
 	if got.ID != p.ID {
 		t.Errorf("Add of a symlink to a project's folder made project %s, want %s", got.ID, p.ID)
+	}
+}
+
+func TestDiscoverSkipsGuardedFoldersAndBundles(t *testing.T) {
+	root := t.TempDir()
+	writeLaravel(t, filepath.Join(root, "code", "shop"))
+	writeLaravel(t, filepath.Join(root, "Documents", "crm"))
+	writeLaravel(t, filepath.Join(root, "Photos Library.photoslibrary", "x"))
+	// A site named like a bundle is still a project; an app bundle is not
+	// walked into.
+	writeLaravel(t, filepath.Join(root, "code", "acme.app"))
+	writeLaravel(t, filepath.Join(root, "Tool.app", "Contents"))
+
+	got := discover([]string{root}, map[string]bool{filepath.Join(root, "Documents"): true}, 3, time.Now().Add(time.Minute))
+	paths := map[string]bool{}
+	for _, f := range got {
+		paths[f.Path] = true
+	}
+	if len(got) != 2 || !paths[filepath.Join(root, "code", "shop")] || !paths[filepath.Join(root, "code", "acme.app")] {
+		t.Fatalf("want code/shop and code/acme.app: %+v", got)
+	}
+}
+
+func TestStackSitePathsReadsValetConfig(t *testing.T) {
+	home := realTempDir(t)
+	sites := filepath.Join(realTempDir(t), "sites")
+	writeLaravel(t, filepath.Join(sites, "shop"))
+	os.MkdirAll(filepath.Join(home, ".config", "valet"), 0o755)
+	os.WriteFile(filepath.Join(home, ".config", "valet", "config.json"), []byte(`{"tld":"test","paths":["`+filepath.ToSlash(sites)+`","relative"]}`), 0o644)
+
+	paths := stackSitePaths(home)
+	if len(paths) != 1 || !sameFolder(paths[0], sites) {
+		t.Fatalf("want the parked folder only: %v", paths)
+	}
+	// A guarded parked folder is not even looked at.
+	roots := discoverRoots(home, map[string]bool{sites: true})
+	for _, r := range roots {
+		if within(r, sites) {
+			t.Fatalf("guarded root kept: %v", roots)
+		}
+	}
+	got := discover(paths, nil, 3, time.Now().Add(time.Minute))
+	if len(got) != 1 || !sameFolder(got[0].Path, filepath.Join(sites, "shop")) {
+		t.Fatalf("want the app in the parked folder: %+v", got)
+	}
+}
+
+func TestWithin(t *testing.T) {
+	d := filepath.Join(string(filepath.Separator)+"home", "me", "Documents")
+	for path, want := range map[string]bool{
+		d:                              true,
+		filepath.Join(d, "app"):        true,
+		d + "-old":                     false,
+		filepath.Join(filepath.Dir(d)): false,
+	} {
+		if got := within(path, d); got != want {
+			t.Errorf("within(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestResolveUnguardedSkipsSymlinksIntoGuardedFolders(t *testing.T) {
+	home := realTempDir(t)
+	docs := filepath.Join(home, "Documents")
+	os.MkdirAll(filepath.Join(docs, "sites"), 0o755)
+	os.MkdirAll(filepath.Join(home, "code"), 0o755)
+	guarded := map[string]bool{docs: true}
+
+	// A link straight into Documents, a relative one, and a link to a
+	// folder that itself links there.
+	os.Symlink(filepath.Join(docs, "sites"), filepath.Join(home, "Herd"))
+	os.Symlink(filepath.Join("Documents", "sites"), filepath.Join(home, "Sites"))
+	os.Symlink(filepath.Join(home, "Sites"), filepath.Join(home, "www"))
+	for _, name := range []string{"Herd", "Sites", "www"} {
+		if p, ok := resolveUnguarded(filepath.Join(home, name), guarded); ok {
+			t.Errorf("%s resolved to %s, want it left out", name, p)
+		}
+	}
+
+	os.Symlink("code", filepath.Join(home, "dev"))
+	want, _ := filepath.EvalSymlinks(filepath.Join(home, "code"))
+	if p, ok := resolveUnguarded(filepath.Join(home, "dev"), guarded); !ok || p != want {
+		t.Errorf("dev = %q, %v; want %q", p, ok, want)
+	}
+	if _, ok := resolveUnguarded(filepath.Join(home, "missing"), guarded); ok {
+		t.Error("a missing folder resolved")
+	}
+	// A symlink loop ends.
+	os.Symlink("loop-b", filepath.Join(home, "loop-a"))
+	os.Symlink("loop-a", filepath.Join(home, "loop-b"))
+	if _, ok := resolveUnguarded(filepath.Join(home, "loop-a"), guarded); ok {
+		t.Error("a symlink loop resolved")
+	}
+}
+
+func TestRebase(t *testing.T) {
+	sep := string(filepath.Separator)
+	link := sep + filepath.Join("Users", "me")
+	real := sep + filepath.Join("System", "Volumes", "Data", "Users", "me")
+	cases := []struct{ path, want string }{
+		{filepath.Join(link, "Documents", "shop"), filepath.Join(real, "Documents", "shop")},
+		{link, real},
+		{filepath.Join(real, "code"), filepath.Join(real, "code")},
+		{sep + filepath.Join("Users", "meg", "app"), sep + filepath.Join("Users", "meg", "app")},
+	}
+	for _, c := range cases {
+		if got := rebase(c.path, link, real); got != c.want {
+			t.Errorf("rebase(%s) = %s, want %s", c.path, got, c.want)
+		}
+	}
+	if got := rebase(link, "", real); got != link {
+		t.Errorf("rebase with no home = %s, want it unchanged", got)
 	}
 }
