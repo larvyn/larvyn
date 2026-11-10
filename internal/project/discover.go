@@ -213,6 +213,22 @@ func isGuarded(path string, guarded map[string]bool) bool {
 	return false
 }
 
+// rebase rewrites path from under from to under to when it lies there (an
+// added project stored under the home path as spelled before its symlinks
+// were resolved). It only compares text and never touches the disk, so it
+// cannot probe a guarded folder.
+func rebase(path, from, to string) string {
+	if from == "" || from == to || !within(path, from) {
+		return path
+	}
+	path, from = filepath.Clean(path), filepath.Clean(from)
+	// within matched without case on macOS and Windows, so cut by length.
+	if len(path) < len(from) {
+		return path
+	}
+	return filepath.Join(to, path[len(from):])
+}
+
 // isLaravelDir reports whether dir holds a Laravel app: an artisan file and
 // a composer.json that requires laravel/framework. It returns composer.json's
 // modification time.
@@ -268,12 +284,13 @@ func (s *ProjectService) Discover(widen bool) Discovery {
 	home, _ := os.UserHomeDir()
 	// The guarded folders are compared with real paths: roots come back
 	// from resolveUnguarded with their symlinks resolved.
+	spelled := home
 	if real, err := filepath.EvalSymlinks(home); err == nil {
 		home = real
 	}
 	var added []string
 	for _, p := range store.Projects() {
-		added = append(added, p.Path)
+		added = append(added, rebase(p.Path, spelled, home))
 	}
 	guarded, narrowed := guardedDirs(home, added, widen || store.DiscoverEverywhere())
 	return Discovery{
@@ -353,7 +370,7 @@ func discover(roots []string, guarded map[string]bool, maxDepth int, deadline ti
 				continue
 			}
 			child := filepath.Join(dir, name)
-			if guarded[child] {
+			if isGuarded(child, guarded) {
 				continue
 			}
 			walk(child, depth+1)

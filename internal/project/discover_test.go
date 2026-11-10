@@ -243,3 +243,23 @@ func TestResolveUnguardedSkipsSymlinksIntoGuardedFolders(t *testing.T) {
 		t.Error("a symlink loop resolved")
 	}
 }
+
+func TestRebase(t *testing.T) {
+	sep := string(filepath.Separator)
+	link := sep + filepath.Join("Users", "me")
+	real := sep + filepath.Join("System", "Volumes", "Data", "Users", "me")
+	cases := []struct{ path, want string }{
+		{filepath.Join(link, "Documents", "shop"), filepath.Join(real, "Documents", "shop")},
+		{link, real},
+		{filepath.Join(real, "code"), filepath.Join(real, "code")},
+		{sep + filepath.Join("Users", "meg", "app"), sep + filepath.Join("Users", "meg", "app")},
+	}
+	for _, c := range cases {
+		if got := rebase(c.path, link, real); got != c.want {
+			t.Errorf("rebase(%s) = %s, want %s", c.path, got, c.want)
+		}
+	}
+	if got := rebase(link, "", real); got != link {
+		t.Errorf("rebase with no home = %s, want it unchanged", got)
+	}
+}

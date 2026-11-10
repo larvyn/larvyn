@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestGuardedDirsOnMac(t *testing.T) {
@@ -41,5 +42,16 @@ func TestGuardedDirsOnMac(t *testing.T) {
 	guarded, _ = guardedDirs(home, []string{filepath.Join(home, "documents", "shop")}, false)
 	if guarded[filepath.Join(home, "Documents")] || !guarded[filepath.Join(home, "Desktop")] {
 		t.Errorf("added project: guarded=%v", guarded)
+	}
+}
+
+func TestDiscoverSkipsGuardedInAnyCase(t *testing.T) {
+	root := realTempDir(t)
+	os.MkdirAll(filepath.Join(root, "Documents", "shop"), 0o755)
+	os.WriteFile(filepath.Join(root, "Documents", "shop", "artisan"), nil, 0o644)
+	os.WriteFile(filepath.Join(root, "Documents", "shop", "composer.json"), []byte(`{"require":{"laravel/framework":"^11.0"}}`), 0o644)
+	guarded := map[string]bool{filepath.Join(root, "DOCUMENTS"): true}
+	if found := discover([]string{root}, guarded, 4, time.Now().Add(time.Minute)); len(found) != 0 {
+		t.Errorf("found %v inside a guarded folder spelled another way", found)
 	}
 }
