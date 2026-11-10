@@ -99,6 +99,8 @@ func playbookContext(c api.Caller) (string, project.ProjectInfo) {
 	// git), which anyone can write: each must have the shape of what it is,
 	// or it is left out, so a "PHP version" can't carry an instruction into
 	// the prompt. The labels below come from Larvyn's own lists.
+	// add keeps v when it matches at least one of shapes (or no shapes are
+	// given: the value then comes from Larvyn's own lists).
 	add := func(label, v string, shapes ...*regexp.Regexp) {
 		v = strings.TrimSpace(v)
 		if v == "" || len(v) > 80 {
