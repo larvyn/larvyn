@@ -93,3 +93,38 @@ func TestPlaybookFactsAreData(t *testing.T) {
 		t.Errorf("an instruction got into the prompt: %q", got)
 	}
 }
+
+// Without a lock file the Laravel version is the constraint from
+// composer.json, and a long package list keeps what fits instead of
+// dropping all of it.
+func TestPlaybookFactsKeepWhatFits(t *testing.T) {
+	main, _ := gitRepo(t)
+	addProject(t, main)
+	c := api.Caller{Cwd: main}
+	if err := os.WriteFile(filepath.Join(main, "artisan"), []byte("<?php\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	require := map[string]string{"laravel/framework": "^11.0"}
+	for _, name := range []string{"laravel/jetstream", "spatie/laravel-data", "livewire/livewire", "spatie/laravel-medialibrary", "spatie/laravel-permission", "laravel/socialite", "laravel/telescope", "laravel/wayfinder"} {
+		require[name] = "*"
+	}
+	b, _ := json.Marshal(map[string]any{"require": require})
+	if err := os.WriteFile(filepath.Join(main, "composer.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var pb PlaybookPrompt
+	r := command(c, "playbook", "fix-tests")
+	json.Unmarshal(r.Result, &pb)
+	if !strings.Contains(pb.Prompt, "Laravel ^11.0") {
+		t.Errorf("laravel constraint left out: %q", pb.Prompt)
+	}
+	i := strings.Index(pb.Prompt, "packages: ")
+	if i < 0 {
+		t.Fatalf("packages left out: %q", pb.Prompt)
+	}
+	pkgs := strings.SplitN(pb.Prompt[i+len("packages: "):], " · ", 2)[0]
+	pkgs = strings.SplitN(pkgs, "\n", 2)[0]
+	if len(pkgs) > 80 || !strings.HasPrefix(pkgs, "Jetstream, Laravel Data") {
+		t.Errorf("packages: %q", pkgs)
+	}
+}
