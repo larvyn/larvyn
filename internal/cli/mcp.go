@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -350,9 +352,10 @@ func (s *mcpServer) prompt(params json.RawMessage) (map[string]any, int, error) 
 	if p.Name == "" {
 		return nil, -32602, fmt.Errorf("prompts/get needs a name")
 	}
+	// Sorted: the same arguments make the same request every time.
 	values := []string{}
-	for k, v := range p.Arguments {
-		values = append(values, k+"="+v)
+	for _, k := range slices.Sorted(maps.Keys(p.Arguments)) {
+		values = append(values, k+"="+p.Arguments[k])
 	}
 	args, _ := json.Marshal(map[string]any{"id": p.Name, "values": values})
 	resp, err := s.dial(context.Background(), api.Request{Method: "playbook", Params: args, Caller: s.caller})
