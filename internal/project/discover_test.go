@@ -37,7 +37,7 @@ func TestDiscoverFindsLaravelApps(t *testing.T) {
 	// Too deep for the depth limit.
 	writeLaravel(t, filepath.Join(root, "a", "b", "c", "deep"))
 
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	names := map[string]string{}
 	for _, f := range got {
 		names[f.Path] = f.Name
@@ -64,7 +64,7 @@ func TestDiscoverMarksAddedProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer (&ProjectService{}).Remove(p.ID)
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	if len(got) != 1 || !got[0].Added {
 		t.Fatalf("want the app marked as added: %+v", got)
 	}
@@ -83,7 +83,7 @@ func TestDiscoverKeepsFoldersThatDifferInCase(t *testing.T) {
 	}
 	defer (&ProjectService{}).Remove(p.ID)
 
-	got := discover([]string{root}, 3, time.Now().Add(time.Minute))
+	got := discover([]string{root}, nil, 3, time.Now().Add(time.Minute))
 	if len(got) != 2 {
 		t.Fatalf("found %d projects, want 2: %+v", len(got), got)
 	}
@@ -138,5 +138,17 @@ func TestAddReturnsTheProjectForTheSameFolder(t *testing.T) {
 	}
 	if got.ID != p.ID {
 		t.Errorf("Add of a symlink to a project's folder made project %s, want %s", got.ID, p.ID)
+	}
+}
+
+func TestDiscoverSkipsGuardedFoldersAndBundles(t *testing.T) {
+	root := t.TempDir()
+	writeLaravel(t, filepath.Join(root, "code", "shop"))
+	writeLaravel(t, filepath.Join(root, "Documents", "crm"))
+	writeLaravel(t, filepath.Join(root, "Photos Library.photoslibrary", "x"))
+
+	got := discover([]string{root}, map[string]bool{filepath.Join(root, "Documents"): true}, 3, time.Now().Add(time.Minute))
+	if len(got) != 1 || got[0].Path != filepath.Join(root, "code", "shop") {
+		t.Fatalf("want only code/shop: %+v", got)
 	}
 }

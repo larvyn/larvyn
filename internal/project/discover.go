@@ -40,6 +40,15 @@ var skipDirs = map[string]bool{
 	"$RECYCLE.BIN": true, "System Volume Information": true,
 }
 
+// packageExts are macOS bundles: folders Finder shows as one file. Never a
+// project, and some (the Photos and Music libraries) are privacy-guarded.
+var packageExts = map[string]bool{
+	".app": true, ".bundle": true, ".framework": true, ".photoslibrary": true,
+	".photolibrary": true, ".musiclibrary": true, ".tvlibrary": true,
+	".aplibrary": true, ".imovielibrary": true, ".fcpbundle": true,
+	".logicx": true, ".band": true, ".xcarchive": true, ".sparsebundle": true,
+}
+
 // sameFolder reports whether two paths name the same folder. The file
 // system decides, so case counts exactly where it does (Linux, and
 // case-sensitive volumes on macOS) and symlinked paths match. A folder that
@@ -109,12 +118,21 @@ func isLaravelDir(dir string) (bool, time.Time) {
 
 // Discover looks for Laravel projects on this computer, under the home
 // folder and the usual web roots, newest first. It stops looking after a
-// few seconds, so on a very large disk the list may be partial.
+// few seconds, so on a very large disk the list may be partial. On macOS it
+// stays out of the privacy-guarded folders (Desktop, Documents, Photos,
+// network volumes…) unless a project already lives there, so opening the
+// picker never raises a permission prompt.
 func (s *ProjectService) Discover() []Found {
-	return discover(discoverRoots(), discoverDepth, time.Now().Add(discoverTimeout))
+	home, _ := os.UserHomeDir()
+	var added []string
+	for _, p := range store.Projects() {
+		added = append(added, p.Path)
+	}
+	return discover(discoverRoots(), guardedDirs(home, added), discoverDepth, time.Now().Add(discoverTimeout))
 }
 
-func discover(roots []string, maxDepth int, deadline time.Time) []Found {
+// discover walks roots, never entering a folder in guarded.
+func discover(roots []string, guarded map[string]bool, maxDepth int, deadline time.Time) []Found {
 	// The folders already added, to mark them: by path, and by identity
 	// for a path spelled another way (case, symlinks).
 	added := map[string]bool{}
@@ -180,10 +198,14 @@ func discover(roots []string, maxDepth int, deadline time.Time) []Found {
 			name := e.Name()
 			// Symlinks are not followed: they loop, and point back into
 			// folders already walked.
-			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] {
+			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] || packageExts[strings.ToLower(filepath.Ext(name))] {
 				continue
 			}
-			walk(filepath.Join(dir, name), depth+1)
+			child := filepath.Join(dir, name)
+			if guarded[child] {
+				continue
+			}
+			walk(child, depth+1)
 		}
 	}
 	for _, r := range roots {

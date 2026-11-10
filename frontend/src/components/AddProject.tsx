@@ -110,7 +110,7 @@ export function AddProject() {
               <FolderSearch />
             </div>
             <h3>{q ? 'No matches' : 'No Laravel projects found'}</h3>
-            <p>{q ? 'Try another name, or choose the folder by hand.' : 'Larvyn looked in your home folder and the usual web roots. Choose the folder by hand instead.'}</p>
+            <p>{q ? 'Try another name, or choose the folder by hand.' : 'Larvyn looked in your home folder and the usual web roots (on macOS, not in Desktop, Documents or Downloads, which macOS guards). Choose the folder by hand instead.'}</p>
             <button className="btn primary" onClick={browse}>
               <FolderOpen /> Browse manually…
             </button>
