@@ -1,4 +1,4 @@
-package main
+package agentapi
 
 import (
 	"encoding/json"
@@ -61,11 +61,6 @@ func stackProject(t *testing.T) (store.Project, api.Caller) {
 		}
 	})
 	return p, api.Caller{Cwd: main}
-}
-
-// cli runs a command the way the larvyn CLI sends it.
-func command(c api.Caller, argv ...string) api.Response {
-	return api.Handle(api.Request{Caller: c, Argv: argv})
 }
 
 func TestStackThroughTheAPI(t *testing.T) {
