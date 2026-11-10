@@ -12,6 +12,20 @@ import * as projectfile$0 from "../projectfile/models.js";
 import * as store$0 from "../store/models.js";
 
 /**
+ * Discovery is what Discover found.
+ */
+export interface Discovery {
+    "projects": Found[] | null;
+
+    /**
+     * Narrowed is true when folders that may hold projects were left out
+     * to avoid a macOS permission prompt (Desktop, Documents, Downloads);
+     * Discover(true) looks in them too.
+     */
+    "narrowed": boolean;
+}
+
+/**
  * FlockInfo is what the Overview's Local site card shows for a project.
  */
 export interface FlockInfo {

@@ -56,12 +56,19 @@ export function DeleteCommand(id: string, commandID: string, shared: boolean): $
 }
 
 /**
- * Discover looks for Laravel projects on this computer, under the home
- * folder and the usual web roots, newest first. It stops looking after a
- * few seconds, so on a very large disk the list may be partial.
+ * Discover looks for Laravel projects on this computer, under the folders
+ * Herd and Valet serve, the home folder and the usual web roots, newest
+ * first. It stops looking after a few seconds, so on a very large disk the
+ * list may be partial.
+ * 
+ * On macOS it stays out of the privacy-guarded folders (Desktop, Documents,
+ * Photos, network volumes…) unless a project already lives there, so
+ * opening the picker never raises a permission prompt. widen asks for
+ * Desktop, Documents and Downloads too, and keeps asking for them from then
+ * on: the user chose to, and macOS asks only once.
  */
-export function Discover(): $CancellablePromise<$models.Found[] | null> {
-    return $Call.ByID(2302053366);
+export function Discover(widen: boolean): $CancellablePromise<$models.Discovery> {
+    return $Call.ByID(2302053366, widen);
 }
 
 /**

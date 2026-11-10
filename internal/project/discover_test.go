@@ -152,3 +152,41 @@ func TestDiscoverSkipsGuardedFoldersAndBundles(t *testing.T) {
 		t.Fatalf("want only code/shop: %+v", got)
 	}
 }
+
+func TestStackSitePathsReadsValetConfig(t *testing.T) {
+	home := t.TempDir()
+	sites := filepath.Join(t.TempDir(), "sites")
+	writeLaravel(t, filepath.Join(sites, "shop"))
+	os.MkdirAll(filepath.Join(home, ".config", "valet"), 0o755)
+	os.WriteFile(filepath.Join(home, ".config", "valet", "config.json"), []byte(`{"tld":"test","paths":["`+filepath.ToSlash(sites)+`","relative"]}`), 0o644)
+
+	paths := stackSitePaths(home)
+	if len(paths) != 1 || !sameFolder(paths[0], sites) {
+		t.Fatalf("want the parked folder only: %v", paths)
+	}
+	// A guarded parked folder is not even looked at.
+	roots := discoverRoots(home, map[string]bool{sites: true})
+	for _, r := range roots {
+		if within(r, sites) {
+			t.Fatalf("guarded root kept: %v", roots)
+		}
+	}
+	got := discover(paths, nil, 3, time.Now().Add(time.Minute))
+	if len(got) != 1 || !sameFolder(got[0].Path, filepath.Join(sites, "shop")) {
+		t.Fatalf("want the app in the parked folder: %+v", got)
+	}
+}
+
+func TestWithin(t *testing.T) {
+	d := filepath.Join(string(filepath.Separator)+"home", "me", "Documents")
+	for path, want := range map[string]bool{
+		d:                              true,
+		filepath.Join(d, "app"):        true,
+		d + "-old":                     false,
+		filepath.Join(filepath.Dir(d)): false,
+	} {
+		if got := within(path, d); got != want {
+			t.Errorf("within(%q) = %v, want %v", path, got, want)
+		}
+	}
+}

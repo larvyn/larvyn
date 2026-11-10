@@ -119,6 +119,10 @@ type State struct {
 	Active   string    `json:"active"`
 	// Plugins is keyed by plugin id.
 	Plugins map[string]PluginState `json:"plugins,omitempty"`
+	// DiscoverEverywhere lets the project scan look in Desktop, Documents
+	// and Downloads on macOS, which raise a permission prompt. It is set
+	// once the user asks for it.
+	DiscoverEverywhere bool `json:"discoverEverywhere,omitempty"`
 }
 
 // Store is the state loaded from (and saved to) HomeDir()/state.json.
@@ -149,8 +153,8 @@ func Reload() {
 	defMu.Unlock()
 }
 
-// Projects, FindProject, CurrentSettings, PHP, Update and ActiveID act on the
-// default store.
+// Projects, FindProject, CurrentSettings, PHP, Update, ActiveID, Plugins and
+// DiscoverEverywhere act on the default store.
 func Projects() []Project                   { return Default().Projects() }
 func FindProject(id string) (Project, bool) { return Default().Project(id) }
 func CurrentSettings() Settings             { return Default().Settings() }
@@ -158,6 +162,7 @@ func PHP() string                           { return Default().PHP() }
 func Update(fn func(d *State)) error        { return Default().Update(fn) }
 func ActiveID() string                      { return Default().ActiveID() }
 func Plugins() map[string]PluginState       { return Default().Plugins() }
+func DiscoverEverywhere() bool              { return Default().DiscoverEverywhere() }
 
 // What Settings.Restore brings back from the previous run.
 const (
@@ -389,6 +394,14 @@ func (s *Store) ActiveID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.data.Active
+}
+
+// DiscoverEverywhere reports whether the project scan may look in the
+// folders macOS guards behind a permission prompt.
+func (s *Store) DiscoverEverywhere() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.DiscoverEverywhere
 }
 
 // Settings returns the current preferences.

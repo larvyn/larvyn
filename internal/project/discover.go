@@ -66,11 +66,13 @@ func sameFolder(a, b string) bool {
 	return os.SameFile(sa, sb)
 }
 
-// discoverRoots are the folders Discover starts from: the home folder plus
-// where common local stacks keep their sites.
-func discoverRoots() []string {
-	var roots []string
-	if home, err := os.UserHomeDir(); err == nil {
+// discoverRoots are the folders Discover starts from: the folders Herd and
+// Valet serve sites from (walked first: that is where the apps are), the
+// home folder, and where common local stacks keep their sites. A root
+// inside a guarded folder is left out before it is even looked at.
+func discoverRoots(home string, guarded map[string]bool) []string {
+	roots := stackSitePaths(home)
+	if home != "" {
 		roots = append(roots, home)
 	}
 	switch runtime.GOOS {
@@ -79,13 +81,73 @@ func discoverRoots() []string {
 	default:
 		roots = append(roots, "/var/www", "/srv/www", "/srv/http", "/opt/lampp/htdocs")
 	}
-	out := roots[:0]
+	var out []string
 	for _, r := range roots {
+		if isGuarded(r, guarded) {
+			continue
+		}
 		if st, err := os.Stat(r); err == nil && st.IsDir() {
 			out = append(out, r)
 		}
 	}
 	return out
+}
+
+// stackSitePaths are the folders Laravel Herd and Valet serve sites from
+// ("herd park", "valet park"), read from their config files.
+func stackSitePaths(home string) []string {
+	if home == "" {
+		return nil
+	}
+	configs := []string{
+		filepath.Join(home, ".config", "valet", "config.json"),
+		filepath.Join(home, ".valet", "config.json"),
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		configs = append(configs, filepath.Join(home, "Library", "Application Support", "Herd", "config", "valet", "config.json"))
+	case "windows":
+		configs = append(configs, filepath.Join(home, ".config", "herd", "config", "valet", "config.json"))
+	}
+	var paths []string
+	for _, c := range configs {
+		b, err := os.ReadFile(c)
+		if err != nil {
+			continue
+		}
+		var cfg struct {
+			Paths []string `json:"paths"`
+		}
+		if json.Unmarshal(b, &cfg) != nil {
+			continue
+		}
+		for _, p := range cfg.Paths {
+			if p = strings.TrimSpace(p); p != "" && filepath.IsAbs(p) {
+				paths = append(paths, filepath.Clean(p))
+			}
+		}
+	}
+	return paths
+}
+
+// within reports whether path is dir or inside it, ignoring case where the
+// file system usually does (macOS, Windows).
+func within(path, dir string) bool {
+	path, dir = filepath.Clean(path), filepath.Clean(dir)
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		path, dir = strings.ToLower(path), strings.ToLower(dir)
+	}
+	return path == dir || strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
+}
+
+// isGuarded reports whether path is a guarded folder or inside one.
+func isGuarded(path string, guarded map[string]bool) bool {
+	for g := range guarded {
+		if within(path, g) {
+			return true
+		}
+	}
+	return false
 }
 
 // isLaravelDir reports whether dir holds a Laravel app: an artisan file and
@@ -116,19 +178,39 @@ func isLaravelDir(dir string) (bool, time.Time) {
 	return true, mod
 }
 
-// Discover looks for Laravel projects on this computer, under the home
-// folder and the usual web roots, newest first. It stops looking after a
-// few seconds, so on a very large disk the list may be partial. On macOS it
-// stays out of the privacy-guarded folders (Desktop, Documents, Photos,
-// network volumes…) unless a project already lives there, so opening the
-// picker never raises a permission prompt.
-func (s *ProjectService) Discover() []Found {
+// Discovery is what Discover found.
+type Discovery struct {
+	Projects []Found `json:"projects"`
+	// Narrowed is true when folders that may hold projects were left out
+	// to avoid a macOS permission prompt (Desktop, Documents, Downloads);
+	// Discover(true) looks in them too.
+	Narrowed bool `json:"narrowed"`
+}
+
+// Discover looks for Laravel projects on this computer, under the folders
+// Herd and Valet serve, the home folder and the usual web roots, newest
+// first. It stops looking after a few seconds, so on a very large disk the
+// list may be partial.
+//
+// On macOS it stays out of the privacy-guarded folders (Desktop, Documents,
+// Photos, network volumes…) unless a project already lives there, so
+// opening the picker never raises a permission prompt. widen asks for
+// Desktop, Documents and Downloads too, and keeps asking for them from then
+// on: the user chose to, and macOS asks only once.
+func (s *ProjectService) Discover(widen bool) Discovery {
+	if widen {
+		_ = store.Update(func(d *store.State) { d.DiscoverEverywhere = true })
+	}
 	home, _ := os.UserHomeDir()
 	var added []string
 	for _, p := range store.Projects() {
 		added = append(added, p.Path)
 	}
-	return discover(discoverRoots(), guardedDirs(home, added), discoverDepth, time.Now().Add(discoverTimeout))
+	guarded, narrowed := guardedDirs(home, added, store.DiscoverEverywhere())
+	return Discovery{
+		Projects: discover(discoverRoots(home, guarded), guarded, discoverDepth, time.Now().Add(discoverTimeout)),
+		Narrowed: narrowed,
+	}
 }
 
 // discover walks roots, never entering a folder in guarded.

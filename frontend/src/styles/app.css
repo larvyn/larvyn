@@ -703,6 +703,8 @@ table.grid.data th { text-transform: none; letter-spacing: 0; font-family: var(-
 .add-project-list { display: flex; flex-direction: column; gap: 2px; min-height: 120px; }
 .add-project-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding-top: 7px; padding-bottom: 7px; }
 .add-project-path { font-size: 11px; margin-top: 2px; }
+.add-project-widen { gap: 8px; font-size: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.add-project-widen > svg { width: 14px; height: 14px; flex: none; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 34px; }
 .feature { padding: 14px; border-radius: 13px; border: 1px solid var(--line); background: rgba(var(--ov), 0.015); }
 .feature svg { width: 17px; height: 17px; color: var(--accent); }
