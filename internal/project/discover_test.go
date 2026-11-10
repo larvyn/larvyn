@@ -198,3 +198,37 @@ func TestWithin(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveUnguardedSkipsSymlinksIntoGuardedFolders(t *testing.T) {
+	home := t.TempDir()
+	docs := filepath.Join(home, "Documents")
+	os.MkdirAll(filepath.Join(docs, "sites"), 0o755)
+	os.MkdirAll(filepath.Join(home, "code"), 0o755)
+	guarded := map[string]bool{docs: true}
+
+	// A link straight into Documents, a relative one, and a link to a
+	// folder that itself links there.
+	os.Symlink(filepath.Join(docs, "sites"), filepath.Join(home, "Herd"))
+	os.Symlink(filepath.Join("Documents", "sites"), filepath.Join(home, "Sites"))
+	os.Symlink(filepath.Join(home, "Sites"), filepath.Join(home, "www"))
+	for _, name := range []string{"Herd", "Sites", "www"} {
+		if p, ok := resolveUnguarded(filepath.Join(home, name), guarded); ok {
+			t.Errorf("%s resolved to %s, want it left out", name, p)
+		}
+	}
+
+	os.Symlink("code", filepath.Join(home, "dev"))
+	want, _ := filepath.EvalSymlinks(filepath.Join(home, "code"))
+	if p, ok := resolveUnguarded(filepath.Join(home, "dev"), guarded); !ok || p != want {
+		t.Errorf("dev = %q, %v; want %q", p, ok, want)
+	}
+	if _, ok := resolveUnguarded(filepath.Join(home, "missing"), guarded); ok {
+		t.Error("a missing folder resolved")
+	}
+	// A symlink loop ends.
+	os.Symlink("loop-b", filepath.Join(home, "loop-a"))
+	os.Symlink("loop-a", filepath.Join(home, "loop-b"))
+	if _, ok := resolveUnguarded(filepath.Join(home, "loop-a"), guarded); ok {
+		t.Error("a symlink loop resolved")
+	}
+}

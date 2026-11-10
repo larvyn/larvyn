@@ -76,7 +76,8 @@ func sameFolder(a, b string) bool {
 // discoverRoots are the folders Discover starts from: the folders Herd and
 // Valet serve sites from (walked first: that is where the apps are), the
 // home folder, and where common local stacks keep their sites. A root
-// inside a guarded folder is left out before it is even looked at.
+// inside a guarded folder, or a symlink into one, is left out before it is
+// even looked at.
 func discoverRoots(home string, guarded map[string]bool) []string {
 	roots := stackSitePaths(home)
 	if home != "" {
@@ -90,7 +91,8 @@ func discoverRoots(home string, guarded map[string]bool) []string {
 	}
 	var out []string
 	for _, r := range roots {
-		if isGuarded(r, guarded) {
+		r, ok := resolveUnguarded(r, guarded)
+		if !ok {
 			continue
 		}
 		if st, err := os.Stat(r); err == nil && st.IsDir() {
@@ -145,6 +147,60 @@ func within(path, dir string) bool {
 		path, dir = strings.ToLower(path), strings.ToLower(dir)
 	}
 	return path == dir || strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
+}
+
+// resolveUnguarded resolves the symlinks in path one folder at a time and
+// returns the real path, or ok=false when it leads into a guarded folder
+// (a Herd folder that links into Documents) or does not exist. A guarded
+// folder is never touched, not even to read a link inside it. With nothing
+// guarded, path comes back as it is.
+func resolveUnguarded(path string, guarded map[string]bool) (string, bool) {
+	path = filepath.Clean(path)
+	if len(guarded) == 0 {
+		return path, true
+	}
+	sep := string(filepath.Separator)
+	split := func(p string) (string, []string) {
+		vol := filepath.VolumeName(p)
+		return vol + sep, strings.Split(strings.TrimPrefix(p[len(vol):], sep), sep)
+	}
+	cur, rest := split(path)
+	for hops := 0; len(rest) > 0; {
+		name := rest[0]
+		rest = rest[1:]
+		switch name {
+		case "", ".":
+			continue
+		case "..":
+			cur = filepath.Dir(cur)
+			continue
+		}
+		next := filepath.Join(cur, name)
+		if isGuarded(next, guarded) {
+			return "", false
+		}
+		st, err := os.Lstat(next)
+		if err != nil {
+			return "", false
+		}
+		if st.Mode()&os.ModeSymlink == 0 {
+			cur = next
+			continue
+		}
+		if hops++; hops > 40 {
+			return "", false // a symlink loop
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", false
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(cur, target)
+		}
+		root, parts := split(filepath.Clean(target))
+		cur, rest = root, append(parts, rest...)
+	}
+	return cur, true
 }
 
 // isGuarded reports whether path is a guarded folder or inside one.
