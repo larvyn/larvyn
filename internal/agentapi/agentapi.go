@@ -1,4 +1,4 @@
-package main
+package agentapi
 
 import (
 	"errors"
@@ -49,9 +49,13 @@ func init() {
 	api.MarkReadOnly("version", "context", "terminal.list", "terminal.read", "terminal.search")
 }
 
-// startAPI writes the CLI where terminals find it and opens the socket.
+// version is Larvyn's, given to Start by main.
+var version = "dev"
+
+// Start writes the CLI where terminals find it and opens the socket.
 // Neither is fatal: the app works without them.
-func startAPI() func() {
+func Start(larvynVersion string) func() {
+	version = larvynVersion
 	if dir, err := clibin.Install(); err == nil {
 		terminal.BinDir = dir
 	} else if !errors.Is(err, clibin.ErrNotBuilt) {

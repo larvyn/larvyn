@@ -9,7 +9,7 @@ TypeScript frontend. This file is a map and a set of rules, not full docs; see
 | Path | What lives there |
 | --- | --- |
 | `main.go` | App start-up and Wails service registration (`application.NewService(...)`). |
-| `agentapi*.go` | Local API used by agents: the `larvyn` CLI and the MCP tools (context, terminals, stack, artisan and tests, models and db, ports, agents, locks, setup). |
+| `internal/agentapi` | Local API used by agents: the `larvyn` CLI and the MCP tools (context, terminals, stack, artisan and tests, models and db, ports, agents, locks, setup). |
 | `cmd/larvyn` | The `larvyn` CLI binary. |
 | `internal/<area>` | One package per area: `agents`, `stack`, `terminal` (PTYs), `proc` (processes), `git`, `laravel`, `project`, `store` (settings/state), `updater`, `api`, … |
 | `internal/laravel/bridge.php` | Embedded (`//go:embed`) PHP script run inside the user's Laravel app for routes, models, Tinker, etc. |

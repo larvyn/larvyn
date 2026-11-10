@@ -1,4 +1,4 @@
-package main
+package agentapi
 
 import (
 	"bufio"

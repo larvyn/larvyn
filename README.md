@@ -217,7 +217,7 @@ the code it reads to its provider's service, and `composer outdated` and
 - The local API (`internal/api`, #107): the app listens on `larvyn.sock` in
   the state folder (a unix socket on every system, only the user may
   connect) and checks the token it writes to `api.token` at each start;
-  never an HTTP server. Methods are registered in `agentapi.go` from the
+  never an HTTP server. Methods are registered in `internal/agentapi` from the
   services with a description per param and describe themselves, so the
   CLI (`internal/cli`) has no list of commands. On Linux and macOS the app's
   binary runs the CLI when given a command; Windows builds the app as a GUI

@@ -1,5 +1,5 @@
-// Integration tests for the wiring in main.go: the services working together
-// against a real Laravel app. Each package's own tests live next to it.
+// Integration tests: the services working together against a real Laravel
+// app. Each package's own tests live next to it.
 package main
 
 import (
@@ -11,28 +11,7 @@ import (
 	"larvyn/internal/laravel"
 	"larvyn/internal/project"
 	"larvyn/internal/stack"
-	"larvyn/internal/store"
 )
-
-func TestMain(m *testing.M) {
-	// The fake agent of agentapi_agents_test.go: this binary, started by
-	// Larvyn as a custom agent.
-	if os.Getenv("LARVYN_FAKE_AGENT") != "" {
-		fakeAgent()
-		os.Exit(0)
-	}
-	// The dev server of the ports test: this binary, run in a terminal.
-	if len(os.Args) > 1 && os.Args[1] == "larvyn-fake-server" {
-		fakeServer()
-		os.Exit(0)
-	}
-	home, _ := os.MkdirTemp("", "larvyn-test")
-	os.Setenv("LARVYN_HOME", home)
-	store.Reload()
-	code := m.Run()
-	os.RemoveAll(home)
-	os.Exit(code)
-}
 
 // LARVYN_TEST_PROJECT=/path/to/laravel go test -run Bridge -v
 func TestBridgeAgainstRealProject(t *testing.T) {

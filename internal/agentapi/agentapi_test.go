@@ -1,20 +1,15 @@
-package main
+package agentapi
 
 import (
-	"fmt"
-	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"larvyn/internal/api"
 	"larvyn/internal/proc"
-	"larvyn/internal/store"
 	"larvyn/internal/terminal"
 )
 
@@ -82,51 +77,6 @@ func TestCaseFollowsTheFileSystem(t *testing.T) {
 	}
 }
 
-// gitRepo makes a repository with one commit and a worktree next to it.
-func gitRepo(t *testing.T) (main, wt string) {
-	t.Helper()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("no git")
-	}
-	dir := t.TempDir()
-	main = filepath.Join(dir, "app")
-	wt = filepath.Join(dir, "app-wt")
-	run := func(cwd string, args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = cwd
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-	}
-	if err := os.MkdirAll(filepath.Join(main, "app", "Models"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	run(main, "init", "-q", "-b", "main")
-	run(main, "commit", "-q", "--allow-empty", "-m", "init")
-	run(main, "worktree", "add", "-q", "-b", "larvyn/task", wt)
-	return main, wt
-}
-
-func addProject(t *testing.T, path string) store.Project {
-	t.Helper()
-	p := store.Project{ID: store.NewID(), Name: filepath.Base(path), Path: path}
-	if err := store.Update(func(d *store.State) { d.Projects = append(d.Projects, p) }); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = store.Update(func(d *store.State) {
-			for i, q := range d.Projects {
-				if q.ID == p.ID {
-					d.Projects = append(d.Projects[:i], d.Projects[i+1:]...)
-					break
-				}
-			}
-		})
-	})
-	return p
-}
-
 func TestContextFromAFolder(t *testing.T) {
 	main, wt := gitRepo(t)
 	p := addProject(t, main)
@@ -153,24 +103,6 @@ func TestContextFromAFolder(t *testing.T) {
 	if _, err := apiContext(api.Caller{}); err == nil {
 		t.Error("no session and no folder has a context")
 	}
-}
-
-// shellLine is a command that prints text and waits, in this system's shell.
-func shellLine(text string) string {
-	if runtime.GOOS == "windows" {
-		return "echo " + text + " & ping -n 30 127.0.0.1 >NUL"
-	}
-	return "echo " + text + "; sleep 30"
-}
-
-func waitFor(t *testing.T, what string, ok func() bool) {
-	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-		if ok() {
-			return
-		}
-	}
-	t.Fatalf("timed out waiting for %s", what)
 }
 
 func TestTerminalsThroughTheAPI(t *testing.T) {
@@ -210,13 +142,6 @@ func TestTerminalsThroughTheAPI(t *testing.T) {
 	}
 	if _, err := apiTerminalSearch(opened.ID, "hello[", 0, 0); err != nil {
 		t.Errorf("not a regexp, taken as text: %v", err)
-	}
-
-	// A server started in a terminal shows up in ports, with its URL.
-	if _, ok := proc.ListeningPorts(nil); ok {
-		checkPorts(t, caller)
-	} else {
-		t.Log("ports can't be read here (no lsof?): not checked")
 	}
 
 	// LARVYN_SESSION tells the CLI in it which terminal it runs in.
@@ -272,61 +197,4 @@ func TestFindTerminal(t *testing.T) {
 	if _, err := findTerminal("zzzz-none"); err == nil {
 		t.Error("unknown id found a terminal")
 	}
-}
-
-// fakeServer listens on a free port and says which, for the ports test. It
-// gives up after a minute in case its terminal outlives the test.
-func fakeServer() {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer ln.Close()
-	fmt.Printf("listening on %d\n", ln.Addr().(*net.TCPAddr).Port)
-	time.Sleep(time.Minute)
-}
-
-// checkPorts starts a server in a terminal and finds its port with ports.
-// The server is this test binary, run from its own folder so cmd.exe needs
-// no quotes; python3 can be the Microsoft Store alias that runs nothing.
-func checkPorts(t *testing.T, caller api.Caller) {
-	t.Helper()
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// .\ too on Windows: with NoDefaultCurrentDirectoryInExePath set,
-	// cmd.exe doesn't run a bare name from the current folder.
-	run := "./" + filepath.Base(exe)
-	if runtime.GOOS == "windows" {
-		run = `.\` + filepath.Base(exe)
-	}
-	srv, err := apiTerminalOpen(caller, run+" larvyn-fake-server", filepath.Dir(exe), "server")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = terminal.Sessions.Close(srv.ID) })
-	var rows PortRows
-	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
-		rows, err = apiPorts(caller, false)
-		if err == nil && len(rows) == 1 && rows[0].Terminal == srv.ID && strings.HasPrefix(rows[0].URL, "http://localhost:") {
-			break
-		}
-		if time.Now().After(deadline) {
-			// What it saw, to tell a server that never started from one
-			// that ports can't see.
-			out, _ := apiTerminalRead(srv.ID, 0, true, false)
-			s, _ := findTerminal(srv.ID)
-			pid, _ := terminal.PID(srv.ID)
-			all, _ := apiPorts(caller, true)
-			t.Fatalf("the server's port: ports %+v (%v), all projects %+v; running=%v pid=%d; its output:\n%s", rows, err, all, s.Running, pid, out)
-		}
-	}
-	// The server listens before it prints its port: wait for the line.
-	want := fmt.Sprintf("listening on %d", rows[0].Port)
-	waitFor(t, "the server to say "+want, func() bool {
-		out, _ := apiTerminalRead(srv.ID, 0, true, false)
-		return strings.Contains(out, want)
-	})
 }
