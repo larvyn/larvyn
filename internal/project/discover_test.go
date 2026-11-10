@@ -146,10 +146,18 @@ func TestDiscoverSkipsGuardedFoldersAndBundles(t *testing.T) {
 	writeLaravel(t, filepath.Join(root, "code", "shop"))
 	writeLaravel(t, filepath.Join(root, "Documents", "crm"))
 	writeLaravel(t, filepath.Join(root, "Photos Library.photoslibrary", "x"))
+	// A site named like a bundle is still a project; an app bundle is not
+	// walked into.
+	writeLaravel(t, filepath.Join(root, "code", "acme.app"))
+	writeLaravel(t, filepath.Join(root, "Tool.app", "Contents"))
 
 	got := discover([]string{root}, map[string]bool{filepath.Join(root, "Documents"): true}, 3, time.Now().Add(time.Minute))
-	if len(got) != 1 || got[0].Path != filepath.Join(root, "code", "shop") {
-		t.Fatalf("want only code/shop: %+v", got)
+	paths := map[string]bool{}
+	for _, f := range got {
+		paths[f.Path] = true
+	}
+	if len(got) != 2 || !paths[filepath.Join(root, "code", "shop")] || !paths[filepath.Join(root, "code", "acme.app")] {
+		t.Fatalf("want code/shop and code/acme.app: %+v", got)
 	}
 }
 

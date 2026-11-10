@@ -40,12 +40,19 @@ var skipDirs = map[string]bool{
 	"$RECYCLE.BIN": true, "System Volume Information": true,
 }
 
-// packageExts are macOS bundles: folders Finder shows as one file. Never a
-// project, and some (the Photos and Music libraries) are privacy-guarded.
-var packageExts = map[string]bool{
-	".app": true, ".bundle": true, ".framework": true, ".photoslibrary": true,
-	".photolibrary": true, ".musiclibrary": true, ".tvlibrary": true,
-	".aplibrary": true, ".imovielibrary": true, ".fcpbundle": true,
+// mediaLibraries are the Photos, Music and TV libraries: never a project,
+// and reading inside one raises a macOS privacy prompt, so the scan does
+// not even look.
+var mediaLibraries = map[string]bool{
+	".photoslibrary": true, ".photolibrary": true, ".musiclibrary": true,
+	".tvlibrary": true, ".aplibrary": true, ".imovielibrary": true,
+}
+
+// bundleExts are other macOS bundles (folders Finder shows as one file).
+// The scan does not walk inside them, but a folder named like one can
+// still be a project (a site called acme.app), so it is checked first.
+var bundleExts = map[string]bool{
+	".app": true, ".bundle": true, ".framework": true, ".fcpbundle": true,
 	".logicx": true, ".band": true, ".xcarchive": true, ".sparsebundle": true,
 }
 
@@ -199,6 +206,7 @@ type Discovery struct {
 // on: the user chose to, and macOS asks only once.
 func (s *ProjectService) Discover(widen bool) Discovery {
 	if widen {
+		// The scan below widens even if this save fails.
 		_ = store.Update(func(d *store.State) { d.DiscoverEverywhere = true })
 	}
 	home, _ := os.UserHomeDir()
@@ -206,7 +214,7 @@ func (s *ProjectService) Discover(widen bool) Discovery {
 	for _, p := range store.Projects() {
 		added = append(added, p.Path)
 	}
-	guarded, narrowed := guardedDirs(home, added, store.DiscoverEverywhere())
+	guarded, narrowed := guardedDirs(home, added, widen || store.DiscoverEverywhere())
 	return Discovery{
 		Projects: discover(discoverRoots(home, guarded), guarded, discoverDepth, time.Now().Add(discoverTimeout)),
 		Narrowed: narrowed,
@@ -269,7 +277,7 @@ func discover(roots []string, guarded map[string]bool, maxDepth int, deadline ti
 			found = append(found, f)
 			return // a project's own folders are not projects
 		}
-		if depth >= maxDepth {
+		if depth >= maxDepth || bundleExts[strings.ToLower(filepath.Ext(dir))] {
 			return
 		}
 		entries, err := os.ReadDir(dir)
@@ -280,7 +288,7 @@ func discover(roots []string, guarded map[string]bool, maxDepth int, deadline ti
 			name := e.Name()
 			// Symlinks are not followed: they loop, and point back into
 			// folders already walked.
-			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] || packageExts[strings.ToLower(filepath.Ext(name))] {
+			if !e.IsDir() || strings.HasPrefix(name, ".") || skipDirs[name] || mediaLibraries[strings.ToLower(filepath.Ext(name))] {
 				continue
 			}
 			child := filepath.Join(dir, name)
