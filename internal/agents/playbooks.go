@@ -2,6 +2,7 @@ package agents
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -59,6 +60,10 @@ func (a *AgentService) Playbooks() []Playbook { return AllPlaybooks() }
 func AllPlaybooks() []Playbook {
 	out := make([]Playbook, len(playbooks))
 	copy(out, playbooks)
+	// Args too: a caller changing them must not change the catalog.
+	for i := range out {
+		out[i].Args = slices.Clone(out[i].Args)
+	}
 	return out
 }
 
@@ -66,6 +71,7 @@ func AllPlaybooks() []Playbook {
 func FindPlaybook(id string) (Playbook, bool) {
 	for _, p := range playbooks {
 		if p.ID == strings.TrimSpace(id) {
+			p.Args = slices.Clone(p.Args)
 			return p, true
 		}
 	}
