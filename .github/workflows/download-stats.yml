@@ -19,7 +19,9 @@ jobs:
   snapshot:
     runs-on: ubuntu-24.04
     env:
-      RELEASES_REPO: larvyn/releases
+      # Releases are published here and copied to larvyn/releases (see
+      # release.yml); a file's downloads in both are added up.
+      RELEASES_REPOS: larvyn/larvyn larvyn/releases
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,8 +42,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           day=$(date -u +%F)
-          gh api --paginate "repos/$RELEASES_REPO/releases" \
-            --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"' > ../now.csv
+          for repo in $RELEASES_REPOS; do
+            gh api --paginate "repos/$repo/releases" \
+              --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"'
+          done | awk -F, '!(($1 FS $2) in n) { order[++k] = $1 FS $2 } { n[$1 FS $2] += $3 }
+            END { for (i = 1; i <= k; i++) print order[i] FS n[order[i]] }' > ../now.csv
           [ -s ../now.csv ] || { echo "no releases found"; exit 1; }
           [ -f downloads.csv ] || echo 'date,tag,asset,downloads' > downloads.csv
           # A second run on the same day replaces that day's rows.

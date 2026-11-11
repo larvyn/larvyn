@@ -106,13 +106,16 @@ jobs:
           name: macos
           path: larvyn-darwin-universal.tar.gz
 
-  # Releases go to the distribution repo (the installer and updater read it).
+  # The release is published in this repository. Builds up to beta.15 read
+  # releases from larvyn/releases, so it gets a copy too until those builds
+  # have updated; the copy has no installs.txt, since the installers download
+  # from here.
   # RELEASES_TOKEN: fine-grained token with Contents read/write on that repo.
   release:
     needs: [linux-windows, macos]
     runs-on: ubuntu-24.04
     env:
-      RELEASES_REPO: larvyn/releases
+      MIRROR_REPO: larvyn/releases
     steps:
       - uses: actions/checkout@v7
         with:
@@ -120,9 +123,9 @@ jobs:
           path: source
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.RELEASES_REPO }}
+          repository: ${{ env.MIRROR_REPO }}
           token: ${{ secrets.RELEASES_TOKEN }}
-          path: releases
+          path: mirror
       - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
@@ -144,30 +147,24 @@ jobs:
             echo "## Install"
             echo
             echo '```sh'
-            echo "curl -fsSL https://raw.githubusercontent.com/$RELEASES_REPO/main/install.sh | sh"
+            echo "curl -fsSL https://larvyn.dev/install.sh | sh"
             echo '```'
             echo
             echo '```powershell'
-            echo "irm https://raw.githubusercontent.com/$RELEASES_REPO/main/install.ps1 | iex"
+            echo "irm https://larvyn.dev/install.ps1 | iex"
             echo '```'
             echo
             echo "## Changes"
             echo
             git log --no-merges --pretty='- %s' "$range"
             echo
-            echo "Found a bug? [Open an issue](https://github.com/$RELEASES_REPO/issues/new/choose) or use **Report a bug** at the top of the app."
+            echo "Found a bug? [Open an issue](https://github.com/$GITHUB_REPOSITORY/issues/new/choose) or use **Report a bug** at the top of the app."
           } > ../notes.md
-      - name: Sync install scripts
-        working-directory: releases
-        run: |
-          cp ../source/install.sh ../source/install.ps1 .
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add install.sh install.ps1
-            git commit -m "chore: install scripts from $GITHUB_REF_NAME"
-            git push
-          fi
+          {
+            echo "> Larvyn releases are now published in [$GITHUB_REPOSITORY](https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME). This copy keeps older versions updating."
+            echo
+            cat ../notes.md
+          } > ../mirror-notes.md
       - name: Install counter
         working-directory: assets
         # install.sh and install.ps1 download this file after a successful
@@ -177,10 +174,33 @@ jobs:
       - name: Publish
         working-directory: assets
         env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags \
+            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt
+      # Old links to raw.githubusercontent.com/larvyn/releases/main/install.sh
+      # keep working; the scripts download from this repository.
+      - name: Sync install scripts to the mirror
+        working-directory: mirror
+        run: |
+          cp ../source/install.sh ../source/install.ps1 .
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add install.sh install.ps1
+            git commit -m "chore: install scripts from $GITHUB_REF_NAME"
+            git push
+          fi
+      - name: Publish the mirror copy
+        working-directory: assets
+        env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --repo "$RELEASES_REPO" \
-            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags \
-            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt
+          gh release create "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" \
+            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../mirror-notes.md $flags \
+            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt

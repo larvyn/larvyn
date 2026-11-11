@@ -1,7 +1,7 @@
 #!/bin/sh
 # Larvyn installer for Linux and macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh
+#   curl -fsSL https://larvyn.dev/install.sh | sh
 #
 # Options (environment variables):
 #   LARVYN_VERSION=v0.1.0   install that release instead of the newest one
@@ -10,13 +10,13 @@
 #   DO_NOT_TRACK=1          do not count this install (see the end of the script)
 #
 # Uninstall:
-#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://larvyn.dev/install.sh | sh -s -- --uninstall
 #
 # Running it again updates Larvyn. Nothing needs sudo.
 
 set -eu
 
-REPO="${LARVYN_REPO:-larvyn/releases}"
+REPO="${LARVYN_REPO:-larvyn/larvyn}"
 BIN_DIR="${LARVYN_BIN_DIR:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 MAC_APP="$HOME/Applications/Larvyn.app"
@@ -60,7 +60,7 @@ Linux)
 	esac
 	;;
 Darwin) asset="larvyn-darwin-universal.tar.gz" ;;
-*) fail "$os is not supported by this script. On Windows run: irm https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
+*) fail "$os is not supported by this script. On Windows run: irm https://larvyn.dev/install.ps1 | iex" ;;
 esac
 
 # The newest release, prereleases included, unless a version was asked for.

@@ -11,14 +11,19 @@
 #   updates  = platform downloads - installs
 # The counts only grow, include re-installs and our own tests, and are not
 # unique people. The daily snapshots on the `stats` branch give the trend.
+#
+# Releases are published in larvyn/larvyn and copied to larvyn/releases, which
+# builds up to beta.15 update from; the counts of both are added up.
 set -eu
 
-REPO="${LARVYN_RELEASES_REPO:-larvyn/releases}"
+REPOS="${LARVYN_RELEASES_REPOS:-larvyn/larvyn larvyn/releases}"
 
 if [ $# -gt 0 ]; then
 	rows=$(cat "$1")
 else
-	rows=$(gh api --paginate "repos/$REPO/releases" --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"')
+	rows=$(for repo in $REPOS; do
+		gh api --paginate "repos/$repo/releases" --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"'
+	done)
 fi
 
 printf '%s\n' "$rows" | awk -F, '
@@ -28,7 +33,7 @@ printf '%s\n' "$rows" | awk -F, '
 		if ($2 ~ /darwin/) mac[$1] += $3
 		else if ($2 ~ /linux/) linux[$1] += $3
 		else if ($2 ~ /windows/) win[$1] += $3
-		else if ($2 == "installs.txt") { inst[$1] = $3; counted[$1] = 1 }
+		else if ($2 == "installs.txt") { inst[$1] += $3; counted[$1] = 1 }
 	}
 	END {
 		print "| Release | macOS | Linux | Windows | Downloads | Installs | Updates |"

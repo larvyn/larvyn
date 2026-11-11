@@ -173,7 +173,7 @@ function BootSplash({ error }: { error: string }) {
       {error ? (
         <div className="err">
           Larvyn could not start: {error}
-          <small>Please report it at github.com/larvyn/releases/issues with this message.</small>
+          <small>Please report it at github.com/larvyn/larvyn/issues with this message.</small>
         </div>
       ) : (
         <div>Starting Larvyn…</div>

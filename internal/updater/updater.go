@@ -22,8 +22,13 @@ import (
 	"time"
 )
 
-// Releases are published to the public distribution repository.
-const releasesAPI = "https://api.github.com/repos/larvyn/releases/releases?per_page=10"
+// Releases are published in the source repository. Until beta.15 they were in
+// larvyn/releases, which still gets a copy of each release so older builds
+// keep updating (see release.yml).
+const (
+	releasesRepo = "larvyn/larvyn"
+	releasesAPI  = "https://api.github.com/repos/" + releasesRepo + "/releases?per_page=10"
+)
 
 // Version is the running build ("dev" locally); main sets it at start.
 var Version = "dev"
@@ -140,7 +145,7 @@ func Install(tag string) error {
 	if err != nil {
 		return err
 	}
-	base := "https://github.com/larvyn/releases/releases/download/" + tag + "/"
+	base := "https://github.com/" + releasesRepo + "/releases/download/" + tag + "/"
 	data, err := download(base + asset)
 	if err != nil {
 		return err
