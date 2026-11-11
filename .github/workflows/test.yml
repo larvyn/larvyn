@@ -1,71 +1,39 @@
 # Runs the Go tests and type-checks the frontend.
 #
-# The source repo is private, so Actions minutes are billed, and every job is
-# rounded up to a whole minute. macOS minutes cost about 10x Linux ones and
-# Windows about 2x. Running the full matrix on every PR and every push used up
-# November 2026's included usage in four days, and re-running Linux on every
-# push to a PR (~60 runs a day) would use it up again on its own. The goal is
-# to stay inside the free 2000 minutes a month. So:
+# The repo is public, so the standard GitHub-hosted runners are free, macOS
+# and Windows included. Every run tests Linux, Windows and macOS:
 #
-#   pull request   Linux, once: when the PR is opened (or reopened, or marked
-#                  ready for review). Drafts and later pushes don't run it;
-#                  add the "ci" label to test again after more pushes, or run
-#                  scripts/ci-local.sh linux for free. Markdown-only changes
-#                  skip it.
-#   push to master nothing: the PR already tested the same code
-#   weekly         Linux, Windows and macOS on Monday, if master has a commit
-#                  that has not passed a weekly run yet
-#   release        Linux and Windows before building (release.yml). macOS
-#                  tests are left to the weekly run: they cost ~50 of the
-#                  ~150 minutes a release uses, and the macOS build still
-#                  compiles everything.
-#   manual         Linux, Windows and macOS (Actions tab, "Run workflow")
+#   pull request   every push, once the PR is out of draft (Markdown-only
+#                  changes skip it); a newer push cancels the older run
+#   push to master the merged code
+#   release        before building (release.yml calls this workflow)
+#   manual         Actions tab, "Run workflow"
+#
+# scripts/ci-local.sh runs the same checks on your machine.
 
 name: test
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore: ['**.md']
-  schedule:
-    - cron: '41 5 * * 1'
+  push:
+    branches: [master]
+    paths-ignore: ['**.md']
   workflow_dispatch:
   workflow_call:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Weekly only: skip the run when master's head already passed a weekly run.
-  changed:
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
-    outputs:
-      untested: ${{ steps.check.outputs.untested }}
-    steps:
-      - id: check
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?event=schedule&status=success&head_sha=$GITHUB_SHA" --jq .total_count)
-          echo "weekly runs that passed on $GITHUB_SHA: $passed"
-          echo "untested=$([ "$passed" = 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-  # Go and the frontend in one job: a separate 20-second frontend job is
-  # still billed a full minute.
-  # On a PR: not while it's a draft, and of the labels only "ci" starts a run.
+  # Go and the frontend in one job. Not on a draft PR.
   linux:
-    needs: changed
-    if: >-
-      ${{ !cancelled()
-      && (github.event_name != 'schedule' || needs.changed.outputs.untested == 'true')
-      && (github.event_name != 'pull_request' || (!github.event.pull_request.draft
-          && (github.event.action != 'labeled' || github.event.label.name == 'ci'))) }}
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -102,15 +70,13 @@ jobs:
         run: npx tsc --noEmit
 
   go:
-    needs: changed
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.event_name != 'schedule' || needs.changed.outputs.untested == 'true') }}
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     strategy:
       fail-fast: false
       matrix:
         # macos-15-intel rather than macos-latest (arm64), which lacked runner
-        # capacity for days; see release.yml. A release (called from
-        # release.yml, so the event is the tag push) skips macOS: see the top.
-        os: ${{ fromJSON(github.event_name == 'push' && '["windows-latest"]' || '["windows-latest", "macos-15-intel"]') }}
+        # capacity for days; see release.yml.
+        os: [windows-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -118,11 +84,10 @@ jobs:
         if: runner.os != 'macOS'
         with:
           go-version-file: go.mod
-      # macOS minutes cost 10x, and setup-go spent ~45s of a ~1m40s job
-      # there: 11s downloading Go, 21s copying it into the tool cache, 14s
-      # restoring a 200 MB -race build cache. A plain download, a cache without
-      # -race, and saving it only from master (tag and PR caches can't be
-      # reused by later runs) aim to keep the job under one billed minute.
+      # setup-go spent ~45s of a ~1m40s job on macOS: 11s downloading Go, 21s
+      # copying it into the tool cache, 14s restoring a 200 MB -race build
+      # cache. A plain download, a cache without -race, and saving it only from
+      # master (tag and PR caches can't be reused by later runs) keep it fast.
       - name: Go (macOS)
         if: runner.os == 'macOS'
         run: |
