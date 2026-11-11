@@ -13,15 +13,12 @@ on:
 
 permissions:
   contents: write
-  actions: read # test.yml checks past runs
 
 env:
   WAILS_VERSION: v3.0.0
 
 jobs:
-  # Pushes to master are not tested on Windows and macOS (see test.yml), so a
-  # release tests Linux and Windows before building. macOS tests run weekly
-  # instead: they cost about a third of a release.
+  # Linux, Windows and macOS tests must pass before anything is built.
   test:
     uses: ./.github/workflows/test.yml
 
