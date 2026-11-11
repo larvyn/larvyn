@@ -58,3 +58,15 @@ but a test or a user with a long profile path hits it.
 - [ ] The CLI (`api.Dial`) and `larvyn mcp` must find the same path: derive it
       in one function both use.
 - [ ] Test with a home over 120 characters on Linux, macOS and Windows.
+
+## 8. Retire the larvyn/releases mirror
+
+Since beta.16 releases are published in larvyn/larvyn, and `release.yml` also
+copies each one to larvyn/releases, where builds up to beta.15 look for
+updates. Once those builds have updated, the copy is no longer needed.
+
+- [ ] Re-deploy the site so the beta pill shows the newest release (it is read at build time).
+- [ ] Wait until the `stats` branch shows almost no downloads of beta.15 and older from larvyn/releases.
+- [ ] Remove the mirror steps (checkout, script sync, "Publish the mirror copy") and `RELEASES_TOKEN` from `release.yml`.
+- [ ] Keep `larvyn/releases` in `scripts/stats.sh` and `download-stats.yml`, so the history adds up.
+- [ ] Update the larvyn/releases README to say releases moved to larvyn/larvyn, then archive the repo. Archived releases still download, so `LARVYN_VERSION` up to beta.14 keeps working.
