@@ -44,9 +44,10 @@ if (-not $version) {
     if (-not $releases) { Fail "could not find a release in github.com/$repo" }
     $version = @($releases)[0].tag_name
 } elseif (-not $env:LARVYN_REPO) {
-    # Releases up to beta.14 are only in the old distribution repo.
-    try { Invoke-RestMethod "https://api.github.com/repos/$repo/releases/tags/$version" -Headers @{ 'User-Agent' = 'larvyn-installer' } | Out-Null }
-    catch { $repo = 'larvyn/releases' }
+    # Releases up to beta.14 are only in the old distribution repo. Only a 404
+    # switches to it; any other error tries this repo (download, no API limit).
+    try { Invoke-WebRequest "https://github.com/$repo/releases/download/$version/checksums.txt" -Method Head -UseBasicParsing | Out-Null }
+    catch { if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) { $repo = 'larvyn/releases' } }
 }
 
 $base = "https://github.com/$repo/releases/download/$version"

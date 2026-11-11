@@ -177,8 +177,13 @@ jobs:
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
           files="larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt"
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $files
+          if have=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null); then
+            # A rerun: upload only what is missing (replacing a file resets its
+            # download count) and publish a draft left by a canceled run.
+            for f in $files; do
+              printf '%s\n' "$have" | grep -qxF "$f" || gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "$f"
+            done
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
           else
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
               --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags $files
@@ -204,8 +209,13 @@ jobs:
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
           files="larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt"
-          if gh release view "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" --clobber $files
+          if have=$(gh release view "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" --json assets --jq '.assets[].name' 2>/dev/null); then
+            # A rerun: upload only what is missing (replacing a file resets its
+            # download count) and publish a draft left by a canceled run.
+            for f in $files; do
+              printf '%s\n' "$have" | grep -qxF "$f" || gh release upload "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" "$f"
+            done
+            gh release edit "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" --draft=false
           else
             gh release create "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" \
               --title "Larvyn $GITHUB_REF_NAME" --notes-file ../mirror-notes.md $flags $files

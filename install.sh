@@ -69,9 +69,11 @@ if [ -z "$version" ]; then
 	version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" |
 		sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
 	[ -n "$version" ] || fail "could not find a release in github.com/$REPO"
-elif [ -z "${LARVYN_REPO:-}" ] && ! curl -fsSL -o /dev/null "https://api.github.com/repos/$REPO/releases/tags/$version" 2>/dev/null; then
-	# Releases up to beta.14 are only in the old distribution repo.
-	REPO=larvyn/releases
+elif [ -z "${LARVYN_REPO:-}" ]; then
+	# Releases up to beta.14 are only in the old distribution repo. Only a 404
+	# switches to it; any other error tries this repo (download, no API limit).
+	code=$(curl -sIL -o /dev/null -w '%{http_code}' "https://github.com/$REPO/releases/download/$version/checksums.txt" 2>/dev/null || true)
+	[ "$code" = 404 ] && REPO=larvyn/releases
 fi
 
 base="https://github.com/$REPO/releases/download/$version"
