@@ -1,6 +1,6 @@
 # Saves the download counts of every release once a day, so there is a trend
 # (GitHub only keeps running totals). The data goes to the `stats` branch of
-# this private repo, not to master:
+# this repo, not to master:
 #   downloads.csv  date,tag,asset,downloads (one row per file per day)
 #   README.md      the latest table from scripts/stats.sh
 name: download stats

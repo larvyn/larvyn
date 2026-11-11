@@ -262,3 +262,7 @@ leaves the target unset and ld warns "object file was built for newer
 cannot keep its settings: `sudo chown -R $(id -un):staff ~/Library/WebKit`.
 
 `scripts/ci-local.sh` runs the CI checks of `.github/workflows/test.yml` on your machine: the Linux jobs in Docker with [act](https://nektosact.com), and the Go job natively on a Mac. Use it before pushing, or when GitHub Actions can't run. Pass `linux` or `mac` to run only one side.
+
+## License
+
+Larvyn is free and open source under the [MIT License](LICENSE).
