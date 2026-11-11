@@ -22,7 +22,7 @@ if [ $# -gt 0 ]; then
 	rows=$(cat "$1")
 else
 	rows=$(for repo in $REPOS; do
-		gh api --paginate "repos/$repo/releases" --jq '.[] | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"'
+		gh api --paginate "repos/$repo/releases" --jq '.[] | select(.draft | not) | .tag_name as $t | .assets[] | "\($t),\(.name),\(.download_count)"'
 	done)
 fi
 

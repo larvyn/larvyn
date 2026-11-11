@@ -43,6 +43,10 @@ if (-not $version) {
     $releases = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=1" -Headers @{ 'User-Agent' = 'larvyn-installer' }
     if (-not $releases) { Fail "could not find a release in github.com/$repo" }
     $version = @($releases)[0].tag_name
+} elseif (-not $env:LARVYN_REPO) {
+    # Releases up to beta.14 are only in the old distribution repo.
+    try { Invoke-RestMethod "https://api.github.com/repos/$repo/releases/tags/$version" -Headers @{ 'User-Agent' = 'larvyn-installer' } | Out-Null }
+    catch { $repo = 'larvyn/releases' }
 }
 
 $base = "https://github.com/$repo/releases/download/$version"

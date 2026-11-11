@@ -105,8 +105,9 @@ jobs:
 
   # The release is published in this repository. Builds up to beta.15 read
   # releases from larvyn/releases, so it gets a copy too until those builds
-  # have updated; the copy has no installs.txt, since the installers download
-  # from here.
+  # have updated. Both get installs.txt: an installer counts itself in the
+  # repo it downloads from (LARVYN_REPO can still pick the old one).
+  # A rerun after a failed step reuses the releases already created.
   # RELEASES_TOKEN: fine-grained token with Contents read/write on that repo.
   release:
     needs: [linux-windows, macos]
@@ -175,9 +176,13 @@ jobs:
         run: |
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags \
-            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt
+          files="larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $files
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "Larvyn $GITHUB_REF_NAME" --notes-file ../notes.md $flags $files
+          fi
       # Old links to raw.githubusercontent.com/larvyn/releases/main/install.sh
       # keep working; the scripts download from this repository.
       - name: Sync install scripts to the mirror
@@ -198,6 +203,10 @@ jobs:
         run: |
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" \
-            --title "Larvyn $GITHUB_REF_NAME" --notes-file ../mirror-notes.md $flags \
-            larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt
+          files="larvyn-linux-amd64.tar.gz larvyn-windows-amd64.exe larvyn-darwin-universal.tar.gz checksums.txt installs.txt"
+          if gh release view "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" --clobber $files
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$MIRROR_REPO" \
+              --title "Larvyn $GITHUB_REF_NAME" --notes-file ../mirror-notes.md $flags $files
+          fi
