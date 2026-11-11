@@ -106,7 +106,7 @@ jobs:
           name: macos
           path: larvyn-darwin-universal.tar.gz
 
-  # Releases go to the public distribution repo; the source repo stays private.
+  # Releases go to the distribution repo (the installer and updater read it).
   # RELEASES_TOKEN: fine-grained token with Contents read/write on that repo.
   release:
     needs: [linux-windows, macos]
