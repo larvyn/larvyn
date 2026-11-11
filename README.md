@@ -3,10 +3,31 @@
 The Laravel workbench: your Laravel apps, their dev services, terminals, data
 and AI coding agents in one native window. Built with Go + Wails 3 and React.
 
-It takes the terminal workspace idea from Herdr (persistent terminals, tabs,
-splits) and the agent orchestration idea from Orca (several agents in
-parallel, each in its own git worktree, compare and merge the winner) and
-points both at Laravel.
+Persistent terminals with tabs and splits, and several AI agents working in
+parallel, each in its own git worktree, so you can compare their attempts and
+merge the winner. All of it aimed at Laravel.
+
+Free and open source ([MIT](LICENSE)) for Windows, macOS and Linux.
+Website: [larvyn.dev](https://larvyn.dev).
+
+## Install
+
+macOS and Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/larvyn/releases/main/install.ps1 | iex
+```
+
+Running it again updates Larvyn; neither needs admin rights. Builds are also
+on the [releases page](https://github.com/larvyn/releases/releases). To
+uninstall, pass `--uninstall` to `install.sh` (`sh -s -- --uninstall`) or set
+`$env:LARVYN_UNINSTALL = "1"` before the PowerShell line.
 
 ## What it does
 
@@ -262,6 +283,12 @@ leaves the target unset and ld warns "object file was built for newer
 cannot keep its settings: `sudo chown -R $(id -un):staff ~/Library/WebKit`.
 
 `scripts/ci-local.sh` runs the CI checks of `.github/workflows/test.yml` on your machine: the Linux jobs in Docker with [act](https://nektosact.com), and the Go job natively on a Mac. Use it before pushing, or when GitHub Actions can't run. Pass `linux` or `mac` to run only one side.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run the checks in
+[AGENTS.md](AGENTS.md#commands) (`go vet`, `go test -race`, `gofmt`, `tsc`)
+and use conventional commits (`feat(agents): …`, `fix(terminal): …`).
 
 ## License
 
