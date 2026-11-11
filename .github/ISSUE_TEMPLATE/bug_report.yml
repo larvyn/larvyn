@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in Larvyn is broken or behaves unexpectedly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Larvyn. **Settings → Report a bug** in the app opens this form with your version and system already filled in.
+        Issues are public: don't paste secrets, tokens or private `.env` values.
+  - type: input
+    id: version
+    attributes:
+      label: Larvyn version
+      description: Shown in Settings → About & feedback.
+      placeholder: v0.1.0-beta.3
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 15.1 / Ubuntu 24.04
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Install script (curl / irm)
+        - Manual download from Releases
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected and what you saw instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a Laravel 12 project
+        2. Go to Database
+        3. Click …
+  - type: textarea
+    id: logs
+    attributes:
+      label: larvyn.log
+      description: |
+        The relevant lines from `larvyn.log` (Settings → Open log folder):
+        Windows `%APPDATA%\larvyn`, macOS `~/Library/Application Support/larvyn`, Linux `~/.config/larvyn`.
+        Check it for paths or project names you don't want to share.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this hasn't been reported yet.
+          required: true

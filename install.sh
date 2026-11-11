@@ -1,7 +1,7 @@
 #!/bin/sh
 # Larvyn installer for Linux and macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh
+#   curl -fsSL https://larvyn.dev/install.sh | sh
 #
 # Options (environment variables):
 #   LARVYN_VERSION=v0.1.0   install that release instead of the newest one
@@ -10,13 +10,13 @@
 #   DO_NOT_TRACK=1          do not count this install (see the end of the script)
 #
 # Uninstall:
-#   curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://larvyn.dev/install.sh | sh -s -- --uninstall
 #
 # Running it again updates Larvyn. Nothing needs sudo.
 
 set -eu
 
-REPO="${LARVYN_REPO:-larvyn/releases}"
+REPO="${LARVYN_REPO:-larvyn/larvyn}"
 BIN_DIR="${LARVYN_BIN_DIR:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 MAC_APP="$HOME/Applications/Larvyn.app"
@@ -60,7 +60,7 @@ Linux)
 	esac
 	;;
 Darwin) asset="larvyn-darwin-universal.tar.gz" ;;
-*) fail "$os is not supported by this script. On Windows run: irm https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
+*) fail "$os is not supported by this script. On Windows run: irm https://larvyn.dev/install.ps1 | iex" ;;
 esac
 
 # The newest release, prereleases included, unless a version was asked for.
@@ -69,6 +69,11 @@ if [ -z "$version" ]; then
 	version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" |
 		sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
 	[ -n "$version" ] || fail "could not find a release in github.com/$REPO"
+elif [ -z "${LARVYN_REPO:-}" ]; then
+	# Releases up to beta.14 are only in the old distribution repo. Only a 404
+	# switches to it; any other error tries this repo (download, no API limit).
+	code=$(curl -sIL -o /dev/null -w '%{http_code}' "https://github.com/$REPO/releases/download/$version/checksums.txt" 2>/dev/null || true)
+	[ "$code" = 404 ] && REPO=larvyn/releases
 fi
 
 base="https://github.com/$REPO/releases/download/$version"

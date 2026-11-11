@@ -1,6 +1,6 @@
 # Larvyn installer for Windows.
 #
-#   irm https://raw.githubusercontent.com/larvyn/releases/main/install.ps1 | iex
+#   irm https://larvyn.dev/install.ps1 | iex
 #
 # Options (environment variables, set them before running):
 #   $env:LARVYN_VERSION = "v0.1.0"      install that release instead of the newest one
@@ -17,7 +17,7 @@ $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest is far slower with 
 function Say($msg) { Write-Host "larvyn " -ForegroundColor Magenta -NoNewline; Write-Host $msg }
 function Fail($msg) { Write-Host "larvyn " -ForegroundColor Red -NoNewline; Write-Host $msg; throw "larvyn install failed" }
 
-$repo = if ($env:LARVYN_REPO) { $env:LARVYN_REPO } else { 'larvyn/releases' }
+$repo = if ($env:LARVYN_REPO) { $env:LARVYN_REPO } else { 'larvyn/larvyn' }
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Larvyn'
 $exe = Join-Path $installDir 'larvyn.exe'
 $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Larvyn.lnk'
@@ -43,6 +43,11 @@ if (-not $version) {
     $releases = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=1" -Headers @{ 'User-Agent' = 'larvyn-installer' }
     if (-not $releases) { Fail "could not find a release in github.com/$repo" }
     $version = @($releases)[0].tag_name
+} elseif (-not $env:LARVYN_REPO) {
+    # Releases up to beta.14 are only in the old distribution repo. Only a 404
+    # switches to it; any other error tries this repo (download, no API limit).
+    try { Invoke-WebRequest "https://github.com/$repo/releases/download/$version/checksums.txt" -Method Head -UseBasicParsing | Out-Null }
+    catch { if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) { $repo = 'larvyn/releases' } }
 }
 
 $base = "https://github.com/$repo/releases/download/$version"

@@ -3,7 +3,7 @@ import { Bug, Lightbulb, MessageCircle, MessageSquareHeart } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
 import { fail } from '../lib/store'
 
-export const DISCUSSIONS_URL = 'https://github.com/larvyn/releases/discussions'
+export const DISCUSSIONS_URL = 'https://github.com/larvyn/larvyn/discussions'
 
 export const reportBug = () => SystemService.ReportBug('').catch(fail('Could not open the browser'))
 export const requestFeature = () => SystemService.RequestFeature().catch(fail('Could not open the browser'))

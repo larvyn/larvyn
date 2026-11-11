@@ -14,9 +14,8 @@ import (
 	"larvyn/internal/updater"
 )
 
-// Public repository where users report bugs and ask for features; the source
-// repository is private.
-const feedbackRepo = "https://github.com/larvyn/releases"
+// Repository where users report bugs and ask for features.
+const feedbackRepo = "https://github.com/larvyn/larvyn"
 
 // AppInfo describes this build for the About card and bug reports.
 type AppInfo struct {
@@ -38,7 +37,7 @@ func (s *SystemService) ReportBug(details string) error {
 }
 
 // bugReportURL builds the prefilled issue form link. Query keys match the
-// field ids in larvyn/releases/.github/ISSUE_TEMPLATE/bug_report.yml.
+// field ids in .github/ISSUE_TEMPLATE/bug_report.yml.
 func bugReportURL(details string) string {
 	q := url.Values{}
 	q.Set("template", "bug_report.yml")

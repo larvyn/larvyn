@@ -15,17 +15,17 @@ Website: [larvyn.dev](https://larvyn.dev).
 macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/larvyn/releases/main/install.sh | sh
+curl -fsSL https://larvyn.dev/install.sh | sh
 ```
 
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/larvyn/releases/main/install.ps1 | iex
+irm https://larvyn.dev/install.ps1 | iex
 ```
 
 Running it again updates Larvyn; neither needs admin rights. Builds are also
-on the [releases page](https://github.com/larvyn/releases/releases). To
+on the [releases page](https://github.com/larvyn/larvyn/releases). To
 uninstall, pass `--uninstall` to `install.sh` (`sh -s -- --uninstall`) or set
 `$env:LARVYN_UNINSTALL = "1"` before the PowerShell line.
 
@@ -187,8 +187,8 @@ sends nothing about your projects, code, `.env` files or terminals. It
 connects to the internet only for these:
 
 - **Updates:** a few seconds after it starts and every 6 hours it asks
-  GitHub (`api.github.com/repos/larvyn/releases`) for the newest release, and
-  downloads it from `github.com/larvyn/releases` when you update. Settings →
+  GitHub (`api.github.com/repos/larvyn/larvyn`) for the newest release, and
+  downloads it from `github.com/larvyn/larvyn` when you update. Settings →
   About turns the automatic check off.
 - **Plugins:** it reads the marketplace list (`plugins.json` on
   `raw.githubusercontent.com/larvyn/plugins`) when it starts, to turn off

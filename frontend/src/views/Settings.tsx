@@ -286,7 +286,7 @@ export function Settings() {
               </button>
             </div>
             <span style={{ display: 'block', marginTop: 10, fontSize: 11.5, color: 'var(--text-3)' }}>
-              Reports are public issues on github.com/larvyn/releases. Your version and system are filled in; check the log for paths or project names before pasting it.
+              Reports are public issues on github.com/larvyn/larvyn. Your version and system are filled in; check the log for paths or project names before pasting it.
             </span>
             <span style={{ display: 'block', marginTop: 6, fontSize: 11.5, color: 'var(--text-3)' }}>
               Tool logos from thesvg.org and pi.dev, trademarks of their owners. PHP logo CC BY-SA 4.0, Git logo by Jason Long CC BY 3.0.
