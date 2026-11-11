@@ -75,4 +75,5 @@ Platform-specific Go code goes in `_windows.go` / `_other.go` pairs (see
   paths, shells and process trees differ. Touching `proc` or `terminal` means
   checking both the `_windows.go` and `_other.go` sides.
 - **Commits.** Conventional commits, lowercase, one line
-  (`feat(agents): …`, `fix(terminal): …`, `docs: …`).
+  (`feat(agents): …`, `fix(terminal): …`, `docs: …`). No
+  `Co-Authored-By` trailers or AI attribution in commits or PRs.
