@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Window } from '@wailsio/runtime'
 import {
   Pencil,
@@ -128,8 +129,11 @@ export function Rail() {
   const projects = useStore((s) => s.projects)
   const activeId = useStore((s) => s.activeId)
   const sessions = useStore((s) => s.sessions)
+  // The native title tooltip is slow, so the project's name and path show
+  // right away, outside the rail (which clips its overflow).
+  const [tip, setTip] = useState<{ name: string; path: string; x: number; y: number } | null>(null)
   return (
-    <div className="rail">
+    <div className="rail" onScroll={() => setTip(null)}>
       {projects.map((p) => {
         const running = sessions.filter((s) => s.projectId === p.id && s.running && s.kind === 'service').length
         const bells = sessions.filter((s) => s.projectId === p.id && s.running && s.bell).length
@@ -138,10 +142,16 @@ export function Rail() {
             key={p.id}
             className={cx('rail-item', p.id === activeId && 'active')}
             style={badgeStyle(p)}
-            title={`${p.name}\n${p.path}\nRight-click to customize`}
+            aria-label={p.name}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setTip({ name: p.name, path: p.path, x: r.right + 10, y: r.top + r.height / 2 })
+            }}
+            onMouseLeave={() => setTip(null)}
             onClick={() => selectProject(p.id)}
             onContextMenu={(e) => {
               e.preventDefault()
+              setTip(null)
               customizeProject(p)
             }}
           >
@@ -158,6 +168,14 @@ export function Rail() {
       <button className="rail-btn" title="Create a new Laravel app" onClick={() => useStore.setState({ newProjectOpen: true })}>
         <Plus />
       </button>
+      {tip &&
+        createPortal(
+          <div className="rail-tip" style={{ left: tip.x, top: tip.y }}>
+            <b>{tip.name}</b>
+            <span>{tip.path}</span>
+          </div>,
+          document.body,
+        )}
       <div className="spacer" />
       <button className="rail-btn solid" title="Settings" onClick={() => setView('settings')}>
         <Settings />
