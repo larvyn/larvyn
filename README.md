@@ -10,6 +10,8 @@ merge the winner. All of it aimed at Laravel.
 Free and open source ([MIT](LICENSE)) for Windows, macOS and Linux.
 Website: [larvyn.dev](https://larvyn.dev).
 
+![Larvyn's Overview of a Laravel project: dev stack, local site, configuration and doctor checks](.github/screenshot.png)
+
 ## Install
 
 macOS and Linux:
