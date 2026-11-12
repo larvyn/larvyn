@@ -1,10 +1,13 @@
 # Larvyn downloads
 
-Updated 2026-11-11. Daily rows are in downloads.csv; see scripts/stats.sh on master for what the columns mean.
+Updated 2026-11-12. Daily rows are in downloads.csv; see scripts/stats.sh on master for what the columns mean.
 
 | Release | macOS | Linux | Windows | Downloads | Installs | Updates |
 |---|---:|---:|---:|---:|---:|---:|
-| v0.1.0-beta.14 | 4 | 2 | 5 | 11 | 2 | 9 |
+| v0.1.0-beta.17 | 3 | 3 | 7 | 13 | 2 | 11 |
+| v0.1.0-beta.16 | 2 | 2 | 2 | 6 | 2 | 4 |
+| v0.1.0-beta.15 | 3 | 6 | 3 | 12 | 3 | 9 |
+| v0.1.0-beta.14 | 4 | 4 | 5 | 13 | 2 | 11 |
 | v0.1.0-beta.13 | 4 | 4 | 3 | 11 | 3 | 8 |
 | v0.1.0-beta.12 | 4 | 2 | 3 | 9 | 3 | 6 |
 | v0.1.0-beta.11 | 1 | 2 | 1 | 4 | 1 | 3 |
@@ -18,4 +21,4 @@ Updated 2026-11-11. Daily rows are in downloads.csv; see scripts/stats.sh on mas
 | v0.1.0-beta.3 | 1 | 2 | 1 | 4 | – | – |
 | v0.1.0-beta.2 | 2 | 3 | 0 | 5 | – | – |
 | v0.1.0-beta.1 | 2 | 4 | 2 | 8 | – | – |
-| **Total** | **34** | **38** | **27** | **99** | **19** | **37** |
+| **Total** | **42** | **51** | **39** | **132** | **26** | **63** |
