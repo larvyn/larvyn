@@ -51,6 +51,11 @@ type SessionInfo struct {
 	EndedAt      int64  `json:"endedAt"`
 	LastActivity int64  `json:"lastActivity"`
 	Bell         bool   `json:"bell"`
+	// State is what the program last reported about itself: working,
+	// blocked, done, or "" when it reported nothing (see state.go);
+	// StateAt is when, in Unix milliseconds.
+	State   string `json:"state"`
+	StateAt int64  `json:"stateAt"`
 	// Restored is set on a session brought back from the previous run that
 	// has not been started again.
 	Restored bool              `json:"restored"`
@@ -100,6 +105,10 @@ type session struct {
 	// inSetup is set while a setup step runs; step is its command line.
 	inSetup bool
 	step    string
+	// osc is the start of an OSC 7501 sequence a read cut (see state.go);
+	// burstStart is when the current run of output without a pause began.
+	osc        []byte
+	burstStart int64
 }
 
 type TerminalService struct {
@@ -289,6 +298,8 @@ func (t *TerminalService) spawn(s *session, argv []string, cols, rows int) error
 	s.info.EndedAt = 0
 	s.info.StartedAt = now
 	s.info.LastActivity = now
+	s.info.State, s.info.StateAt = "", 0
+	s.osc, s.burstStart = nil, 0
 	s.mu.Unlock()
 	go t.pump(s, p, cmd)
 	return nil
@@ -335,6 +346,7 @@ func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	s.info.Setup = false
 	s.info.ExitCode = code
 	s.info.EndedAt = time.Now().UnixMilli()
+	s.info.State, s.info.StateAt = "", 0
 	if !s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second {
 		s.info.Stopped = true
 	}
@@ -355,7 +367,9 @@ func (t *TerminalService) output(s *session, b []byte) {
 	if len(s.buf) > scrollbackBytes {
 		s.buf = append([]byte(nil), s.buf[len(s.buf)-scrollbackBytes:]...)
 	}
-	s.info.LastActivity = time.Now().UnixMilli()
+	now := time.Now()
+	changed := s.noteOutput(chunk, s.info.LastActivity, now)
+	s.info.LastActivity = now.UnixMilli()
 	bell := !s.info.Bell && containsBell(chunk)
 	if bell {
 		s.info.Bell = true
@@ -364,7 +378,7 @@ func (t *TerminalService) output(s *session, b []byte) {
 	s.mu.Unlock()
 	t.touchOutput()
 	emit("term:data", TermData{ID: id, Seq: seq, Data: base64.StdEncoding.EncodeToString(chunk)})
-	if bell {
+	if bell || changed {
 		t.broadcast()
 	}
 }
@@ -411,7 +425,11 @@ func (t *TerminalService) Write(id, data string) error {
 	if running && strings.ContainsRune(data, 3) {
 		s.interruptAt = time.Now()
 	}
+	changed := running && s.noteInput(data, time.Now())
 	s.mu.Unlock()
+	if changed {
+		t.broadcast()
+	}
 	if !running {
 		return nil
 	}

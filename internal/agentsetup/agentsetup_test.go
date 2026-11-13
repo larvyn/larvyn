@@ -189,7 +189,7 @@ func TestAnOldHookIsReplaced(t *testing.T) {
 		t.Errorf("changes: %s", actions(cs))
 	}
 	settings := read(t, filepath.Join(o.ClaudeDir, "settings.json"))
-	if strings.Count(settings, "agents hook") != 1 || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook"`) {
+	if strings.Count(settings, "agents hook") != 4 || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook"`) || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook done"`) {
 		t.Errorf("settings:\n%s", settings)
 	}
 }

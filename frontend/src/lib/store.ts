@@ -455,8 +455,10 @@ export function setDrawerHeight(h: number) {
   save('drawerHeight', h)
 }
 
-export function agentStatus(s: SessionInfo, now = Date.now()): 'working' | 'idle' | 'attention' | 'exited' {
+export function agentStatus(s: SessionInfo, now = Date.now()): 'working' | 'idle' | 'attention' | 'done' | 'exited' {
   if (!s.running) return 'exited'
-  if (s.bell) return 'attention'
+  if (s.bell || s.state === 'blocked') return 'attention'
+  if (s.state === 'done') return 'done'
+  if (s.state === 'working' && now - Math.max(s.stateAt || 0, s.lastActivity) < 120_000) return 'working'
   return now - s.lastActivity < 2500 ? 'working' : 'idle'
 }

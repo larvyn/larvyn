@@ -172,23 +172,42 @@ func removeSkill(path, what string, dryRun bool) (Change, error) {
 }
 
 // hookCommand is the hook's command line. A path with spaces is quoted.
-func hookCommand(cli string) string {
+func hookCommand(cli, arg string) string {
 	cli = filepath.ToSlash(cli)
 	if strings.ContainsAny(cli, " \t") {
 		cli = `"` + cli + `"`
 	}
-	return cli + hookArgs
+	if arg == "" {
+		return cli + hookArgs
+	}
+	return cli + hookArgs + " " + arg
 }
 
-// ours tells Larvyn's hook from the rest: any `… larvyn… agents hook`, so a
+// ours tells Larvyn's hook from the rest: any `… larvyn… agents hook…`, so a
 // hook from another state folder (LARVYN_HOME) or an older install is
 // replaced, not added a second time.
 func ours(command string) bool {
-	return strings.HasSuffix(command, hookArgs) && strings.Contains(strings.ToLower(command), "larvyn")
+	if !strings.Contains(strings.ToLower(command), "larvyn") {
+		return false
+	}
+	return strings.HasSuffix(command, hookArgs) || strings.Contains(command, hookArgs+" ")
 }
 
-// editHooks adds (add) or removes Larvyn's SessionStart hook in an agent's
-// JSON settings, which Claude Code and Codex shape the same way:
+// hookEvents are the agent lifecycle events Larvyn wires: SessionStart injects
+// project context, UserPromptSubmit reports working, PermissionRequest reports
+// blocked, and Stop reports done.
+var hookEvents = []struct {
+	event string
+	arg   string
+}{
+	{"SessionStart", ""},
+	{"UserPromptSubmit", "working"},
+	{"PermissionRequest", "blocked"},
+	{"Stop", "done"},
+}
+
+// editHooks adds (add) or removes Larvyn's hooks in an agent's JSON settings,
+// which Claude Code and Codex shape the same way:
 //
 //	{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "…"}]}]}}
 func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
@@ -215,70 +234,77 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 	if hooks.obj == nil {
 		return c, errors.New(`"hooks" is not an object: it was left alone`)
 	}
-	start := hooks.obj.get("SessionStart")
-	if start == nil {
-		start = &node{arr: []*node{}}
-	}
-	if start.arr == nil {
-		return c, errors.New(`"hooks.SessionStart" is not a list: it was left alone`)
-	}
 
-	// Take Larvyn's hooks out, keeping every other one where it was.
-	want := hookCommand(cli)
-	found, current := false, false
-	var groups []*node
-	for _, g := range start.arr {
-		list := g.obj.getList("hooks")
-		if list == nil {
-			groups = append(groups, g)
-			continue
+	anyFound, allCurrent := false, true
+	for _, ev := range hookEvents {
+		sec := hooks.obj.get(ev.event)
+		if sec != nil && sec.arr == nil {
+			return c, fmt.Errorf(`"hooks.%s" is not a list: it was left alone`, ev.event)
 		}
-		keep := []*node{}
-		for _, h := range list {
-			cmd := h.obj.getString("command")
-			if h.obj != nil && ours(cmd) {
-				found = true
-				current = current || cmd == want
-				continue
+		want := hookCommand(cli, ev.arg)
+		found, current := false, false
+		var groups []*node
+		if sec != nil {
+			for _, g := range sec.arr {
+				list := g.obj.getList("hooks")
+				if list == nil {
+					groups = append(groups, g)
+					continue
+				}
+				keep := []*node{}
+				for _, h := range list {
+					cmd := h.obj.getString("command")
+					if h.obj != nil && ours(cmd) {
+						found = true
+						current = current || cmd == want
+						continue
+					}
+					keep = append(keep, h)
+				}
+				if len(keep) == 0 && len(list) > 0 {
+					continue
+				}
+				g.obj.set("hooks", &node{arr: keep})
+				groups = append(groups, g)
 			}
-			keep = append(keep, h)
 		}
-		if len(keep) == 0 && len(list) > 0 {
-			continue
+		if found {
+			anyFound = true
 		}
-		g.obj.set("hooks", &node{arr: keep})
-		groups = append(groups, g)
+		if !found || !current || countOurs(sec) != 1 {
+			allCurrent = false
+		}
+		if add {
+			hook := newObject()
+			hook.obj.set("type", value("command"))
+			hook.obj.set("command", value(want))
+			hook.obj.set("timeout", value(10))
+			entry := newObject()
+			if strings.HasSuffix(path, "settings.json") {
+				entry.obj.set("matcher", value(""))
+			}
+			entry.obj.set("hooks", &node{arr: []*node{hook}})
+			groups = append(groups, entry)
+		}
+		if len(groups) == 0 {
+			hooks.obj.del(ev.event)
+		} else {
+			hooks.obj.set(ev.event, &node{arr: groups})
+		}
 	}
-	if add && found && current && countOurs(start) == 1 {
+	if add && allCurrent {
 		return c, nil
 	}
-	if !add && !found {
+	if !add && !anyFound {
 		return c, nil
 	}
 	if add {
-		hook := newObject()
-		hook.obj.set("type", value("command"))
-		hook.obj.set("command", value(want))
-		hook.obj.set("timeout", value(10))
-		entry := newObject()
-		if strings.HasSuffix(path, "settings.json") {
-			// Claude Code's groups have a matcher: startup, resume, clear,
-			// compact. "" is every one of them.
-			entry.obj.set("matcher", value(""))
-		}
-		entry.obj.set("hooks", &node{arr: []*node{hook}})
-		groups = append(groups, entry)
 		c.Action = "create"
-		if found {
+		if anyFound {
 			c.Action = "update"
 		}
 	} else {
 		c.Action = "remove"
-	}
-	if len(groups) == 0 {
-		hooks.obj.del("SessionStart")
-	} else {
-		hooks.obj.set("SessionStart", &node{arr: groups})
 	}
 	if len(hooks.obj.keys) == 0 {
 		root.obj.del("hooks")
@@ -289,9 +315,12 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 	return c, save(path, old, format(root))
 }
 
-func countOurs(start *node) int {
+func countOurs(sec *node) int {
+	if sec == nil {
+		return 0
+	}
 	n := 0
-	for _, g := range start.arr {
+	for _, g := range sec.arr {
 		for _, h := range g.obj.getList("hooks") {
 			if ours(h.obj.getString("command")) {
 				n++

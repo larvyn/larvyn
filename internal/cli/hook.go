@@ -49,6 +49,20 @@ type hookStackItem struct {
 	Running bool   `json:"running"`
 }
 
+// `larvyn agents hook <state>` is what the hooks on a prompt, a permission
+// request and a turn's end run (internal/agentsetup): it tells Larvyn the
+// agent is working, blocked or done. Like the session-start hook it prints
+// nothing and exits 0 whatever happens; a PermissionRequest hook that
+// printed something could even answer the request.
+func runStateHook(caller api.Caller, state string) int {
+	if caller.Session == "" {
+		return 0
+	}
+	params, _ := json.Marshal(map[string]string{"state": state})
+	_, _ = api.Dial(api.Request{Method: "agents.state", Params: params, Caller: caller})
+	return 0
+}
+
 func hookContext(project, path, dir, branch, url, terminal string, worktree bool, stack []hookStackItem) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This session runs in Larvyn, the Laravel workbench, in its terminal %s. ", terminal)

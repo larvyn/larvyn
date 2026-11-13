@@ -366,16 +366,23 @@ type LaunchRequest struct {
 
 // Status is an agent's state as the Agents view shows it (agentStatus in
 // frontend/src/lib/store.ts): "setup" while its worktree's setup steps run,
-// "exited", "attention" when it rang the bell, "working" while it printed
-// in the last 2.5 s, else "idle".
+// "exited", "attention" when it rang the bell or reported it is blocked,
+// "done" when it reported its turn ended, "working" while it reported so
+// (for up to StaleWorking without output) or printed in the last 2.5 s,
+// else "idle". What an agent reports (terminal.SetState, from its hooks or
+// an OSC 7501 sequence) wins over the guess from its output.
 func Status(s terminal.SessionInfo, now time.Time) string {
 	switch {
 	case s.Setup:
 		return "setup"
 	case !s.Running:
 		return "exited"
-	case s.Bell:
+	case s.Bell || s.State == terminal.StateBlocked:
 		return "attention"
+	case s.State == terminal.StateDone:
+		return "done"
+	case s.State == terminal.StateWorking && now.Sub(time.UnixMilli(max(s.StateAt, s.LastActivity))) < StaleWorking:
+		return "working"
 	case now.Sub(time.UnixMilli(s.LastActivity)) < WorkingFor:
 		return "working"
 	}
@@ -385,6 +392,11 @@ func Status(s terminal.SessionInfo, now time.Time) string {
 // WorkingFor is how recent an agent's output must be for it to count as
 // working.
 const WorkingFor = 2500 * time.Millisecond
+
+// StaleWorking is how long an agent that reported it is working may stay
+// quiet before the guess from its output takes over again: an agent
+// interrupted mid-turn doesn't always say it stopped.
+const StaleWorking = 2 * time.Minute
 
 // Launch starts an agent session. With Worktree set the agent works on its
 // own branch, so several can attack one task in parallel.

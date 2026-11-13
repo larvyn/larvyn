@@ -78,10 +78,10 @@ is "working", a bell is "attention", anything else "idle". It can't tell an
 agent waiting for an approval from one that finished, and a long silent step
 looks idle.
 
-- [ ] Parse an OSC 7501 sequence in `internal/terminal` (`\e]7501;state=working|blocked|done|idle\e\\`), so any agent or script can report its state and keep the last reported state on the session.
-- [ ] Add `larvyn agent state <working|blocked|done>` so hooks can report it through the local API.
-- [ ] In `agentsetup`, wire the agents' own hooks to it where they exist (Claude Code `Notification` / `Stop`, Codex `notify`…).
-- [ ] `Status` prefers a reported state and falls back to the current heuristic; add "blocked" and "done" to `agentStatus` in `frontend/src/lib/store.ts`.
+- [x] Parse an OSC 7501 sequence in `internal/terminal` (`\e]7501;state=working|blocked|done|idle\e\\`), so any agent or script can report its state and keep the last reported state on the session.
+- [x] Add `larvyn agents state <working|blocked|done>` so hooks can report it through the local API.
+- [x] In `agentsetup`, wire the agents' own hooks to it where they exist (Claude Code `Notification` / `Stop`, Codex `notify`…).
+- [x] `Status` prefers a reported state and falls back to the current heuristic; add "blocked" and "done" to `agentStatus` in `frontend/src/lib/store.ts`.
 
 ## 10. Desktop notifications
 
