@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"larvyn/internal/api"
 )
@@ -59,7 +61,11 @@ func runStateHook(caller api.Caller, state string) int {
 		return 0
 	}
 	params, _ := json.Marshal(map[string]string{"state": state})
-	_, _ = api.Dial(api.Request{Method: "agents.state", Params: params, Caller: caller})
+	// The agent waits for its hook: an app that doesn't answer must not
+	// hold up a prompt or a permission request.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, _ = api.DialContext(ctx, api.Request{Method: "agents.state", Params: params, Caller: caller})
 	return 0
 }
 
