@@ -40,10 +40,11 @@ func setup(t *testing.T) Options {
 	t.Helper()
 	dir := t.TempDir()
 	o := Options{
-		ClaudeDir: filepath.Join(dir, ".claude"),
-		CodexDir:  filepath.Join(dir, ".codex"),
-		AgentsDir: filepath.Join(dir, ".agents"),
-		CLI:       "/home/me/.config/larvyn/bin/larvyn",
+		ClaudeDir:  filepath.Join(dir, ".claude"),
+		CodexDir:   filepath.Join(dir, ".codex"),
+		AgentsDir:  filepath.Join(dir, ".agents"),
+		ClaudeJSON: filepath.Join(dir, ".claude.json"),
+		CLI:        "/home/me/.config/larvyn/bin/larvyn",
 	}
 	os.MkdirAll(o.ClaudeDir, 0o755)
 	os.MkdirAll(o.CodexDir, 0o755)
@@ -74,13 +75,13 @@ func TestInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "Claude Code skill=create, Claude Code session hook=create, Skill for Codex and other agents=create, Codex session hook=create"
+	want := "Claude Code skill=create, Claude Code session hook=create, Claude Code MCP server=create, Skill for Codex and other agents=create, Codex session hook=create, Codex MCP server=create"
 	if got := actions(cs); got != want {
 		t.Errorf("changes:\n%s\nwant:\n%s", got, want)
 	}
 	// Codex asks the user to review a new hook: the change says so.
-	if !strings.Contains(cs[3].Note, "/hooks") {
-		t.Errorf("codex note: %q", cs[3].Note)
+	if !strings.Contains(cs[4].Note, "/hooks") {
+		t.Errorf("codex note: %q", cs[4].Note)
 	}
 	for _, p := range []string{filepath.Join(o.ClaudeDir, "skills", "larvyn", "SKILL.md"), filepath.Join(o.AgentsDir, "skills", "larvyn", "SKILL.md")} {
 		if s := read(t, p); !strings.HasPrefix(s, "---\nname: larvyn\n") || !strings.Contains(s, mark) {
@@ -132,13 +133,13 @@ func TestInstall(t *testing.T) {
 func TestDryRunChangesNothing(t *testing.T) {
 	o := setup(t)
 	cs, err := Install(o, true)
-	if err != nil || len(cs) != 4 {
+	if err != nil || len(cs) != 6 {
 		t.Fatalf("%v %v", actions(cs), err)
 	}
 	if read(t, filepath.Join(o.ClaudeDir, "settings.json")) != claudeSettings {
 		t.Error("dry run wrote settings.json")
 	}
-	for _, p := range []string{filepath.Join(o.CodexDir, "hooks.json"), filepath.Join(o.ClaudeDir, "skills"), filepath.Join(o.AgentsDir)} {
+	for _, p := range []string{filepath.Join(o.CodexDir, "hooks.json"), filepath.Join(o.CodexDir, "config.toml"), o.ClaudeJSON, filepath.Join(o.ClaudeDir, "skills"), filepath.Join(o.AgentsDir)} {
 		if _, err := os.Stat(p); err == nil {
 			t.Errorf("dry run made %s", p)
 		}
@@ -150,11 +151,11 @@ func TestRemove(t *testing.T) {
 	if _, err := Install(o, false); err != nil {
 		t.Fatal(err)
 	}
-	if cs, _ := Remove(o, true); len(cs) != 4 {
+	if cs, _ := Remove(o, true); len(cs) != 6 {
 		t.Errorf("remove dry run: %s", actions(cs))
 	}
 	cs, err := Remove(o, false)
-	if err != nil || len(cs) != 4 {
+	if err != nil || len(cs) != 6 {
 		t.Fatalf("remove: %s %v", actions(cs), err)
 	}
 	settings := read(t, filepath.Join(o.ClaudeDir, "settings.json"))
@@ -229,7 +230,7 @@ func TestOnlyInstalledAgentsAreSetUp(t *testing.T) {
 	}
 	os.MkdirAll(o.CodexDir, 0o755)
 	cs, err := Install(o, false)
-	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex session hook=create" {
+	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex session hook=create, Codex MCP server=create" {
 		t.Errorf("codex only: %s %v", actions(cs), err)
 	}
 	if _, err := os.Stat(o.ClaudeDir); err == nil {
@@ -240,8 +241,9 @@ func TestOnlyInstalledAgentsAreSetUp(t *testing.T) {
 func TestDefaultsFollowTheEnvironment(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", "/x/claude")
 	t.Setenv("CODEX_HOME", "/x/codex")
+	t.Setenv("XDG_CONFIG_HOME", "/x/config")
 	o, err := Defaults("larvyn")
-	if err != nil || o.ClaudeDir != "/x/claude" || o.CodexDir != "/x/codex" {
+	if err != nil || o.ClaudeDir != "/x/claude" || o.CodexDir != "/x/codex" || o.ClaudeJSON != filepath.Join("/x/claude", ".claude.json") || o.OpenCodeDir != filepath.Join("/x/config", "opencode") {
 		t.Errorf("%+v %v", o, err)
 	}
 }

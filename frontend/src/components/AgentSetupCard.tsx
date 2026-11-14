@@ -7,9 +7,10 @@ import { errMsg } from '../lib/util'
 
 /**
  * Tells the coding agents about Larvyn: a skill that teaches the larvyn
- * command and a session-start hook with where the agent runs, written to
- * the config of the agents that are installed (larvyn agents setup does the
- * same). Preview lists the changes first; Remove takes them out again.
+ * command, a session-start hook with where the agent runs and the larvyn
+ * MCP server, written to the config of the agents that are installed
+ * (larvyn agents setup does the same). Preview lists the changes first;
+ * Remove takes them out again.
  */
 export function AgentSetupCard() {
   const [changes, setChanges] = useState<{ remove: boolean; dryRun: boolean; list: Change[] } | null>(null)
@@ -19,7 +20,8 @@ export function AgentSetupCard() {
     try {
       const list = (await AgentService.SetupAgents(remove, dryRun)) ?? []
       setChanges({ remove, dryRun, list })
-      if (!dryRun) toast('success', remove ? 'Larvyn removed from the agents' : 'Agents set up', list.some((c) => c.note) ? 'Codex asks you to review the new hook once (/hooks)' : undefined)
+      const notes = [...new Set(list.map((c) => c.note).filter(Boolean))].join(' · ')
+      if (!dryRun) toast('success', remove ? 'Larvyn removed from the agents' : 'Agents set up', notes || undefined)
     } catch (e) {
       toast('error', remove ? 'Could not remove it' : 'Could not set up the agents', errMsg(e))
     } finally {
@@ -40,15 +42,15 @@ export function AgentSetupCard() {
           <button className="btn sm primary" disabled={busy} onClick={() => run(false, false)}>
             <Plug /> Set up agents
           </button>
-          <button className="btn sm" disabled={busy} onClick={() => run(true, false)} title="Take the skill and the hook out again">
+          <button className="btn sm" disabled={busy} onClick={() => run(true, false)} title="Take the skill, the hook and the MCP server out again">
             <Trash2 /> Remove
           </button>
         </div>
       </div>
       <div className="card-body" style={{ display: 'grid', gap: 10 }}>
         <span className="hint">
-          Installs a <span className="mono">larvyn</span> skill and a session-start hook in Claude Code and Codex, so an agent started in Larvyn knows its project, worktree and dev stack, and uses the{' '}
-          <span className="mono">larvyn</span> command to start services, run tests and hand work to other agents. Running it again is safe.
+          Installs a <span className="mono">larvyn</span> skill, a session-start hook and the <span className="mono">larvyn</span> MCP server in the agents you have (Claude Code, Codex, Cursor, Gemini CLI, Windsurf, OpenCode), so an agent knows its
+          project, worktree and dev stack, and uses Larvyn to start services, run tests and hand work to other agents. Restart agents that are already running. Running it again is safe.
         </span>
         {changes && (
           <div style={{ display: 'grid', gap: 4 }}>
