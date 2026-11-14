@@ -219,6 +219,11 @@ func TestCodexTablesThatArentOursAreLeftAlone(t *testing.T) {
 		"literal key, other cmd":  "[mcp_servers.'larvyn']\ncommand = \"npx\"\n",
 		"inline larvyn":           "[mcp_servers]\n'larvyn' = { command = \"npx\" }\n",
 		"inline mcp_servers":      "model = \"x\"\nmcp_servers = { other = { command = \"other\" } }\n",
+		"after a nested array":    "example = [\n  [1, 2],\n]\nmcp_servers = { other = { command = \"other\" } }\n",
+		"quoted parent key":       "[\"mcp_servers\".larvyn]\ncommand = \"npx\"\n",
+		"literal parent key":      "['mcp_servers'.larvyn]\ncommand = \"npx\"\n",
+		"a table in a string":     "developer_instructions = '''\nExample:\n[mcp_servers.larvyn]\ncommand = \"/bin/larvyn\"\nargs = [\"mcp\"]\n'''\nmodel = \"example\"\n",
+		"not TOML":                "[oops\n",
 	} {
 		path := filepath.Join(t.TempDir(), "config.toml")
 		os.WriteFile(path, []byte(toml), 0o600)

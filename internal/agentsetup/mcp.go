@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 
 	"larvyn/internal/proc"
 )
@@ -189,36 +193,23 @@ func openCodeJSONC(o Options) (Change, bool) {
 
 // Codex keeps its MCP servers in config.toml, as [mcp_servers.<name>]
 // tables. Larvyn edits only its own table, as text, so the rest of the file
-// stays exactly as written.
-
-// tomlKey is larvyn as a TOML key: bare, "basic" or 'literal'.
-const tomlKey = `(?:larvyn|"larvyn"|'larvyn')`
+// stays exactly as written. A TOML parser says what the file holds, before
+// and after: whether a larvyn server is there and Larvyn's, and that the
+// edit left a valid file with nothing else changed. TOML has too many ways
+// to write the same table (quoted keys, inline tables, look-alike lines in
+// multiline strings) for the text alone to be trusted; any edit the parser
+// doesn't confirm is not saved.
 
 var (
 	codexHeader = regexp.MustCompile(`^\s*\[`)
-	codexOurs   = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\.\s*` + tomlKey + `\s*[\].]`)
-	codexMain   = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\.\s*` + tomlKey + `\s*\]\s*(#.*)?$`)
-	// A larvyn server written inline, as `larvyn = {…}` in [mcp_servers] or
-	// `mcp_servers.larvyn = {…}`: adding a table would make the file invalid.
-	codexInline = regexp.MustCompile(`(?m)^\s*(mcp_servers\s*\.\s*)?` + tomlKey + `\s*=`)
-	// mcp_servers itself as an inline table, `mcp_servers = {…}`: no table
-	// can be added to it either.
-	codexInlineServers = regexp.MustCompile(`^\s*(mcp_servers|"mcp_servers"|'mcp_servers')\s*=`)
-	codexCmd           = regexp.MustCompile(`^\s*command\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*(#.*)?$`)
-	codexArgs          = regexp.MustCompile(`^\s*args\s*=\s*\[\s*(?:"mcp"|'mcp')\s*,?\s*\]\s*(#.*)?$`)
+	codexOurs   = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\.\s*(?:larvyn|"larvyn"|'larvyn')\s*[\].]`)
+	// mcp_servers or a larvyn server written inline (`mcp_servers = {…}`,
+	// `larvyn = {…}`): no table can be added to or replace them, and the
+	// parser doesn't catch every such redefinition.
+	codexInline = regexp.MustCompile(`(?m)^\s*(?:(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*=|(?:(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*\.\s*)?(?:larvyn|"larvyn"|'larvyn')\s*=)`)
 )
 
-// codexCommand is the command a `command = …` line runs, or "".
-func codexCommand(line string) string {
-	m := codexCmd.FindStringSubmatch(line)
-	if m == nil {
-		return ""
-	}
-	if m[2] != "" {
-		return m[2]
-	}
-	return strings.NewReplacer(`\\`, `\`, `\"`, `"`).Replace(m[1])
-}
+var errCodexUnsafe = errors.New(`config.toml writes its MCP servers in a way Larvyn can't edit safely: it was left alone; add the server by hand (larvyn.dev/docs/mcp)`)
 
 func tomlString(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
@@ -226,6 +217,43 @@ func tomlString(s string) string {
 
 func codexTable(cli string) []string {
 	return []string{"[mcp_servers." + mcpName + "]", "command = " + tomlString(cli), `args = ["mcp"]`}
+}
+
+// codexServer splits a parsed config.toml into Larvyn's server, if any, and
+// everything else.
+func codexServer(text string) (server any, rest map[string]any, err error) {
+	rest = map[string]any{}
+	if _, err := toml.Decode(text, &rest); err != nil {
+		return nil, nil, err
+	}
+	servers, ok := rest["mcp_servers"].(map[string]any)
+	if !ok {
+		return nil, rest, nil
+	}
+	server = servers[mcpName]
+	others := maps.Clone(servers)
+	delete(others, mcpName)
+	if len(others) == 0 {
+		delete(rest, "mcp_servers")
+	} else {
+		rest["mcp_servers"] = others
+	}
+	return server, rest, nil
+}
+
+// codexOursServer is Larvyn's server: a larvyn binary run with just `mcp`.
+func codexOursServer(s any) bool {
+	m, ok := s.(map[string]any)
+	if !ok {
+		return false
+	}
+	cmd, _ := m["command"].(string)
+	args, _ := m["args"].([]any)
+	return larvynBinary(cmd) && len(args) == 1 && args[0] == "mcp"
+}
+
+func codexWant(cli string) map[string]any {
+	return map[string]any{"command": cli, "args": []any{"mcp"}}
 }
 
 func editCodexMCP(path, cli string, add, dryRun bool) (Change, error) {
@@ -238,72 +266,58 @@ func editCodexMCP(path, cli string, add, dryRun bool) (Change, error) {
 		return c, nil
 	}
 	text := string(old)
+	cur, rest, err := codexServer(text)
+	if err != nil {
+		if add {
+			return c, fmt.Errorf("not valid TOML (%v): it was left alone", err)
+		}
+		return c, nil
+	}
+	if cur != nil && !codexOursServer(cur) {
+		if add {
+			return c, errors.New(`an MCP server named "larvyn" that Larvyn didn't add is already there; it was left alone`)
+		}
+		return c, nil
+	}
+	if add && cur != nil && reflect.DeepEqual(cur, codexWant(cli)) {
+		return c, nil
+	}
+	if !add && cur == nil {
+		return c, nil
+	}
+	if codexInline.MatchString(text) {
+		return c, errCodexUnsafe
+	}
+
 	crlf := strings.Contains(text, "\r\n")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	if text == "" {
 		lines = nil
 	}
-
-	// Larvyn's tables: [mcp_servers.larvyn] and any [mcp_servers.larvyn.env].
-	// Ours when its main table runs a larvyn binary with just `mcp`.
-	var keep, block []string
-	first, found, cmdOurs, argsOurs := -1, false, false, false
-	in, main, inlineServers, root := false, false, false, true
+	// Drop Larvyn's tables, [mcp_servers.larvyn] and any [mcp_servers.larvyn.env].
+	var keep []string
+	first, in := -1, false
 	for _, l := range lines {
 		if codexHeader.MatchString(l) {
-			root = false
 			in = codexOurs.MatchString(l)
-			main = codexMain.MatchString(l)
-			if in && !found {
-				found, first = true, len(keep)
+			if in && first < 0 {
+				first = len(keep)
 			}
-		}
-		if root && codexInlineServers.MatchString(l) {
-			inlineServers = true
 		}
 		if !in {
 			keep = append(keep, l)
-			continue
-		}
-		if main && larvynBinary(codexCommand(l)) {
-			cmdOurs = true
-		}
-		if main && codexArgs.MatchString(l) {
-			argsOurs = true
-		}
-		if t := strings.TrimSpace(l); t != "" && !strings.HasPrefix(t, "#") {
-			block = append(block, t)
 		}
 	}
-	ours := cmdOurs && argsOurs
-	if inlineServers && !found {
-		if add {
-			return c, errors.New("mcp_servers is an inline table here, which can't take another server: it was left alone")
-		}
-		return c, nil
-	}
-	inline := !found && codexInline.MatchString(text)
-	if (found && !ours) || inline {
-		if add {
-			return c, errors.New(`an MCP server named "larvyn" that Larvyn didn't add is already there; it was left alone`)
-		}
-		return c, nil
-	}
-
-	want := codexTable(cli)
 	if add {
-		if found && strings.Join(block, "\n") == strings.Join(want, "\n") {
-			return c, nil
-		}
 		c.Action = "create"
-		if found {
+		if cur != nil {
 			c.Action = "update"
 		}
-		if !found {
+		if first < 0 {
 			first = len(keep)
 		}
-		table := append([]string{}, want...)
+		table := codexTable(cli)
 		if first < len(keep) {
 			table = append(table, "")
 		}
@@ -312,9 +326,6 @@ func editCodexMCP(path, cli string, add, dryRun bool) (Change, error) {
 		}
 		keep = append(keep[:first], append(table, keep[first:]...)...)
 	} else {
-		if !found {
-			return c, nil
-		}
 		c.Action = "remove"
 	}
 	for len(keep) > 0 && strings.TrimSpace(keep[len(keep)-1]) == "" {
@@ -323,6 +334,15 @@ func editCodexMCP(path, cli string, add, dryRun bool) (Change, error) {
 	out := strings.Join(keep, "\n")
 	if out != "" {
 		out += "\n"
+	}
+
+	// The parser confirms the edit: Larvyn's server as wanted, the rest as it was.
+	got, gotRest, err := codexServer(out)
+	if err != nil || !reflect.DeepEqual(gotRest, rest) {
+		return c, errCodexUnsafe
+	}
+	if (add && !reflect.DeepEqual(got, codexWant(cli))) || (!add && got != nil) {
+		return c, errCodexUnsafe
 	}
 	if crlf {
 		out = strings.ReplaceAll(out, "\n", "\r\n")
