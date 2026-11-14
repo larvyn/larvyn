@@ -123,15 +123,26 @@ its main folder, as in the sidebar. `artisan`, `test` and `logs` work on the
 folder they are called from, so an agent sees its own worktree.
 
 Settings → Agents → **Set up agents** (or `larvyn agents setup`) teaches the
-agents about it: a `larvyn` skill in Claude Code (`~/.claude/skills`, or
-`CLAUDE_CONFIG_DIR`) and in `~/.agents/skills` for Codex and others, and a
-session-start hook in Claude Code's `settings.json` and Codex's
-`hooks.json` (`CODEX_HOME`) that tells an agent started in Larvyn its
-project, worktree, branch, URL and dev stack. Outside Larvyn's terminals the
-hook prints nothing. Only installed agents are set up, settings files keep
-their order and get a `.larvyn-backup`, `--dry-run` lists the changes, and
-`larvyn agents remove` takes everything out again. Codex asks you once to
-review the new hook (`/hooks`).
+agents about it, in one step:
+
+- a `larvyn` skill in Claude Code (`~/.claude/skills`, or
+  `CLAUDE_CONFIG_DIR`) and in `~/.agents/skills` for Codex and others;
+- a session-start hook in Claude Code's `settings.json` and Codex's
+  `hooks.json` (`CODEX_HOME`) that tells an agent started in Larvyn its
+  project, worktree, branch, URL and dev stack (outside Larvyn's terminals
+  it prints nothing);
+- the `larvyn` MCP server, with the CLI's full path, in Claude Code
+  (`~/.claude.json`), Codex (`config.toml`), Cursor (`~/.cursor/mcp.json`),
+  Gemini CLI (`~/.gemini/settings.json`), Windsurf
+  (`~/.codeium/windsurf/mcp_config.json`) and OpenCode
+  (`~/.config/opencode/opencode.json`).
+
+Only installed agents are set up, settings files keep their order and get a
+`.larvyn-backup`, a server or skill named `larvyn` that Larvyn didn't write
+is left alone, `--dry-run` lists the changes, and `larvyn agents remove`
+takes everything out again. Codex asks you once to review the new hook
+(`/hooks`). For any other agent, `larvyn agents skill` prints the skill to
+save where it reads skills, and its MCP server is `<larvyn> mcp`.
 
 An agent's report is its screen: `agents wait` returns it to the agent that
 waits, and nothing is typed into that agent's terminal. `terminal read`
@@ -148,7 +159,7 @@ menu as `/mcp__larvyn__crud` and so on.
 `larvyn api list` lists the methods behind the commands and `larvyn api
 call <method> '<json>'` calls one with JSON params. `larvyn mcp` serves the
 same methods as MCP tools on stdin and stdout, for agents that prefer MCP
-(`claude mcp add larvyn -- larvyn mcp`): `terminal.read` is the
+(`larvyn agents setup` adds it to the agents you have): `terminal.read` is the
 `terminal_read` tool, and so on. Outside Larvyn's
 terminals it works from a project's folder or one of its worktrees, while
 the app runs.
