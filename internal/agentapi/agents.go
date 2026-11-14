@@ -442,7 +442,9 @@ func done(s terminal.SessionInfo, now time.Time) bool {
 		return true
 	case "attention", "done":
 		if s.State == terminal.StateBlocked || s.State == terminal.StateDone {
-			return true
+			// A hook runs before the agent draws its question or its last
+			// lines: give the screen a moment, or the report misses them.
+			return now.Sub(time.UnixMilli(s.StateAt)) >= settleFor
 		}
 		// ConPTY lets the bell through before it redraws the text that came
 		// with it: wait for the screen to settle, or the report misses the

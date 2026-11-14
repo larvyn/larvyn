@@ -63,7 +63,7 @@ func Defaults(cli string) (Options, error) {
 // Change is one file the setup writes or removes.
 type Change struct {
 	Path string `json:"path"`
-	// What it is: "Claude Code skill", "Codex session hook"…
+	// What it is: "Claude Code skill", "Codex hooks"…
 	What string `json:"what"`
 	// Action is create, update, remove or unchanged.
 	Action string `json:"action"`
@@ -96,13 +96,13 @@ func Install(o Options, dryRun bool) ([]Change, error) {
 	}
 	if exists(o.ClaudeDir) {
 		add(writeSkill(filepath.Join(o.ClaudeDir, "skills", "larvyn", "SKILL.md"), "Claude Code skill", dryRun))
-		add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code session hook", o.CLI, true, dryRun))
+		add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code hooks", o.CLI, true, dryRun))
 	}
 	if exists(o.CodexDir) || exists(o.AgentsDir) {
 		add(writeSkill(filepath.Join(o.AgentsDir, "skills", "larvyn", "SKILL.md"), "Skill for Codex and other agents", dryRun))
 	}
 	if exists(o.CodexDir) {
-		c, err := editHooks(filepath.Join(o.CodexDir, "hooks.json"), "Codex session hook", o.CLI, true, dryRun)
+		c, err := editHooks(filepath.Join(o.CodexDir, "hooks.json"), "Codex hooks", o.CLI, true, dryRun)
 		if c.Action == "create" || c.Action == "update" {
 			c.Note = "Codex asks you to review new hooks once: accept it with /hooks"
 		}
@@ -126,9 +126,9 @@ func Remove(o Options, dryRun bool) ([]Change, error) {
 		}
 	}
 	add(removeSkill(filepath.Join(o.ClaudeDir, "skills", "larvyn", "SKILL.md"), "Claude Code skill", dryRun))
-	add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code session hook", o.CLI, false, dryRun))
+	add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code hooks", o.CLI, false, dryRun))
 	add(removeSkill(filepath.Join(o.AgentsDir, "skills", "larvyn", "SKILL.md"), "Skill for Codex and other agents", dryRun))
-	add(editHooks(filepath.Join(o.CodexDir, "hooks.json"), "Codex session hook", o.CLI, false, dryRun))
+	add(editHooks(filepath.Join(o.CodexDir, "hooks.json"), "Codex hooks", o.CLI, false, dryRun))
 	return out, errors.Join(errs...)
 }
 

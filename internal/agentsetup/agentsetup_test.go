@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -74,7 +75,7 @@ func TestInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "Claude Code skill=create, Claude Code session hook=create, Skill for Codex and other agents=create, Codex session hook=create"
+	want := "Claude Code skill=create, Claude Code hooks=create, Skill for Codex and other agents=create, Codex hooks=create"
 	if got := actions(cs); got != want {
 		t.Errorf("changes:\n%s\nwant:\n%s", got, want)
 	}
@@ -111,6 +112,15 @@ func TestInstall(t *testing.T) {
 	codex := read(t, filepath.Join(o.CodexDir, "hooks.json"))
 	if !strings.Contains(codex, `"SessionStart"`) || strings.Contains(codex, "matcher") {
 		t.Errorf("codex hooks.json:\n%s", codex)
+	}
+	// Every lifecycle event gets its hook, once, in both agents.
+	for _, ev := range hookEvents {
+		want := strconv.Quote(hookCommand(o.CLI, ev.arg))
+		for name, file := range map[string]string{"claude": settings, "codex": codex} {
+			if !strings.Contains(file, `"`+ev.event+`"`) || strings.Count(file, want) != 1 {
+				t.Errorf("%s: %s hook %s missing or repeated:\n%s", name, ev.event, want, file)
+			}
+		}
 	}
 
 	// Again: nothing to do, and nothing rewritten.
@@ -210,7 +220,7 @@ func TestWhatIsNotLarvynsIsLeftAlone(t *testing.T) {
 		t.Error("a file that isn't Larvyn's was changed")
 	}
 	// The rest was still set up.
-	if !strings.Contains(actions(cs), "Claude Code session hook=create") {
+	if !strings.Contains(actions(cs), "Claude Code hooks=create") {
 		t.Errorf("changes: %s", actions(cs))
 	}
 	if _, err := Remove(o, false); err == nil {
@@ -229,7 +239,7 @@ func TestOnlyInstalledAgentsAreSetUp(t *testing.T) {
 	}
 	os.MkdirAll(o.CodexDir, 0o755)
 	cs, err := Install(o, false)
-	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex session hook=create" {
+	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex hooks=create" {
 		t.Errorf("codex only: %s %v", actions(cs), err)
 	}
 	if _, err := os.Stat(o.ClaudeDir); err == nil {
