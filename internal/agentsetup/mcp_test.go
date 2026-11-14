@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -193,5 +194,54 @@ func TestOpenCode1KeepsServersInMCP(t *testing.T) {
 	}
 	if strings.Contains(read(t, path), "larvyn") {
 		t.Errorf("after remove: %s", read(t, path))
+	}
+}
+
+func TestOnlyALarvynBinaryWithMCPIsOurs(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"/home/me/.config/larvyn/bin/larvyn":                true,
+		`C:\Users\me\AppData\Roaming\larvyn\bin\larvyn.exe`: true,
+		"larvyn":                   true,
+		"/opt/larvyn-tools/server": false,
+		"/usr/bin/larvynx":         false,
+	} {
+		n, _ := parse([]byte(`{"command": ` + strconv.Quote(cmd) + `, "args": ["mcp"]}`))
+		if oursMCP(n) != want {
+			t.Errorf("%s: ours %v", cmd, !want)
+		}
+	}
+}
+
+func TestCodexTablesThatArentOursAreLeftAlone(t *testing.T) {
+	for name, toml := range map[string]string{
+		"comment mentions larvyn": "[mcp_servers.larvyn]\ncommand = \"npx\" # larvyn\nargs = [\"mcp\"]\n",
+		"other args":              "[mcp_servers.larvyn]\ncommand = \"/bin/larvyn\"\nargs = [\"mcp\", \"--other\"]\n",
+		"literal key, other cmd":  "[mcp_servers.'larvyn']\ncommand = \"npx\"\n",
+		"inline larvyn":           "[mcp_servers]\n'larvyn' = { command = \"npx\" }\n",
+		"inline mcp_servers":      "model = \"x\"\nmcp_servers = { other = { command = \"other\" } }\n",
+	} {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		os.WriteFile(path, []byte(toml), 0o600)
+		if _, err := editCodexMCP(path, "/bin/larvyn", true, false); err == nil || !strings.Contains(err.Error(), "left alone") {
+			t.Errorf("%s: err %v", name, err)
+		}
+		if _, err := editCodexMCP(path, "/bin/larvyn", false, false); err != nil {
+			t.Errorf("%s: remove: %v", name, err)
+		}
+		if read(t, path) != toml {
+			t.Errorf("%s: changed:\n%s", name, read(t, path))
+		}
+	}
+}
+
+func TestALiteralQuotedCodexTableIsUpdated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(path, []byte("[mcp_servers.'larvyn']\ncommand = 'C:\\old\\larvyn.exe'\nargs = ['mcp']\n"), 0o600)
+	c, err := editCodexMCP(path, "/bin/larvyn", true, false)
+	if err != nil || c.Action != "update" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	if got := read(t, path); got != "[mcp_servers.larvyn]\ncommand = \"/bin/larvyn\"\nargs = [\"mcp\"]\n" {
+		t.Errorf("%q", got)
 	}
 }
