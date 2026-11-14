@@ -15,6 +15,7 @@ import (
 )
 
 var slowStarted, slowCancelled = make(chan bool, 1), make(chan bool, 1)
+var lastState string
 
 type report struct {
 	Failed int `json:"failed"`
@@ -67,6 +68,10 @@ func TestMain(m *testing.M) {
 			"url": "https://fix.shop.test", "terminal": c.Session, "stack": []map[string]any{{"key": "vite", "running": true}, {"key": "queue", "running": false}}}, nil
 	})
 	api.Register("demo.report", "Report", func() report { return report{} })
+	api.Register("agents.state", "State", func(c api.Caller, state string) error {
+		lastState = c.Session + ":" + state
+		return nil
+	}, "state: state")
 	api.Register("demo.slow", "Slow", func(c api.Caller) string {
 		slowStarted <- true
 		select {

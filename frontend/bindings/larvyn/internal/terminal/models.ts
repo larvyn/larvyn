@@ -38,6 +38,14 @@ export interface SessionInfo {
     "bell": boolean;
 
     /**
+     * State is what the program last reported about itself: working,
+     * blocked, done, or "" when it reported nothing (see state.go);
+     * StateAt is when, in Unix milliseconds.
+     */
+    "state": string;
+    "stateAt": number;
+
+    /**
      * Restored is set on a session brought back from the previous run that
      * has not been started again.
      */

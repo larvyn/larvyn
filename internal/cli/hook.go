@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"larvyn/internal/api"
 )
@@ -47,6 +49,24 @@ func runHook(caller api.Caller, stdout io.Writer) int {
 type hookStackItem struct {
 	Key     string `json:"key"`
 	Running bool   `json:"running"`
+}
+
+// `larvyn agents hook <state>` is what the hooks on a prompt, a permission
+// request and a turn's end run (internal/agentsetup): it tells Larvyn the
+// agent is working, blocked or done. Like the session-start hook it prints
+// nothing and exits 0 whatever happens; a PermissionRequest hook that
+// printed something could even answer the request.
+func runStateHook(caller api.Caller, state string) int {
+	if caller.Session == "" {
+		return 0
+	}
+	params, _ := json.Marshal(map[string]string{"state": state})
+	// The agent waits for its hook: an app that doesn't answer must not
+	// hold up a prompt or a permission request.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, _ = api.DialContext(ctx, api.Request{Method: "agents.state", Params: params, Caller: caller})
+	return 0
 }
 
 func hookContext(project, path, dir, branch, url, terminal string, worktree bool, stack []hookStackItem) string {

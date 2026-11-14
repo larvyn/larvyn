@@ -42,6 +42,16 @@ func init() {
 		"timeout?: seconds, 1800 by default",
 		"lines?: how many of the screen's last lines, 40 by default")
 	api.MarkReadOnly("agents.kinds", "agents.list", "agents.status", "agents.wait")
+	api.Register("agents.state", "Tell Larvyn what this agent is doing, so it doesn't have to guess from the screen: working, blocked (waiting for the user), done (its turn ended) or idle (back to guessing). The hooks larvyn agents setup installs call it", apiAgentState,
+		"state: working, blocked, done or idle")
+}
+
+// apiAgentState records the state the calling terminal's program reports.
+func apiAgentState(c api.Caller, state string) error {
+	if c.Session == "" {
+		return errors.New("not in a Larvyn terminal: LARVYN_SESSION is not set")
+	}
+	return terminal.SetState(c.Session, state)
 }
 
 // maxDepth is how many levels of agents the API lets agents start below
@@ -430,7 +440,12 @@ func done(s terminal.SessionInfo, now time.Time) bool {
 	switch agents.Status(s, now) {
 	case "exited":
 		return true
-	case "attention":
+	case "attention", "done":
+		if s.State == terminal.StateBlocked || s.State == terminal.StateDone {
+			// A hook runs before the agent draws its question or its last
+			// lines: give the screen a moment, or the report misses them.
+			return now.Sub(time.UnixMilli(s.StateAt)) >= settleFor
+		}
 		// ConPTY lets the bell through before it redraws the text that came
 		// with it: wait for the screen to settle, or the report misses the
 		// question.
