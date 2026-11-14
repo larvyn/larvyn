@@ -1,9 +1,11 @@
 // Package agentsetup installs what tells coding agents about Larvyn: a
-// skill that teaches the larvyn command, and a session-start hook that
-// tells an agent it runs in Larvyn and where (#107). Claude Code gets both
-// in its config folder (CLAUDE_CONFIG_DIR or ~/.claude); Codex gets the hook
+// skill that teaches the larvyn command, a session-start hook that tells an
+// agent it runs in Larvyn and where (#107), and the larvyn MCP server.
+// Claude Code gets all three in its config folder (CLAUDE_CONFIG_DIR or
+// ~/.claude, and .claude.json for MCP); Codex gets the hook and the server
 // in CODEX_HOME (or ~/.codex), and the skill goes to ~/.agents/skills, which
-// Codex and other agents read.
+// Codex and other agents read. Cursor, Gemini CLI, Windsurf and OpenCode get
+// the MCP server.
 //
 // Only the agents whose config folder exists are set up. Running it again
 // changes nothing, a dry run lists the changes without making them, and
@@ -35,7 +37,17 @@ type Options struct {
 	ClaudeDir string // CLAUDE_CONFIG_DIR, ~/.claude
 	CodexDir  string // CODEX_HOME, ~/.codex
 	AgentsDir string // ~/.agents
-	// CLI is the larvyn command the hooks run.
+	// ClaudeJSON is where Claude Code keeps its user MCP servers:
+	// ~/.claude.json, or .claude.json in CLAUDE_CONFIG_DIR.
+	ClaudeJSON  string
+	CursorDir   string // ~/.cursor
+	GeminiDir   string // ~/.gemini
+	WindsurfDir string // ~/.codeium/windsurf
+	OpenCodeDir string // $XDG_CONFIG_HOME/opencode, ~/.config/opencode
+	// OpenCodeMajor is OpenCode's major version, which says where its MCP
+	// servers go; 0 is unknown, taken as the newest.
+	OpenCodeMajor int
+	// CLI is the larvyn command the hooks and the MCP server run.
 	CLI string
 }
 
@@ -46,13 +58,25 @@ func Defaults(cli string) (Options, error) {
 		return Options{}, err
 	}
 	o := Options{
-		ClaudeDir: filepath.Join(home, ".claude"),
-		CodexDir:  filepath.Join(home, ".codex"),
-		AgentsDir: filepath.Join(home, ".agents"),
-		CLI:       cli,
+		ClaudeDir:   filepath.Join(home, ".claude"),
+		CodexDir:    filepath.Join(home, ".codex"),
+		AgentsDir:   filepath.Join(home, ".agents"),
+		ClaudeJSON:  filepath.Join(home, ".claude.json"),
+		CursorDir:   filepath.Join(home, ".cursor"),
+		GeminiDir:   filepath.Join(home, ".gemini"),
+		WindsurfDir: filepath.Join(home, ".codeium", "windsurf"),
+		OpenCodeDir: filepath.Join(home, ".config", "opencode"),
+		CLI:         cli,
 	}
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		o.ClaudeDir = d
+		o.ClaudeJSON = filepath.Join(d, ".claude.json")
+	}
+	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
+		o.OpenCodeDir = filepath.Join(d, "opencode")
+	}
+	if exists(o.OpenCodeDir) {
+		o.OpenCodeMajor = openCodeMajor()
 	}
 	if d := os.Getenv("CODEX_HOME"); d != "" {
 		o.CodexDir = d
@@ -65,7 +89,8 @@ type Change struct {
 	Path string `json:"path"`
 	// What it is: "Claude Code skill", "Codex session hook"…
 	What string `json:"what"`
-	// Action is create, update, remove or unchanged.
+	// Action is create, update, remove, unchanged or skipped (left for the
+	// user, as Note says).
 	Action string `json:"action"`
 	// Note says what else the user needs to know, like Codex asking to
 	// trust a new hook.
@@ -75,15 +100,22 @@ type Change struct {
 // exists is false only for a path that isn't there: a folder that can't be
 // read still counts, so the read or write after it reports why.
 func exists(path string) bool {
+	if path == "" {
+		return false
+	}
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }
 
-// Install writes the skills and hooks, or with dryRun only says what it
-// would change.
+// Skill is the larvyn skill, for an agent that keeps skills somewhere
+// Install doesn't write (larvyn agents skill prints it).
+func Skill() []byte { return skill }
+
+// Install writes the skills, hooks and MCP servers, or with dryRun only says
+// what it would change.
 func Install(o Options, dryRun bool) ([]Change, error) {
 	if o.CLI == "" {
-		return nil, errors.New("no larvyn command to run from the hooks")
+		return nil, errors.New("no larvyn command to run from the hooks and the MCP server")
 	}
 	var out []Change
 	var errs []error
@@ -98,7 +130,15 @@ func Install(o Options, dryRun bool) ([]Change, error) {
 		add(writeSkill(filepath.Join(o.ClaudeDir, "skills", "larvyn", "SKILL.md"), "Claude Code skill", dryRun))
 		add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code session hook", o.CLI, true, dryRun))
 	}
-	if exists(o.CodexDir) || exists(o.AgentsDir) {
+	if exists(o.ClaudeDir) && o.ClaudeJSON != "" {
+		add(editMCP(claudeMCP(o), o.CLI, true, dryRun))
+	}
+	clients := jsonClients(o)
+	others := exists(o.CodexDir) || exists(o.AgentsDir)
+	for _, cl := range clients {
+		others = others || exists(cl.dir)
+	}
+	if others {
 		add(writeSkill(filepath.Join(o.AgentsDir, "skills", "larvyn", "SKILL.md"), "Skill for Codex and other agents", dryRun))
 	}
 	if exists(o.CodexDir) {
@@ -107,9 +147,20 @@ func Install(o Options, dryRun bool) ([]Change, error) {
 			c.Note = "Codex asks you to review new hooks once: accept it with /hooks"
 		}
 		add(c, err)
+		add(editCodexMCP(filepath.Join(o.CodexDir, "config.toml"), o.CLI, true, dryRun))
+	}
+	for _, cl := range clients {
+		if !exists(cl.dir) {
+			continue
+		}
+		if c, ok := openCodeJSONC(o); ok && cl.dir == o.OpenCodeDir {
+			add(c, nil)
+			continue
+		}
+		add(editMCP(cl, o.CLI, true, dryRun))
 	}
 	if len(out) == 0 && len(errs) == 0 {
-		return nil, errors.New("no agent to set up: neither Claude Code (" + o.ClaudeDir + ") nor Codex (" + o.CodexDir + ") is installed")
+		return nil, errors.New("no agent to set up: none of Claude Code, Codex, Cursor, Gemini CLI, Windsurf or OpenCode is installed (and there is no " + o.AgentsDir + " folder)")
 	}
 	return out, errors.Join(errs...)
 }
@@ -129,6 +180,19 @@ func Remove(o Options, dryRun bool) ([]Change, error) {
 	add(editHooks(filepath.Join(o.ClaudeDir, "settings.json"), "Claude Code session hook", o.CLI, false, dryRun))
 	add(removeSkill(filepath.Join(o.AgentsDir, "skills", "larvyn", "SKILL.md"), "Skill for Codex and other agents", dryRun))
 	add(editHooks(filepath.Join(o.CodexDir, "hooks.json"), "Codex session hook", o.CLI, false, dryRun))
+	if o.CodexDir != "" {
+		add(editCodexMCP(filepath.Join(o.CodexDir, "config.toml"), o.CLI, false, dryRun))
+	}
+	if o.ClaudeJSON != "" {
+		add(editMCP(claudeMCP(o), o.CLI, false, dryRun))
+	}
+	for _, cl := range jsonClients(o) {
+		add(editMCP(cl, o.CLI, false, dryRun))
+	}
+	// Either OpenCode layout, in case OpenCode was updated since.
+	if o.OpenCodeDir != "" {
+		add(editMCP(openCodeMCP(o, o.OpenCodeMajor != 1), o.CLI, false, dryRun))
+	}
 	return out, errors.Join(errs...)
 }
 
