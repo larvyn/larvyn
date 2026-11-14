@@ -22,6 +22,11 @@ func TestBellAcrossReads(t *testing.T) {
 	if st.scanBell([]byte("out\x1b")) || st.scanBell([]byte("]0;title\x07")) {
 		t.Error("BEL ending an OSC split after ESC counted as a bell")
 	}
+	// A pending ESC with no OSC open: the BEL after it still rings.
+	st = bellScan{}
+	if st.scanBell([]byte("out\x1b")) || !st.scanBell([]byte("\x07")) {
+		t.Error("bell after a split ESC missed")
+	}
 	// An OSC ended by ST leaves the next BEL a bell, even a read later.
 	st = bellScan{}
 	if st.scanBell([]byte("\x1b]0;title\x1b\\")) || !st.scanBell([]byte("\x07")) {

@@ -402,8 +402,19 @@ func (st *bellScan) scanBell(b []byte) bool {
 		switch {
 		case st.esc:
 			st.esc = false
-			// ESC ] starts an OSC; ESC \ or any other sequence ends one.
-			st.inOSC = c == ']'
+			switch {
+			case c == ']':
+				// ESC ] starts an OSC.
+				st.inOSC = true
+			case c == 7 && !st.inOSC:
+				// A BEL is not part of an escape sequence: it rings.
+				found = true
+			default:
+				// ESC \ (ST) or any other sequence ends an OSC; another ESC
+				// starts over.
+				st.inOSC = false
+				st.esc = c == 0x1b
+			}
 		case c == 0x1b:
 			st.esc = true
 		case c == 7:
