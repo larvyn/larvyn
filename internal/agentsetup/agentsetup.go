@@ -306,7 +306,7 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 			return c, fmt.Errorf(`"hooks.%s" is not a list: it was left alone`, ev.event)
 		}
 		want := hookCommand(cli, ev.arg)
-		found, current := false, false
+		found, current := 0, false
 		var groups []*node
 		if sec != nil {
 			for _, g := range sec.arr {
@@ -319,7 +319,7 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 				for _, h := range list {
 					cmd := h.obj.getString("command")
 					if h.obj != nil && ours(cmd) {
-						found = true
+						found++
 						current = current || cmd == want
 						continue
 					}
@@ -332,10 +332,10 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 				groups = append(groups, g)
 			}
 		}
-		if found {
+		if found > 0 {
 			anyFound = true
 		}
-		if !found || !current || countOurs(sec) != 1 {
+		if found != 1 || !current {
 			allCurrent = false
 		}
 		if add {
@@ -377,21 +377,6 @@ func editHooks(path, what, cli string, add, dryRun bool) (Change, error) {
 		return c, nil
 	}
 	return c, save(path, old, format(root))
-}
-
-func countOurs(sec *node) int {
-	if sec == nil {
-		return 0
-	}
-	n := 0
-	for _, g := range sec.arr {
-		for _, h := range g.obj.getList("hooks") {
-			if ours(h.obj.getString("command")) {
-				n++
-			}
-		}
-	}
-	return n
 }
 
 // save writes a settings file, after a backup of what was there.
