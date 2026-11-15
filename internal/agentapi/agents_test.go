@@ -245,3 +245,31 @@ func TestAgentsWaitForSeveral(t *testing.T) {
 		t.Errorf("same agent twice: %+v", r)
 	}
 }
+
+func TestAgentsStateReportedByHook(t *testing.T) {
+	_, caller := fakeAgents(t)
+	row := startAgent(t, caller, "slow task")
+	agentCaller := api.Caller{Session: row.ID}
+
+	if r := command(caller, "agents", "state", "done"); !strings.Contains(r.Error, "LARVYN_SESSION") {
+		t.Fatalf("without session: %+v", r)
+	}
+	if r := command(agentCaller, "agents", "state", "blocked"); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	r := command(caller, "agents", "wait", row.ID, "--timeout", "10")
+	var rep AgentReport
+	json.Unmarshal(r.Result, &rep)
+	if r.Exit != 2 || rep.Status != "attention" {
+		t.Fatalf("blocked state: exit %d %+v", r.Exit, rep)
+	}
+
+	if r := command(agentCaller, "agents", "state", "done"); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	r = command(caller, "agents", "status", row.ID)
+	json.Unmarshal(r.Result, &rep)
+	if rep.Status != "done" {
+		t.Fatalf("done state: %+v", rep)
+	}
+}

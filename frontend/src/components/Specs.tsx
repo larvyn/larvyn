@@ -689,7 +689,7 @@ function Attempt(props: {
   const st = agentStatus({ ...b, lastActivity: activity.get(b.id) ?? b.lastActivity } as SessionInfo, now)
   const rep = useDrift(props.projectId, b)
   const { auditing, check, fix } = useDriftActions(props.projectId, b, props.kinds, props.agents, rep)
-  const label = st === 'working' ? 'Working' : st === 'attention' ? 'Needs you' : st === 'idle' ? 'Waiting' : b.exitCode === 0 ? 'Finished' : 'Exited'
+  const label = st === 'working' ? 'Working' : st === 'attention' ? 'Needs you' : st === 'done' ? 'Done' : st === 'idle' ? 'Waiting' : b.exitCode === 0 ? 'Finished' : 'Exited'
   return (
     <div className="attempt">
       <div className="avatar" style={{ background: brandUrl(b.key) ? 'var(--bg-3)' : b.meta?.color || '#888' }}>
@@ -701,7 +701,7 @@ function Attempt(props: {
           <GitBranch size={10} style={{ verticalAlign: -1 }} /> {b.meta?.branch || 'project folder'} · {duration((b.running ? now : b.endedAt) - b.startedAt)}
         </span>
       </button>
-      <span className={cx('badge', st === 'working' ? 'accent' : st === 'attention' ? 'yellow' : st === 'exited' && b.exitCode !== 0 ? 'red' : '')}>{label}</span>
+      <span className={cx('badge', st === 'working' ? 'accent' : st === 'attention' ? 'yellow' : st === 'done' ? 'green' : st === 'exited' && b.exitCode !== 0 ? 'red' : '')}>{label}</span>
       {auditing ? (
         <span className="badge yellow">
           <span className="status-dot busy" style={{ width: 6, height: 6, boxShadow: 'none' }} /> Auditing

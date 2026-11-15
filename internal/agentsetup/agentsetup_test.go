@@ -75,7 +75,7 @@ func TestInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "Claude Code skill=create, Claude Code session hook=create, Claude Code MCP server=create, Skill for Codex and other agents=create, Codex session hook=create, Codex MCP server=create"
+	want := "Claude Code skill=create, Claude Code hooks=create, Claude Code MCP server=create, Skill for Codex and other agents=create, Codex hooks=create, Codex MCP server=create"
 	if got := actions(cs); got != want {
 		t.Errorf("changes:\n%s\nwant:\n%s", got, want)
 	}
@@ -112,6 +112,35 @@ func TestInstall(t *testing.T) {
 	codex := read(t, filepath.Join(o.CodexDir, "hooks.json"))
 	if !strings.Contains(codex, `"SessionStart"`) || strings.Contains(codex, "matcher") {
 		t.Errorf("codex hooks.json:\n%s", codex)
+	}
+	// Every lifecycle event gets its hook, once, in both agents.
+	wantHooks := map[string]string{
+		"SessionStart":      "/home/me/.config/larvyn/bin/larvyn agents hook",
+		"UserPromptSubmit":  "/home/me/.config/larvyn/bin/larvyn agents hook working",
+		"PermissionRequest": "/home/me/.config/larvyn/bin/larvyn agents hook blocked",
+		"Stop":              "/home/me/.config/larvyn/bin/larvyn agents hook done",
+	}
+	for name, file := range map[string]string{"claude": settings, "codex": codex} {
+		root, err := parse([]byte(file))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		hooks := root.obj.get("hooks")
+		for event, wantCmd := range wantHooks {
+			n := 0
+			if sec := hooks.obj.get(event); sec != nil {
+				for _, g := range sec.arr {
+					for _, h := range g.obj.getList("hooks") {
+						if h.obj.getString("command") == wantCmd {
+							n++
+						}
+					}
+				}
+			}
+			if n != 1 {
+				t.Errorf("%s: %s hook %q count = %d:\n%s", name, event, wantCmd, n, file)
+			}
+		}
 	}
 
 	// Again: nothing to do, and nothing rewritten.
@@ -189,9 +218,28 @@ func TestAnOldHookIsReplaced(t *testing.T) {
 	if cs[1].Action != "update" {
 		t.Errorf("changes: %s", actions(cs))
 	}
-	settings := read(t, filepath.Join(o.ClaudeDir, "settings.json"))
-	if strings.Count(settings, "agents hook") != 1 || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook"`) {
+	settingsPath := filepath.Join(o.ClaudeDir, "settings.json")
+	settings := read(t, settingsPath)
+	if strings.Count(settings, "agents hook") != 4 || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook"`) || !strings.Contains(settings, `"\"/other home/larvyn/bin/larvyn\" agents hook done"`) {
 		t.Errorf("settings:\n%s", settings)
+	}
+
+	// A stale Larvyn hook grouped with a user hook beside the current hook is
+	// also cleaned up, not overlooked after the group is filtered in memory.
+	root, _ := parse([]byte(settings))
+	stop := root.obj.get("hooks").obj.get("Stop").arr[0].obj.get("hooks")
+	stop.arr = append(stop.arr, value(map[string]any{"type": "command", "command": "/old/larvyn agents hook blocked"}))
+	os.WriteFile(settingsPath, format(root), 0o600)
+	cs, err = Install(o, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cs[1].Action != "update" {
+		t.Errorf("stale grouped hook: %s", actions(cs))
+	}
+	settings = read(t, settingsPath)
+	if strings.Contains(settings, "/old/larvyn") || !strings.Contains(settings, "/opt/other/notify.sh") || strings.Count(settings, "agents hook") != 4 {
+		t.Errorf("after cleaning stale grouped hook:\n%s", settings)
 	}
 }
 
@@ -211,7 +259,7 @@ func TestWhatIsNotLarvynsIsLeftAlone(t *testing.T) {
 		t.Error("a file that isn't Larvyn's was changed")
 	}
 	// The rest was still set up.
-	if !strings.Contains(actions(cs), "Claude Code session hook=create") {
+	if !strings.Contains(actions(cs), "Claude Code hooks=create") {
 		t.Errorf("changes: %s", actions(cs))
 	}
 	if _, err := Remove(o, false); err == nil {
@@ -230,7 +278,7 @@ func TestOnlyInstalledAgentsAreSetUp(t *testing.T) {
 	}
 	os.MkdirAll(o.CodexDir, 0o755)
 	cs, err := Install(o, false)
-	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex session hook=create, Codex MCP server=create" {
+	if err != nil || actions(cs) != "Skill for Codex and other agents=create, Codex hooks=create, Codex MCP server=create" {
 		t.Errorf("codex only: %s %v", actions(cs), err)
 	}
 	if _, err := os.Stat(o.ClaudeDir); err == nil {

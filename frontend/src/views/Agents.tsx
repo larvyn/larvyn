@@ -66,7 +66,7 @@ const PLAYBOOK_ICON: Record<string, typeof Layers> = {
 }
 
 type Status = ReturnType<typeof agentStatus>
-const STATUS_LABEL: Record<Status, string> = { working: 'Working', idle: 'Waiting for you', attention: 'Needs attention', exited: 'Finished' }
+const STATUS_LABEL: Record<Status, string> = { working: 'Working', idle: 'Waiting for you', attention: 'Needs attention', done: 'Done', exited: 'Finished' }
 
 export function Agents() {
   const { id, project, info } = useActive()
@@ -488,8 +488,8 @@ function AgentCard(props: {
             <FileDiff /> Reviewing
           </span>
         )}
-        <span className={cx('badge', status === 'working' ? 'accent' : status === 'attention' ? 'yellow' : status === 'idle' ? '' : s.exitCode === 0 ? 'green' : 'red')}>
-          <span className={cx('status-dot', status === 'working' ? 'busy' : status === 'attention' ? 'idle' : status === 'idle' ? 'on' : '')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
+        <span className={cx('badge', status === 'working' ? 'accent' : status === 'attention' ? 'yellow' : status === 'done' ? 'green' : status === 'idle' ? '' : s.exitCode === 0 ? 'green' : 'red')}>
+          <span className={cx('status-dot', status === 'working' ? 'busy' : status === 'attention' ? 'idle' : status === 'idle' || status === 'done' ? 'on' : '')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
           {status === 'exited' && s.restored ? 'Restored' : STATUS_LABEL[status]}
         </span>
         {s.meta?.worktree && (

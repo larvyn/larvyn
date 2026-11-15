@@ -46,3 +46,20 @@ func TestHookStaysQuietOutsideLarvyn(t *testing.T) {
 		}
 	}
 }
+
+func TestStateHookSetsSessionStateQuietly(t *testing.T) {
+	var out bytes.Buffer
+	// Outside a Larvyn terminal: silent and exit 0.
+	t.Setenv("LARVYN_SESSION", "")
+	if code := Run([]string{"agents", "hook", "done"}, &out, &out); code != 0 || out.Len() != 0 {
+		t.Fatalf("outside Larvyn: code=%d out=%q", code, out.String())
+	}
+	// Inside a session: calls agents.state and stays silent.
+	t.Setenv("LARVYN_SESSION", "t1")
+	if code := Run([]string{"agents", "hook", "blocked"}, &out, &out); code != 0 || out.Len() != 0 {
+		t.Fatalf("blocked hook: code=%d out=%q", code, out.String())
+	}
+	if lastState != "t1:blocked" {
+		t.Fatalf("lastState = %q, want t1:blocked", lastState)
+	}
+}

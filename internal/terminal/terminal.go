@@ -51,6 +51,11 @@ type SessionInfo struct {
 	EndedAt      int64  `json:"endedAt"`
 	LastActivity int64  `json:"lastActivity"`
 	Bell         bool   `json:"bell"`
+	// State is what the program last reported about itself: working,
+	// blocked, done, or "" when it reported nothing (see state.go);
+	// StateAt is when, in Unix milliseconds.
+	State   string `json:"state"`
+	StateAt int64  `json:"stateAt"`
 	// Restored is set on a session brought back from the previous run that
 	// has not been started again.
 	Restored bool              `json:"restored"`
@@ -100,6 +105,12 @@ type session struct {
 	// inSetup is set while a setup step runs; step is its command line.
 	inSetup bool
 	step    string
+	// osc is the start of an OSC 7501 sequence a read cut (see state.go);
+	// burstStart is when the current run of output without a pause began.
+	osc        []byte
+	burstStart int64
+	// bells is the OSC context bell detection carries between reads.
+	bells bellScan
 }
 
 type TerminalService struct {
@@ -289,6 +300,8 @@ func (t *TerminalService) spawn(s *session, argv []string, cols, rows int) error
 	s.info.EndedAt = 0
 	s.info.StartedAt = now
 	s.info.LastActivity = now
+	s.info.State, s.info.StateAt = "", 0
+	s.osc, s.burstStart, s.bells = nil, 0, bellScan{}
 	s.mu.Unlock()
 	go t.pump(s, p, cmd)
 	return nil
@@ -335,6 +348,7 @@ func (t *TerminalService) pump(s *session, p pty.Pty, cmd *pty.Cmd) {
 	s.info.Setup = false
 	s.info.ExitCode = code
 	s.info.EndedAt = time.Now().UnixMilli()
+	s.info.State, s.info.StateAt = "", 0
 	if !s.interruptAt.IsZero() && time.Since(s.interruptAt) < 15*time.Second {
 		s.info.Stopped = true
 	}
@@ -355,8 +369,12 @@ func (t *TerminalService) output(s *session, b []byte) {
 	if len(s.buf) > scrollbackBytes {
 		s.buf = append([]byte(nil), s.buf[len(s.buf)-scrollbackBytes:]...)
 	}
-	s.info.LastActivity = time.Now().UnixMilli()
-	bell := !s.info.Bell && containsBell(chunk)
+	now := time.Now()
+	changed := s.noteOutput(chunk, s.info.LastActivity, now)
+	s.info.LastActivity = now.UnixMilli()
+	// Scan every read, even with the bell already rung, to keep the OSC
+	// context for the next one.
+	bell := s.bells.scanBell(chunk) && !s.info.Bell
 	if bell {
 		s.info.Bell = true
 	}
@@ -364,29 +382,56 @@ func (t *TerminalService) output(s *session, b []byte) {
 	s.mu.Unlock()
 	t.touchOutput()
 	emit("term:data", TermData{ID: id, Seq: seq, Data: base64.StdEncoding.EncodeToString(chunk)})
-	if bell {
+	if bell || changed {
 		t.broadcast()
 	}
 }
 
-// containsBell finds a BEL that is not the terminator of an OSC sequence
-// (window titles end with BEL too and are not a request for attention).
-func containsBell(b []byte) bool {
-	inOSC := false
-	for i, c := range b {
-		if c == 0x1b && i+1 < len(b) && b[i+1] == ']' {
-			inOSC = true
-			continue
-		}
-		if c == 7 {
-			if inOSC {
-				inOSC = false
-				continue
+// bellScan is where scanBell left off: inside an OSC sequence, and after an
+// ESC, so a sequence split across reads is still told from a bare BEL.
+type bellScan struct {
+	inOSC, esc bool
+}
+
+// scanBell finds a BEL that is not the terminator of an OSC sequence
+// (window titles and OSC 7501 reports end with BEL too and are not a
+// request for attention). An OSC also ends with ESC \ (ST).
+func (st *bellScan) scanBell(b []byte) bool {
+	found := false
+	for _, c := range b {
+		switch {
+		case st.esc:
+			st.esc = false
+			switch {
+			case c == ']':
+				// ESC ] starts an OSC.
+				st.inOSC = true
+			case c == 7 && !st.inOSC:
+				// A BEL is not part of an escape sequence: it rings.
+				found = true
+			default:
+				// ESC \ (ST) or any other sequence ends an OSC; another ESC
+				// starts over.
+				st.inOSC = false
+				st.esc = c == 0x1b
 			}
-			return true
+		case c == 0x1b:
+			st.esc = true
+		case c == 7:
+			if st.inOSC {
+				st.inOSC = false
+			} else {
+				found = true
+			}
 		}
 	}
-	return false
+	return found
+}
+
+// containsBell is scanBell on one read with no sequence before it.
+func containsBell(b []byte) bool {
+	var st bellScan
+	return st.scanBell(b)
 }
 
 func (t *TerminalService) get(id string) (*session, error) {
@@ -411,7 +456,11 @@ func (t *TerminalService) Write(id, data string) error {
 	if running && strings.ContainsRune(data, 3) {
 		s.interruptAt = time.Now()
 	}
+	changed := running && s.noteInput(data, time.Now())
 	s.mu.Unlock()
+	if changed {
+		t.broadcast()
+	}
 	if !running {
 		return nil
 	}

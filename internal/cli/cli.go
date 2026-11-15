@@ -69,6 +69,9 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	if len(words) == 2 && words[0] == "agents" && words[1] == "hook" {
 		return runHook(req.Caller, stdout)
 	}
+	if len(words) == 3 && words[0] == "agents" && words[1] == "hook" {
+		return runStateHook(req.Caller, words[2])
+	}
 	switch {
 	case len(words) == 0 || words[0] == "help":
 		// The app answers a request with no command with every method.

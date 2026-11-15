@@ -11,9 +11,9 @@ import (
 
 // Setting the agents up from the CLI, as Settings → Agents does.
 func init() {
-	api.Register("agents.setup", "Install the larvyn skill, the session hook and the MCP server in the agents you have (Claude Code, Codex, Cursor, Gemini CLI, Windsurf, OpenCode), so they know they run in Larvyn; safe to run again", apiAgentSetup,
+	api.Register("agents.setup", "Install the larvyn skill, its hooks and the MCP server in the agents you have (Claude Code, Codex, Cursor, Gemini CLI, Windsurf, OpenCode), so they know they run in Larvyn; safe to run again", apiAgentSetup,
 		"dry-run?: only list the changes")
-	api.Register("agents.remove", "Take the larvyn skill, session hook and MCP server out of the agents' config again", apiAgentRemove,
+	api.Register("agents.remove", "Take the larvyn skill, its hooks and the MCP server out of the agents' config again", apiAgentRemove,
 		"dry-run?: only list the changes")
 	api.Register("agents.skill", "Print the larvyn skill (SKILL.md), for an agent that keeps its skills somewhere else: larvyn agents skill > <skills>/larvyn/SKILL.md", apiAgentSkill)
 	api.MarkReadOnly("agents.skill")

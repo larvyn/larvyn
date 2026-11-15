@@ -70,3 +70,82 @@ updates. Once those builds have updated, the copy is no longer needed.
 - [ ] Remove the mirror steps (checkout, script sync, "Publish the mirror copy") and `RELEASES_TOKEN` from `release.yml`.
 - [ ] Keep `larvyn/releases` in `scripts/stats.sh` and `download-stats.yml`, so the history adds up.
 - [ ] Update the larvyn/releases README to say releases moved to larvyn/larvyn, then archive the repo. Archived releases still download, so `LARVYN_VERSION` up to beta.14 keeps working.
+
+## 9. Precise agent states
+
+`agents.Status` (`internal/agents/agents.go`) guesses: output in the last 2.5 s
+is "working", a bell is "attention", anything else "idle". It can't tell an
+agent waiting for an approval from one that finished, and a long silent step
+looks idle.
+
+- [x] Parse an OSC 7501 sequence in `internal/terminal` (`\e]7501;state=working|blocked|done|idle\e\\`), so any agent or script can report its state and keep the last reported state on the session.
+- [x] Add `larvyn agents state <working|blocked|done>` so hooks can report it through the local API.
+- [x] In `agentsetup`, wire the agents' own hooks to it where they exist (Claude Code `Notification` / `Stop`, Codex `notify`…).
+- [x] `Status` prefers a reported state and falls back to the current heuristic; add "blocked" and "done" to `agentStatus` in `frontend/src/lib/store.ts`.
+
+## 10. Desktop notifications
+
+- [ ] Use Wails 3's notification service to notify when an agent becomes blocked, done or exits, only while the Larvyn window is not focused.
+- [ ] Clicking the notification focuses the window on that agent.
+- [ ] Setting to turn them off, per kind (blocked / done / log errors).
+- [ ] Check macOS, Windows and Linux (notification permission on macOS).
+
+## 11. Local checks after an agent finishes
+
+When an agent is done, run the project's checks in its worktree and send the
+failures back to it, before a person reviews.
+
+- [ ] `checks` in `.larvyn/project.json`: a list of commands (e.g. `vendor/bin/pint --test`, `vendor/bin/phpstan`, `php artisan test`), run through `internal/proc`; update `examples/project`.
+- [ ] Run them when the agent turns done (needs task 9) and show pass/fail on the agent's card.
+- [ ] On failure, send the trimmed output to the agent (`agents send`), with a cap on rounds (e.g. 3) before it asks for a person.
+- [ ] Option to run them by hand, and to turn the automatic loop off.
+
+## 12. Push and pull request in one click
+
+- [ ] On an agent with commits: push its `larvyn/<task>` branch and open a PR with `gh pr create`, through `proc.Run`.
+- [ ] Title and body from the task's prompt and the diff (editable before sending); no AI attribution in them.
+- [ ] Doctor check when `gh` is missing or not logged in; the button explains why it is off.
+- [ ] Show the PR link and its state on the agent's card.
+
+## 13. CI and review feedback to the agent
+
+Needs task 12.
+
+- [ ] Poll `gh pr checks` and the PR's review comments for agents that have a PR.
+- [ ] Send failed checks (with the failing job's log tail) and new review comments to the agent that owns the branch.
+- [ ] Same round cap and off switch as task 11.
+
+## 14. Merge conflicts handled by the agent
+
+- [ ] When merging an agent's branch conflicts, abort cleanly and offer "Ask the agent to rebase".
+- [ ] Send it the base branch and the conflicting files; once it is done, try the merge again.
+
+## 15. Agents board
+
+- [ ] Board layout in Agents next to the grid, with lanes: Working, Needs you, In review (checks or PR pending), Ready to merge.
+- [ ] Lanes come from the agent's state (task 9), its local checks (task 11) and its PR (task 12); lanes whose source is missing are hidden.
+- [ ] Show how long each agent has been in its state ("working 4m", "blocked 2m").
+
+## 16. Orchestrator mode
+
+The local API already lets an agent start, message and wait for others, and
+records the `parent` of each one (`internal/agentapi/agents.go`).
+
+- [ ] Playbook "Orchestrate": the main agent splits the task and starts one worker per piece with `larvyn agents start`, then waits for them and reports.
+- [ ] Show the parent → children tree in Agents.
+- [ ] Optionally start from a spec: the Elephant writes it, the orchestrator splits it.
+
+## 17. Checkpoints per turn
+
+- [ ] Each time an agent goes from working to blocked/done, snapshot its worktree (including untracked files) to `refs/larvyn/checkpoints/<task>/<n>`.
+- [ ] List the turns with their diff on the agent, and restore one.
+- [ ] Remove the refs when the agent is merged or discarded.
+
+## 18. Agents that survive closing Larvyn (design first)
+
+Today closing, crashing or updating Larvyn ends running agents; the workspace
+is restored and conversations resume, but work in flight stops.
+
+- [ ] Write a design: a `larvyn daemon` owning the PTYs, the window as a client, scrollback on reconnect, a versioned protocol, and how updates replace the daemon.
+- [ ] Cover both sides (ConPTY on Windows, PTY elsewhere) and how `proc.KillTree` fits.
+- [ ] Only then split it into tasks.
