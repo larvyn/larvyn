@@ -56,7 +56,7 @@ import {
 import { PLUGINS_CHANGED, toggleService } from './pluginRun'
 import { usePluginViews, viewKey } from './PluginView'
 import { cx, mod } from '../lib/util'
-import { Logo, TermPane, Toggle, useNow } from './ui'
+import { Logo, TermPane, Toggle, renameOnRightClick, useNow } from './ui'
 import { activity } from '../lib/terms'
 import { FeedbackButton, TitleFeedback } from './Feedback'
 import { askRemoveProject } from './removeProject'
@@ -474,7 +474,7 @@ export function Drawer() {
         <Terminal style={{ width: 14, height: 14, color: 'var(--text-3)', marginRight: 6, flexShrink: 0 }} />
         {runs.length === 0 && <span className="faint" style={{ fontSize: 12 }}>Commands you run from Artisan, the palette or the doctor show up here.</span>}
         {runs.map((r) => (
-          <button key={r.id} className={cx('dtab', active?.id === r.id && 'active')} onClick={() => showConsole(true, r.id)}>
+          <button key={r.id} className={cx('dtab', active?.id === r.id && 'active')} onClick={() => showConsole(true, r.id)} onContextMenu={renameOnRightClick(r)}>
             <span className={cx('status-dot', r.running ? (r.kind === 'service' ? 'on' : 'busy') : r.exitCode === 0 || r.stopped ? '' : 'err')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
             <span className="ellipsis">{r.title}</span>
             {r.kind === 'run' && (

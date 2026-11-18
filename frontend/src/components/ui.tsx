@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from 'zustand'
 import { Clipboard } from '@wailsio/runtime'
 import { AlertTriangle, Bug, CheckCircle2, Info, Search, X, XCircle } from 'lucide-react'
 import { SystemService } from '../../bindings/larvyn/internal/system'
+import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { attach, focusTerm, pasteInTerm, termSelection } from '../lib/terms'
 import { fail, useStore } from '../lib/store'
 import { cx, isMac, load, save } from '../lib/util'
@@ -248,6 +249,18 @@ const usePrompt = create<{ req: PromptReq | null }>(() => ({ req: null }))
 /** Asks for one line of text; resolves null when cancelled. */
 export function promptDialog(opts: Omit<PromptReq, 'resolve'>): Promise<string | null> {
   return new Promise((resolve) => usePrompt.setState({ req: { ...opts, resolve } }))
+}
+
+/** Renames a terminal or agent; the name is kept across restarts. */
+export async function renameSession(s: { id: string; title: string }) {
+  const title = (await promptDialog({ title: 'Rename', value: s.title }))?.trim()
+  if (title && title !== s.title) TerminalService.Rename(s.id, title)
+}
+
+/** Right-click handler that renames the session. */
+export const renameOnRightClick = (s: { id: string; title: string }) => (e: ReactMouseEvent) => {
+  e.preventDefault()
+  renameSession(s)
 }
 
 /** Shows the open prompt dialog; mounted once by the app. */

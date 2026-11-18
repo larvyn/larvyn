@@ -46,7 +46,7 @@ import { agentStatus, composerRun, fail, relaunch, runInConsole, toast, useActiv
 import { activity } from '../lib/terms'
 import { copy, cx, duration, errMsg, initials, load, mod, save } from '../lib/util'
 import { useRunShortcut } from '../lib/shortcuts'
-import { Empty, SidePanel, TermPane, confirmDialog, useNow } from '../components/ui'
+import { Empty, SidePanel, TermPane, confirmDialog, renameOnRightClick, useNow } from '../components/ui'
 import { FileDiff as FileDiffView, firstLine, parseDiff, reviewMessage, type Comment, type Review } from '../components/DiffView'
 import { Brand, brandUrl } from '../components/Brand'
 import { DriftView, ROLE_LABEL, type Role, SpecPanel, SpecStrip, type SpecTab, useSpecs } from '../components/Specs'
@@ -458,7 +458,7 @@ function AgentCard(props: {
         <div className="avatar" style={{ background: brandUrl(s.key) ? 'var(--bg-3)' : color }}>
           <Brand id={s.key} size={15} fallback={initials(s.meta?.agentName || s.key).slice(0, 1)} />
         </div>
-        <div className="grow" style={{ minWidth: 0 }}>
+        <div className="grow" style={{ minWidth: 0 }} onContextMenu={renameOnRightClick(s)}>
           <div className="ttl ellipsis" title={s.meta?.prompt}>
             {s.title}
           </div>
