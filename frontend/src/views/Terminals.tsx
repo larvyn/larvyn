@@ -20,7 +20,7 @@ import { TerminalService } from '../../bindings/larvyn/internal/terminal'
 import { newTerminal, openInTab, relaunch, useActive, useStore, type TermTab } from '../lib/store'
 import { clearTerm, focusTerm } from '../lib/terms'
 import { cx, duration } from '../lib/util'
-import { Empty, TermPane, promptDialog, useNow } from '../components/ui'
+import { Empty, TermPane, renameOnRightClick, renameSession, useNow } from '../components/ui'
 import { Brand } from '../components/Brand'
 import { NewTabMenu } from '../components/NewTabMenu'
 
@@ -186,7 +186,7 @@ export function Terminals() {
 function SessionRow({ s, now, active, onOpen }: { s: SessionInfo; now: number; active: boolean; onOpen: () => void }) {
   const Icon = KIND_ICON[s.kind] ?? TermIcon
   return (
-    <button className={cx('list-item', active && 'active')} onClick={onOpen} title={s.command || s.cwd}>
+    <button className={cx('list-item', active && 'active')} onClick={onOpen} onContextMenu={renameOnRightClick(s)} title={s.command || s.cwd}>
       {s.kind === 'agent' ? (
         <Brand id={s.key} size={14} fallback={<Icon style={s.meta?.color ? { color: s.meta.color } : undefined} />} />
       ) : (
@@ -209,7 +209,7 @@ function SessionRow({ s, now, active, onOpen }: { s: SessionInfo; now: number; a
 
 function PaneHeader({ s, focused, onClose }: { s: SessionInfo; focused: boolean; onClose: () => void }) {
   return (
-    <div className="row" style={{ height: 30, padding: '0 6px 0 12px', borderBottom: '1px solid var(--line)', background: focused ? 'var(--bg-2)' : 'var(--bg-1)', flexShrink: 0 }}>
+    <div className="row" style={{ height: 30, padding: '0 6px 0 12px', borderBottom: '1px solid var(--line)', background: focused ? 'var(--bg-2)' : 'var(--bg-1)', flexShrink: 0 }} onContextMenu={renameOnRightClick(s)}>
       <span className={cx('status-dot', s.running && 'on')} style={{ width: 6, height: 6, boxShadow: 'none' }} />
       <span className="ellipsis" style={{ fontSize: 12, fontWeight: 550 }}>
         {s.title}
@@ -221,10 +221,7 @@ function PaneHeader({ s, focused, onClose }: { s: SessionInfo; focused: boolean;
       <button
         className="icon-btn sm"
         title="Rename"
-        onClick={async () => {
-          const t = await promptDialog({ title: 'Rename terminal', value: s.title })
-          if (t) TerminalService.Rename(s.id, t)
-        }}
+        onClick={() => renameSession(s)}
       >
         <Pencil />
       </button>

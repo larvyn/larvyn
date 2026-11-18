@@ -87,6 +87,9 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 		out, _ := a.Output(run.ID)
 		return strings.Contains(out, "hello-from-run") && !a.find("p1", "run", "").Running
 	})
+	// A rename is kept across restarts and relaunches.
+	a.Rename(shell.ID, "my shell")
+	a.Rename(run.ID, "my run")
 	_ = a.Write(shell.ID, "echo marker-$((40+2))\n")
 	waitFor(t, func() bool { out, _ := a.Output(shell.ID); return strings.Contains(out, "marker-42") })
 	a.SetLayout(map[string]ProjectLayout{"p1": {Active: "t2", Tabs: []TabLayout{
@@ -120,6 +123,9 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	if !newShell.Running {
 		t.Error("the shell should run again")
 	}
+	if newShell.Title != "my shell" || newRun.Title != "my run" {
+		t.Errorf("renamed titles not restored: %q, %q", newShell.Title, newRun.Title)
+	}
 	if newRun.Running || !newRun.Restored {
 		t.Errorf("the run must not run again: %+v", newRun)
 	}
@@ -144,6 +150,9 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 		out, _ := b.Output(newRun.ID)
 		return strings.Count(out, "hello-from-run") == 2
 	})
+	if s, _ := b.get(newRun.ID); s.snapshotInfo().Title != "my run" {
+		t.Errorf("relaunch lost the name: %q", s.snapshotInfo().Title)
+	}
 }
 
 func TestRestoreOffSkipsAndDeletes(t *testing.T) {
