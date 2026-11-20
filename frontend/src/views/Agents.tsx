@@ -454,7 +454,7 @@ function AgentCard(props: {
   const slug = s.meta?.spec
   return (
     <div id={`agent-${s.id}`} className={cx('agent-card', status === 'working' && 'working', status === 'attention' && 'attention', props.reviewing && 'reviewing')} onMouseDown={() => s.bell && TerminalService.ClearBell(s.id)}>
-      <div className="ahead">
+      <div className="ahead" onDoubleClick={(e) => !(e.target as HTMLElement).closest('button, a, input') && props.onFocus()}>
         <div className="avatar" style={{ background: brandUrl(s.key) ? 'var(--bg-3)' : color }}>
           <Brand id={s.key} size={15} fallback={initials(s.meta?.agentName || s.key).slice(0, 1)} />
         </div>
