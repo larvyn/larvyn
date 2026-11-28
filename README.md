@@ -1,6 +1,6 @@
 # Larvyn downloads
 
-Updated 2026-11-27. Daily rows are in downloads.csv; see scripts/stats.sh on master for what the columns mean.
+Updated 2026-11-28. Daily rows are in downloads.csv; see scripts/stats.sh on master for what the columns mean.
 
 | Release | macOS | Linux | Windows | Downloads | Installs | Updates |
 |---|---:|---:|---:|---:|---:|---:|
